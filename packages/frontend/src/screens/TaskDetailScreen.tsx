@@ -24,8 +24,9 @@ import {
   deleteAttachment,
   addComment,
   deleteComment,
+  moveTask,
 } from '@/store/slices';
-import { selectTaskById, selectEpicsByBoardId } from '@/store/selectors';
+import { selectTaskById, selectEpicsByBoardId, selectSectionsByBoardId } from '@/store/selectors';
 import type { Priority, Epic } from '@kanban/shared';
 
 interface TaskDetailScreenProps {
@@ -61,7 +62,9 @@ export function TaskDetailScreen({
 
   const task = useAppSelector((state) => selectTaskById(state, taskId));
   const epics = useAppSelector((state) => selectEpicsByBoardId(state, boardId));
+  const sections = useAppSelector((state) => selectSectionsByBoardId(state, boardId));
   const isLoading = useAppSelector((state) => state.tasks.isLoading);
+  const taskError = useAppSelector((state) => state.tasks.error);
 
   // Edit state
   const [isEditing, setIsEditing] = useState(false);
@@ -78,10 +81,14 @@ export function TaskDetailScreen({
 
   // Attachment state
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Epic selector state
   const [showEpicSelector, setShowEpicSelector] = useState(false);
+  
+  // Section selector state (for moving tasks)
+  const [showSectionSelector, setShowSectionSelector] = useState(false);
 
   useEffect(() => {
     dispatch(fetchTask(taskId));
@@ -174,11 +181,15 @@ export function TaskDetailScreen({
       if (!file) return;
 
       setIsUploadingAttachment(true);
+      setUploadError(null);
       try {
         await dispatch(uploadAttachment({ taskId, file })).unwrap();
         Alert.alert('Success', 'Attachment uploaded successfully');
-      } catch {
-        Alert.alert('Error', 'Failed to upload attachment');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to upload attachment';
+        setUploadError(errorMessage);
+        Alert.alert('Error', errorMessage);
+        console.error('Upload error:', error);
       } finally {
         setIsUploadingAttachment(false);
         // Reset the input
@@ -191,6 +202,7 @@ export function TaskDetailScreen({
   );
 
   const handleAddAttachment = useCallback(() => {
+    setUploadError(null);
     if (Platform.OS === 'web') {
       fileInputRef.current?.click();
     } else {
@@ -208,8 +220,9 @@ export function TaskDetailScreen({
           onPress: async () => {
             try {
               await dispatch(deleteAttachment({ taskId, attachmentId })).unwrap();
-            } catch {
-              Alert.alert('Error', 'Failed to delete attachment');
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to delete attachment';
+              Alert.alert('Error', errorMessage);
             }
           },
         },
@@ -233,8 +246,9 @@ export function TaskDetailScreen({
     try {
       await dispatch(addComment({ taskId, content: newComment.trim() })).unwrap();
       setNewComment('');
-    } catch {
-      Alert.alert('Error', 'Failed to add comment');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add comment';
+      Alert.alert('Error', errorMessage);
     } finally {
       setIsAddingComment(false);
     }
@@ -250,14 +264,41 @@ export function TaskDetailScreen({
           onPress: async () => {
             try {
               await dispatch(deleteComment({ taskId, commentId })).unwrap();
-            } catch {
-              Alert.alert('Error', 'Failed to delete comment');
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to delete comment';
+              Alert.alert('Error', errorMessage);
             }
           },
         },
       ]);
     },
     [dispatch, taskId]
+  );
+
+  // Handle moving task to a different section
+  const handleMoveToSection = useCallback(
+    async (newSectionId: string) => {
+      if (!task || task.sectionId === newSectionId) {
+        setShowSectionSelector(false);
+        return;
+      }
+
+      try {
+        await dispatch(
+          moveTask({
+            taskId,
+            oldSectionId: task.sectionId,
+            data: { sectionId: newSectionId, position: 0 },
+          })
+        ).unwrap();
+        setShowSectionSelector(false);
+        Alert.alert('Success', 'Task moved successfully');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to move task';
+        Alert.alert('Error', errorMessage);
+      }
+    },
+    [dispatch, taskId, task]
   );
 
   if (!task) {
@@ -443,6 +484,37 @@ export function TaskDetailScreen({
           )}
         </View>
 
+        {/* Move to Section */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionLabel}>Section</Text>
+            <TouchableOpacity onPress={() => setShowSectionSelector(!showSectionSelector)}>
+              <Text style={styles.addButton}>{showSectionSelector ? 'Done' : 'Move'}</Text>
+            </TouchableOpacity>
+          </View>
+          {showSectionSelector ? (
+            <View style={styles.sectionSelector}>
+              {sections.map((section) => (
+                <TouchableOpacity
+                  key={section.id}
+                  style={[
+                    styles.sectionOption,
+                    task.sectionId === section.id && styles.sectionSelected,
+                  ]}
+                  onPress={() => handleMoveToSection(section.id)}
+                >
+                  <Text style={styles.sectionOptionName}>{section.name}</Text>
+                  {task.sectionId === section.id && <Text style={styles.checkmark}>✓</Text>}
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.sectionValue}>
+              {sections.find((s) => s.id === task.sectionId)?.name || 'Unknown'}
+            </Text>
+          )}
+        </View>
+
         {/* Epics */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -555,6 +627,13 @@ export function TaskDetailScreen({
             </TouchableOpacity>
           </View>
           
+          {/* Upload error display */}
+          {uploadError && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>Upload failed: {uploadError}</Text>
+            </View>
+          )}
+          
           {/* Hidden file input for web */}
           {Platform.OS === 'web' && (
             <input
@@ -591,7 +670,7 @@ export function TaskDetailScreen({
                 </TouchableOpacity>
               </View>
             ))}
-            {task.attachments.length === 0 && (
+            {task.attachments.length === 0 && !uploadError && (
               <Text style={styles.emptyValue}>No attachments</Text>
             )}
           </View>
@@ -794,6 +873,31 @@ const styles = StyleSheet.create({
     color: '#6366f1',
     fontWeight: '600',
   },
+  sectionSelector: {
+    marginTop: 8,
+  },
+  sectionOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    marginBottom: 8,
+  },
+  sectionSelected: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#3b82f6',
+  },
+  sectionOptionName: {
+    flex: 1,
+    fontSize: 14,
+    color: '#374151',
+  },
+  sectionValue: {
+    fontSize: 16,
+    color: '#374151',
+  },
   epicSelector: {
     marginTop: 8,
   },
@@ -939,6 +1043,18 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#ef4444',
     fontWeight: 'bold',
+  },
+  errorContainer: {
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+  },
+  errorText: {
+    color: '#dc2626',
+    fontSize: 13,
   },
   metadata: {
     marginTop: 4,

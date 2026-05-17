@@ -171,20 +171,17 @@ export const uploadAttachment = createAsyncThunk<
     const formData = new FormData();
     formData.append('file', file);
     
-    const response = await apiClient.post<{ data: { id: string } }>(
+    // Use the upload method which doesn't set Content-Type (browser sets it with boundary)
+    await apiClient.upload<{ data: { id: string } }>(
       `/tasks/${taskId}/attachments`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
+      formData
     );
     
     // Fetch the updated task to get the full attachment data
     const taskResponse = await apiClient.get<{ data: Task }>(`/tasks/${taskId}`);
     return taskResponse.data.data;
   } catch (error) {
+    console.error('Upload attachment error:', error);
     const message = error instanceof Error ? error.message : 'Failed to upload attachment';
     return rejectWithValue(message);
   }
@@ -216,9 +213,14 @@ export const addComment = createAsyncThunk<
   { rejectValue: string }
 >('tasks/addComment', async ({ taskId, content }, { rejectWithValue }) => {
   try {
-    const response = await apiClient.post<{ data: Task }>(`/tasks/${taskId}/comments`, { content });
-    return response.data.data;
+    // Add the comment
+    await apiClient.post<{ data: { id: string } }>(`/tasks/${taskId}/comments`, { content });
+    
+    // Fetch the updated task to get the full task with new comment
+    const taskResponse = await apiClient.get<{ data: Task }>(`/tasks/${taskId}`);
+    return taskResponse.data.data;
   } catch (error) {
+    console.error('Add comment error:', error);
     const message = error instanceof Error ? error.message : 'Failed to add comment';
     return rejectWithValue(message);
   }

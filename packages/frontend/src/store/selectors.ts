@@ -8,7 +8,7 @@ import type { Task, Section, Epic, FilterState, Priority } from '@kanban/shared'
  * Select all boards as array
  */
 export const selectAllBoards = (state: RootState) =>
-  state.boards.allIds.map((id) => state.boards.byId[id]);
+  state.boards.allIds.map((id) => state.boards.byId[id]).filter(Boolean);
 
 /**
  * Select current board

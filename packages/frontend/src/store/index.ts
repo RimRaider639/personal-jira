@@ -36,12 +36,12 @@ const rootReducer = combineReducers({
 // Persist configuration
 const persistConfig = {
   key: 'kanban-root',
-  version: 1,
+  version: 2, // Bumped version to force state reset
   storage: AsyncStorage,
-  // Whitelist slices to persist
-  whitelist: ['auth', 'boards', 'sections', 'tasks', 'epics', 'filters', 'ui'],
+  // Only persist auth - other data will be fetched fresh from API
+  whitelist: ['auth'],
   // Blacklist slices that shouldn't be persisted
-  blacklist: ['sync'],
+  blacklist: ['sync', 'boards', 'sections', 'tasks', 'epics', 'filters', 'ui'],
 };
 
 // Create persisted reducer

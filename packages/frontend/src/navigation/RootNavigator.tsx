@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 import { useAppSelector } from '@/store';
 import { selectIsAuthenticated } from '@/store/selectors';
@@ -9,6 +10,7 @@ import { selectIsAuthenticated } from '@/store/selectors';
 import { LoginScreen } from '@/screens/LoginScreen';
 import { RegisterScreen } from '@/screens/RegisterScreen';
 import { BoardListScreen } from '@/screens/BoardListScreen';
+import { BoardScreen } from '@/screens/BoardScreen';
 
 /**
  * Navigation param list types
@@ -22,6 +24,31 @@ export type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+/**
+ * Wrapper for BoardScreen to extract route params
+ */
+function BoardScreenWrapper({ 
+  route, 
+  navigation 
+}: NativeStackScreenProps<RootStackParamList, 'Board'>): React.JSX.Element {
+  const handleBack = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
+
+  const handleTaskPress = useCallback((taskId: string) => {
+    // TODO: Navigate to TaskDetail screen
+    console.log('Task pressed:', taskId);
+  }, []);
+
+  return (
+    <BoardScreen 
+      boardId={route.params.boardId} 
+      onBack={handleBack}
+      onTaskPress={handleTaskPress}
+    />
+  );
+}
 
 /**
  * Auth Navigator - Handles login and registration screens
@@ -57,7 +84,7 @@ function MainNavigator(): React.JSX.Element {
       }}
     >
       <Stack.Screen name="BoardList" component={BoardListScreen} />
-      {/* Additional screens will be added in later tasks */}
+      <Stack.Screen name="Board" component={BoardScreenWrapper} />
     </Stack.Navigator>
   );
 }

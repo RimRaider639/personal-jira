@@ -12,6 +12,8 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
@@ -23,6 +25,7 @@ import {
 } from '@/store/slices';
 import { selectAllBoards, selectCurrentUser } from '@/store/selectors';
 import type { Board } from '@kanban/shared';
+import type { RootStackParamList } from '@/navigation/RootNavigator';
 
 interface CreateBoardModalProps {
   visible: boolean;
@@ -194,6 +197,7 @@ function BoardCard({ board, onPress, onDelete }: BoardCardProps): React.JSX.Elem
  */
 export function BoardListScreen(): React.JSX.Element {
   const dispatch = useAppDispatch();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const boards = useAppSelector(selectAllBoards);
   const user = useAppSelector(selectCurrentUser);
   const isLoading = useAppSelector((state) => state.boards.isLoading);
@@ -228,9 +232,8 @@ export function BoardListScreen(): React.JSX.Element {
    * Handle board press - navigate to board
    */
   const handleBoardPress = useCallback((boardId: string) => {
-    // TODO: Navigate to BoardScreen in Task 21
-    console.log('Navigate to board:', boardId);
-  }, []);
+    navigation.navigate('Board', { boardId });
+  }, [navigation]);
 
   /**
    * Handle board delete

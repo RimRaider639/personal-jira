@@ -317,21 +317,24 @@ export function BoardScreen({
 }: BoardScreenProps): React.JSX.Element {
   const dispatch = useAppDispatch();
 
-  const board = useAppSelector((state) => selectBoardById(state, boardId));
-  const sections = useAppSelector((state) => selectSectionsByBoardId(state, boardId));
-  const epics = useAppSelector((state) => selectEpicsByBoardId(state, boardId));
+  const board = useAppSelector((state) => boardId ? selectBoardById(state, boardId) : null);
+  const sections = useAppSelector((state) => boardId ? selectSectionsByBoardId(state, boardId) : []);
+  const epics = useAppSelector((state) => boardId ? selectEpicsByBoardId(state, boardId) : []);
   const syncStatus = useAppSelector(selectSyncStatus);
-  const hasActiveFilters = useAppSelector((state) => selectHasActiveFilters(state, boardId));
-  const filteredCount = useAppSelector((state) => selectFilteredTaskCount(state, boardId));
-  const totalCount = useAppSelector((state) => selectTotalTaskCount(state, boardId));
+  const hasActiveFilters = useAppSelector((state) => boardId ? selectHasActiveFilters(state, boardId) : false);
+  const filteredCount = useAppSelector((state) => boardId ? selectFilteredTaskCount(state, boardId) : 0);
+  const totalCount = useAppSelector((state) => boardId ? selectTotalTaskCount(state, boardId) : 0);
 
   const isLoading = useAppSelector((state) => state.sections.isLoading || state.tasks.isLoading);
 
   // Build tasks by section ID map
   const tasksBySectionId = useAppSelector((state) => {
+    if (!boardId) return {};
     const result: Record<string, Task[]> = {};
     sections.forEach((section) => {
-      result[section.id] = selectFilteredTasksBySectionId(state, section.id, boardId);
+      if (section?.id) {
+        result[section.id] = selectFilteredTasksBySectionId(state, section.id, boardId);
+      }
     });
     return result;
   });
@@ -349,6 +352,9 @@ export function BoardScreen({
    * Fetch board data on mount
    */
   useEffect(() => {
+    if (!boardId) {
+      return;
+    }
     dispatch(setCurrentBoard(boardId));
     dispatch(fetchSections(boardId));
     dispatch(fetchTasks(boardId));
@@ -479,7 +485,7 @@ export function BoardScreen({
     [dispatch, boardId]
   );
 
-  if (!board) {
+  if (!boardId || !board) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>

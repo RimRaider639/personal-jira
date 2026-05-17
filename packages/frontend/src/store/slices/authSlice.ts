@@ -31,9 +31,13 @@ export const login = createAsyncThunk<AuthResponse, LoginRequest, { rejectValue:
   'auth/login',
   async (credentials, { rejectWithValue }) => {
     try {
+      console.log('[Auth] Attempting login for:', credentials.email);
       const response = await apiClient.post<AuthResponse>('/auth/login', credentials);
+      console.log('[Auth] Login response:', response);
+      console.log('[Auth] Login data:', response.data);
       return response.data;
     } catch (error) {
+      console.error('[Auth] Login error:', error);
       const message = error instanceof Error ? error.message : 'Login failed';
       return rejectWithValue(message);
     }

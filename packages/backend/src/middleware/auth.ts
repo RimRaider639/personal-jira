@@ -3,13 +3,30 @@ import { verifyToken, JwtPayload } from '../services/auth.service';
 import { createError } from './errorHandler';
 
 /**
- * Extended Express Request interface with authenticated user
- * Note: The 'file' property is added by multer middleware and typed via @types/multer
+ * Multer file interface for uploaded files
  */
-export interface AuthenticatedRequest extends Request {
+export interface MulterFile {
+  fieldname: string;
+  originalname: string;
+  encoding: string;
+  mimetype: string;
+  size: number;
+  destination?: string;
+  filename?: string;
+  path?: string;
+  buffer: Buffer;
+  stream?: NodeJS.ReadableStream;
+}
+
+/**
+ * Extended Express Request interface with authenticated user
+ * Note: The 'file' property is added by multer middleware
+ */
+export interface AuthenticatedRequest extends Omit<Request, 'file'> {
   user?: {
     userId: string;
   };
+  file?: MulterFile;
 }
 
 /**

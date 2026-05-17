@@ -52,6 +52,90 @@ interface CreateTaskModalProps {
   isLoading: boolean;
 }
 
+interface CreateSectionModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onSubmit: (name: string) => void;
+  isLoading: boolean;
+}
+
+/**
+ * CreateSectionModal - Modal for creating a new section
+ */
+function CreateSectionModal({
+  visible,
+  onClose,
+  onSubmit,
+  isLoading,
+}: CreateSectionModalProps): React.JSX.Element {
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+
+  const handleSubmit = useCallback(() => {
+    if (!name.trim()) {
+      setError('Section name is required');
+      return;
+    }
+    onSubmit(name.trim());
+    setName('');
+    setError('');
+  }, [name, onSubmit]);
+
+  const handleClose = useCallback(() => {
+    setName('');
+    setError('');
+    onClose();
+  }, [onClose]);
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+      <View style={modalStyles.overlay}>
+        <View style={modalStyles.container}>
+          <Text style={modalStyles.title}>Add Section</Text>
+
+          <View style={modalStyles.inputGroup}>
+            <Text style={modalStyles.label}>Section Name *</Text>
+            <TextInput
+              style={[modalStyles.input, error && modalStyles.inputError]}
+              placeholder="Enter section name"
+              placeholderTextColor="#9ca3af"
+              value={name}
+              onChangeText={(text) => {
+                setName(text);
+                setError('');
+              }}
+              autoFocus
+              editable={!isLoading}
+            />
+            {error && <Text style={modalStyles.errorText}>{error}</Text>}
+          </View>
+
+          <View style={modalStyles.buttons}>
+            <TouchableOpacity
+              style={modalStyles.cancelButton}
+              onPress={handleClose}
+              disabled={isLoading}
+            >
+              <Text style={modalStyles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[modalStyles.submitButton, isLoading && modalStyles.buttonDisabled]}
+              onPress={handleSubmit}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <Text style={modalStyles.submitButtonText}>Add Section</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 /**
  * CreateTaskModal - Modal for creating a new task
  */
@@ -258,6 +342,8 @@ export function BoardScreen({
     sectionName: string;
   }>({ visible: false, sectionId: null, sectionName: '' });
   const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [createSectionModalVisible, setCreateSectionModalVisible] = useState(false);
+  const [isCreatingSection, setIsCreatingSection] = useState(false);
 
   /**
    * Fetch board data on mount
@@ -372,23 +458,26 @@ export function BoardScreen({
    * Handle add section
    */
   const handleAddSection = useCallback(() => {
-    Alert.prompt(
-      'Add Section',
-      'Enter section name:',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Add',
-          onPress: (name) => {
-            if (name?.trim()) {
-              dispatch(createSection({ boardId, name: name.trim() }));
-            }
-          },
-        },
-      ],
-      'plain-text'
-    );
-  }, [dispatch, boardId]);
+    setCreateSectionModalVisible(true);
+  }, []);
+
+  /**
+   * Handle create section
+   */
+  const handleCreateSection = useCallback(
+    async (name: string) => {
+      setIsCreatingSection(true);
+      try {
+        await dispatch(createSection({ boardId, name })).unwrap();
+        setCreateSectionModalVisible(false);
+      } catch {
+        Alert.alert('Error', 'Failed to create section. Please try again.');
+      } finally {
+        setIsCreatingSection(false);
+      }
+    },
+    [dispatch, boardId]
+  );
 
   if (!board) {
     return (
@@ -459,6 +548,14 @@ export function BoardScreen({
         onClose={() => setCreateTaskModal({ visible: false, sectionId: null, sectionName: '' })}
         onSubmit={handleCreateTask}
         isLoading={isCreatingTask}
+      />
+
+      {/* Create Section Modal */}
+      <CreateSectionModal
+        visible={createSectionModalVisible}
+        onClose={() => setCreateSectionModalVisible(false)}
+        onSubmit={handleCreateSection}
+        isLoading={isCreatingSection}
       />
     </SafeAreaView>
   );

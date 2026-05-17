@@ -69,10 +69,12 @@ const handleResponse = async <T>(response: Response): Promise<ApiResponse<T>> =>
   }
 
   if (isJson) {
-    return response.json();
+    const jsonData = await response.json();
+    // Wrap the response in { data: ... } format for consistency
+    return { data: jsonData as T, success: true };
   }
 
-  return { data: {} as T };
+  return { data: {} as T, success: true };
 };
 
 /**

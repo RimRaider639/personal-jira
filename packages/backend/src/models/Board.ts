@@ -93,10 +93,12 @@ boardSchema.statics.findByUserId = function (
   return this.find({ userId }).sort({ createdAt: -1 });
 };
 
-// Remove __v when converting to JSON
+// Transform _id to id and remove __v when converting to JSON
 boardSchema.set('toJSON', {
   transform: (_doc, ret) => {
     const obj = ret as unknown as Record<string, unknown>;
+    obj.id = obj._id;
+    delete obj._id;
     delete obj.__v;
     return ret;
   },

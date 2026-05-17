@@ -77,10 +77,12 @@ userSchema.methods.comparePassword = async function (candidatePassword: string):
   return bcrypt.compare(candidatePassword, this.passwordHash);
 };
 
-// Remove sensitive fields when converting to JSON
+// Transform _id to id and remove sensitive fields when converting to JSON
 userSchema.set('toJSON', {
   transform: (_doc, ret) => {
     const obj = ret as unknown as Record<string, unknown>;
+    obj.id = obj._id;
+    delete obj._id;
     delete obj.passwordHash;
     delete obj.__v;
     return ret;

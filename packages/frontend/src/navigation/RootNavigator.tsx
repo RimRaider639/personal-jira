@@ -1,6 +1,6 @@
-import React, { useState, useCallback } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, StyleSheet, Platform } from 'react-native';
+import { NavigationContainer, LinkingOptions } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 
@@ -22,6 +22,28 @@ export type RootStackParamList = {
   BoardList: undefined;
   Board: { boardId: string };
   TaskDetail: { taskId: string; boardId: string };
+};
+
+/**
+ * Linking configuration for web URL navigation
+ */
+const linking: LinkingOptions<RootStackParamList> = {
+  prefixes: [
+    // Add your production URL here
+    'https://personal-jira-backend.vercel.app',
+    // Local development
+    'http://localhost:8081',
+    'http://localhost:19006',
+  ],
+  config: {
+    screens: {
+      Login: 'login',
+      Register: 'register',
+      BoardList: 'boards',
+      Board: 'boards/:boardId',
+      TaskDetail: 'boards/:boardId/tasks/:taskId',
+    },
+  },
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -130,8 +152,11 @@ function MainNavigator(): React.JSX.Element {
 export function RootNavigator(): React.JSX.Element {
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
 
+  // Only use linking on web platform
+  const linkingConfig = Platform.OS === 'web' ? linking : undefined;
+
   return (
-    <NavigationContainer>
+    <NavigationContainer linking={linkingConfig}>
       <View style={styles.container}>
         {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
       </View>

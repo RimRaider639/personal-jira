@@ -73,10 +73,12 @@ sectionSchema.statics.getNextPosition = async function (
   return lastSection ? lastSection.position + 1 : 0;
 };
 
-// Remove __v when converting to JSON
+// Transform _id to id and remove __v when converting to JSON
 sectionSchema.set('toJSON', {
   transform: (_doc, ret) => {
     const obj = ret as unknown as Record<string, unknown>;
+    obj.id = obj._id;
+    delete obj._id;
     delete obj.__v;
     return ret;
   },

@@ -336,11 +336,33 @@ taskSchema.methods.removeAttachment = function (attachmentId: Types.ObjectId): b
   return true;
 };
 
-// Remove __v when converting to JSON
+// Transform _id to id and remove __v when converting to JSON
+// Also transform nested comments and attachments _id to id
 taskSchema.set('toJSON', {
   transform: (_doc, ret) => {
     const obj = ret as unknown as Record<string, unknown>;
+    obj.id = obj._id;
+    delete obj._id;
     delete obj.__v;
+    
+    // Transform comments _id to id
+    if (Array.isArray(obj.comments)) {
+      obj.comments = (obj.comments as Record<string, unknown>[]).map((comment) => ({
+        ...comment,
+        id: comment._id,
+        _id: undefined,
+      }));
+    }
+    
+    // Transform attachments _id to id
+    if (Array.isArray(obj.attachments)) {
+      obj.attachments = (obj.attachments as Record<string, unknown>[]).map((attachment) => ({
+        ...attachment,
+        id: attachment._id,
+        _id: undefined,
+      }));
+    }
+    
     return ret;
   },
 });

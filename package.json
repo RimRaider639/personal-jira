@@ -1,0 +1,32 @@
+{
+  "name": "personal-kanban-board",
+  "version": "1.0.0",
+  "description": "Cross-platform Personal Kanban Board application",
+  "private": true,
+  "workspaces": [
+    "packages/frontend",
+    "packages/backend",
+    "packages/shared"
+  ],
+  "scripts": {
+    "frontend": "npm run --workspace=packages/frontend",
+    "backend": "npm run --workspace=packages/backend",
+    "shared": "npm run --workspace=packages/shared",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "kanban",
+    "task-management",
+    "react-native",
+    "nodejs",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT"
+}

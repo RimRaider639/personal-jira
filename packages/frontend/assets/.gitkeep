@@ -1,0 +1,8 @@
+# Placeholder for assets directory
+# Add the following image assets:
+# - icon.png (1024x1024) - App icon
+# - splash-icon.png (200x200) - Splash screen icon
+# - adaptive-icon.png (1024x1024) - Android adaptive icon foreground
+# - favicon.png (48x48) - Web favicon
+#
+# For development, Expo will use default placeholders if these are missing.

@@ -1,0 +1,12 @@
+/**
+ * Components barrel export
+ */
+export { DraggableTaskList } from './DraggableTaskList';
+export { DraggableSectionList } from './DraggableSectionList';
+export { TaskCard } from './TaskCard';
+export { SyncStatusIndicator } from './SyncStatusIndicator';
+export { FilterBar } from './FilterBar';
+export { FilterPanel } from './FilterPanel';
+export { SearchInput } from './SearchInput';
+export { ProgressBar } from './ProgressBar';
+export { ExportButton } from './ExportButton';

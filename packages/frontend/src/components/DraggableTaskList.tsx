@@ -157,6 +157,8 @@ function arePropsEqual(
   for (let i = 0; i < prevProps.tasks.length; i++) {
     const prevTask = prevProps.tasks[i];
     const nextTask = nextProps.tasks[i];
+    // Null check for safety
+    if (!prevTask || !nextTask) return false;
     if (prevTask.id !== nextTask.id || prevTask.position !== nextTask.position) {
       return false;
     }

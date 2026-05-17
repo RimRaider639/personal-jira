@@ -48,10 +48,12 @@ function DraggableSectionListComponent({
   // Combine sections with their tasks for rendering
   const sectionsWithTasks: SectionWithTasks[] = useMemo(
     () =>
-      sections.map((section) => ({
-        ...section,
-        tasks: tasksBySectionId[section.id] || [],
-      })),
+      sections
+        .filter((section): section is Section => section != null)
+        .map((section) => ({
+          ...section,
+          tasks: (tasksBySectionId[section.id] || []).filter((task): task is Task => task != null),
+        })),
     [sections, tasksBySectionId]
   );
 
@@ -228,10 +230,14 @@ function arePropsEqual(
   // Check sections array
   if (prevProps.sections.length !== nextProps.sections.length) return false;
   for (let i = 0; i < prevProps.sections.length; i++) {
+    const prevSection = prevProps.sections[i];
+    const nextSection = nextProps.sections[i];
+    // Null check for safety
+    if (!prevSection || !nextSection) return false;
     if (
-      prevProps.sections[i].id !== nextProps.sections[i].id ||
-      prevProps.sections[i].name !== nextProps.sections[i].name ||
-      prevProps.sections[i].position !== nextProps.sections[i].position
+      prevSection.id !== nextSection.id ||
+      prevSection.name !== nextSection.name ||
+      prevSection.position !== nextSection.position
     ) {
       return false;
     }
@@ -248,7 +254,11 @@ function arePropsEqual(
     if (prevTasks.length !== nextTasks.length) return false;
     // Check task IDs in order
     for (let i = 0; i < prevTasks.length; i++) {
-      if (prevTasks[i].id !== nextTasks[i].id) return false;
+      const prevTask = prevTasks[i];
+      const nextTask = nextTasks[i];
+      // Null check for safety
+      if (!prevTask || !nextTask) return false;
+      if (prevTask.id !== nextTask.id) return false;
     }
   }
 

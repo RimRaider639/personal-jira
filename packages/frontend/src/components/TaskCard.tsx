@@ -1,35 +1,22 @@
 import React, { useCallback, useMemo, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import type { Task, Epic, Priority } from '@kanban/shared';
+import type { Task, Epic, Priority, Section } from '@kanban/shared';
+import { useTheme } from '@/theme/ThemeContext';
+import { TaskCardMenu } from './TaskCardMenu';
 
 interface TaskCardProps {
   task: Task;
   epics: Epic[];
+  sections: Section[];
   onPress: (taskId: string) => void;
+  onMove?: (taskId: string, newSectionId: string) => void;
   isDragging?: boolean;
 }
 
 /**
- * Get priority color - extracted for reuse
- */
-const getPriorityColor = (priority: Priority | null): string => {
-  switch (priority) {
-    case 'critical':
-      return '#dc2626';
-    case 'high':
-      return '#f97316';
-    case 'medium':
-      return '#eab308';
-    case 'low':
-      return '#22c55e';
-    default:
-      return '#9ca3af';
-  }
-};
-
-/**
  * TaskCard - Individual task card component with drag support
  * Memoized for performance optimization.
+ * Now includes theme support and quick move menu.
  *
  * Requirements:
  * - 4.1: Display task title, priority indicator, due date
@@ -41,19 +28,43 @@ const getPriorityColor = (priority: Priority | null): string => {
 function TaskCardComponent({
   task,
   epics,
+  sections,
   onPress,
+  onMove,
   isDragging = false,
 }: TaskCardProps): React.JSX.Element {
+  const { colors } = useTheme();
+
   const handlePress = useCallback(() => {
     onPress(task.id);
   }, [task.id, onPress]);
+
+  const handleMove = useCallback(
+    (taskId: string, newSectionId: string) => {
+      onMove?.(taskId, newSectionId);
+    },
+    [onMove]
+  );
 
   const taskEpics = useMemo(
     () => epics.filter((epic) => task.epicIds.includes(epic.id)),
     [epics, task.epicIds]
   );
 
-  const priorityColor = useMemo(() => getPriorityColor(task.priority), [task.priority]);
+  const priorityColor = useMemo(() => {
+    switch (task.priority) {
+      case 'critical':
+        return colors.priorityCritical;
+      case 'high':
+        return colors.priorityHigh;
+      case 'medium':
+        return colors.priorityMedium;
+      case 'low':
+        return colors.priorityLow;
+      default:
+        return 'transparent';
+    }
+  }, [task.priority, colors]);
 
   const isOverdue = useMemo(() => {
     if (!task.endDate) return false;
@@ -62,13 +73,21 @@ function TaskCardComponent({
 
   const formattedDate = useMemo(() => {
     if (!task.endDate) return null;
-    return new Date(task.endDate).toLocaleDateString();
+    return new Date(task.endDate).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
   }, [task.endDate]);
 
   return (
     <TouchableOpacity
       style={[
         styles.card,
+        {
+          backgroundColor: colors.cardBackground,
+          borderColor: colors.cardBorder,
+          shadowColor: colors.cardShadow,
+        },
         isDragging && styles.cardDragging,
       ]}
       onPress={handlePress}
@@ -79,15 +98,24 @@ function TaskCardComponent({
     >
       {/* Priority indicator */}
       {task.priority && (
-        <View
-          style={[styles.priorityBar, { backgroundColor: priorityColor }]}
-        />
+        <View style={[styles.priorityBar, { backgroundColor: priorityColor }]} />
       )}
 
       <View style={styles.content}>
-        <Text style={styles.title} numberOfLines={2}>
-          {task.title}
-        </Text>
+        {/* Header with title and menu */}
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
+            {task.title}
+          </Text>
+          {onMove && sections.length > 1 && (
+            <TaskCardMenu
+              taskId={task.id}
+              currentSectionId={task.sectionId}
+              sections={sections}
+              onMove={handleMove}
+            />
+          )}
+        </View>
 
         {/* Epic badges */}
         {taskEpics.length > 0 && (
@@ -103,7 +131,9 @@ function TaskCardComponent({
               </View>
             ))}
             {taskEpics.length > 2 && (
-              <Text style={styles.moreEpics}>+{taskEpics.length - 2}</Text>
+              <Text style={[styles.moreEpics, { color: colors.textMuted }]}>
+                +{taskEpics.length - 2}
+              </Text>
             )}
           </View>
         )}
@@ -111,18 +141,31 @@ function TaskCardComponent({
         {/* Meta info */}
         <View style={styles.meta}>
           {formattedDate && (
-            <Text style={[styles.dueDate, isOverdue && styles.overdue]}>
+            <Text
+              style={[
+                styles.metaItem,
+                { color: isOverdue ? colors.error : colors.textSecondary },
+              ]}
+            >
               📅 {formattedDate}
             </Text>
           )}
-          {task.storyPoints && (
-            <Text style={styles.storyPoints}>{task.storyPoints} pts</Text>
+          {task.storyPoints !== null && task.storyPoints !== undefined && (
+            <View style={[styles.storyPointsBadge, { backgroundColor: colors.primaryLight }]}>
+              <Text style={[styles.storyPointsText, { color: colors.primary }]}>
+                {task.storyPoints}
+              </Text>
+            </View>
           )}
           {task.comments.length > 0 && (
-            <Text style={styles.comments}>💬 {task.comments.length}</Text>
+            <Text style={[styles.metaItem, { color: colors.textSecondary }]}>
+              💬 {task.comments.length}
+            </Text>
           )}
           {task.attachments.length > 0 && (
-            <Text style={styles.attachments}>📎 {task.attachments.length}</Text>
+            <Text style={[styles.metaItem, { color: colors.textSecondary }]}>
+              📎 {task.attachments.length}
+            </Text>
           )}
         </View>
       </View>
@@ -132,21 +175,20 @@ function TaskCardComponent({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#ffffff',
+    minHeight: 90,
     borderRadius: 8,
     marginBottom: 8,
-    shadowColor: '#000',
+    borderWidth: 1,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
     overflow: 'hidden',
   },
   cardDragging: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2,
-    shadowRadius: 8,
+    shadowRadius: 12,
     elevation: 8,
     transform: [{ scale: 1.02 }],
   },
@@ -154,13 +196,20 @@ const styles = StyleSheet.create({
     height: 3,
   },
   content: {
+    flex: 1,
     padding: 12,
+    justifyContent: 'space-between',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
   title: {
+    flex: 1,
     fontSize: 14,
     fontWeight: '500',
-    color: '#1f2937',
-    marginBottom: 8,
+    lineHeight: 20,
   },
   epicsContainer: {
     flexDirection: 'row',
@@ -169,7 +218,7 @@ const styles = StyleSheet.create({
   },
   epicBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 4,
     marginRight: 4,
     marginBottom: 4,
@@ -180,80 +229,58 @@ const styles = StyleSheet.create({
   },
   moreEpics: {
     fontSize: 10,
-    color: '#6b7280',
     alignSelf: 'center',
   },
   meta: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
+    marginTop: 'auto',
   },
-  dueDate: {
+  metaItem: {
     fontSize: 11,
-    color: '#6b7280',
-    marginRight: 8,
+    marginRight: 10,
   },
-  overdue: {
-    color: '#dc2626',
+  storyPointsBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginRight: 10,
   },
-  storyPoints: {
-    fontSize: 11,
-    color: '#6b7280',
-    marginRight: 8,
-  },
-  comments: {
-    fontSize: 11,
-    color: '#6b7280',
-    marginRight: 8,
-  },
-  attachments: {
-    fontSize: 11,
-    color: '#6b7280',
+  storyPointsText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
 });
 
 /**
  * Custom comparison function for React.memo
- * Only re-render if task data, epics, or drag state changes
  */
 function arePropsEqual(prevProps: TaskCardProps, nextProps: TaskCardProps): boolean {
-  // Check drag state first (most likely to change during drag)
   if (prevProps.isDragging !== nextProps.isDragging) return false;
-
-  // Check task identity and key fields
   if (prevProps.task.id !== nextProps.task.id) return false;
   if (prevProps.task.title !== nextProps.task.title) return false;
   if (prevProps.task.priority !== nextProps.task.priority) return false;
   if (prevProps.task.endDate !== nextProps.task.endDate) return false;
   if (prevProps.task.storyPoints !== nextProps.task.storyPoints) return false;
+  if (prevProps.task.sectionId !== nextProps.task.sectionId) return false;
   if (prevProps.task.comments.length !== nextProps.task.comments.length) return false;
   if (prevProps.task.attachments.length !== nextProps.task.attachments.length) return false;
-
-  // Check epic IDs (shallow array comparison)
   if (prevProps.task.epicIds.length !== nextProps.task.epicIds.length) return false;
+  
   for (let i = 0; i < prevProps.task.epicIds.length; i++) {
     if (prevProps.task.epicIds[i] !== nextProps.task.epicIds[i]) return false;
   }
 
-  // Check epics array reference (if same reference, no need to deep compare)
+  if (prevProps.sections.length !== nextProps.sections.length) return false;
   if (prevProps.epics !== nextProps.epics) {
-    // Only compare epics that are relevant to this task
     const prevRelevantEpics = prevProps.epics.filter((e) => prevProps.task.epicIds.includes(e.id));
     const nextRelevantEpics = nextProps.epics.filter((e) => nextProps.task.epicIds.includes(e.id));
     if (prevRelevantEpics.length !== nextRelevantEpics.length) return false;
-    for (let i = 0; i < prevRelevantEpics.length; i++) {
-      if (
-        prevRelevantEpics[i].id !== nextRelevantEpics[i].id ||
-        prevRelevantEpics[i].name !== nextRelevantEpics[i].name ||
-        prevRelevantEpics[i].color !== nextRelevantEpics[i].color
-      ) {
-        return false;
-      }
-    }
   }
 
-  // Check callback reference (should be stable with useCallback)
   if (prevProps.onPress !== nextProps.onPress) return false;
+  if (prevProps.onMove !== nextProps.onMove) return false;
 
   return true;
 }

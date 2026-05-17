@@ -10,3 +10,7 @@ export { FilterPanel } from './FilterPanel';
 export { SearchInput } from './SearchInput';
 export { ProgressBar } from './ProgressBar';
 export { ExportButton } from './ExportButton';
+export { ThemedBackground } from './ThemedBackground';
+export { TaskCardMenu } from './TaskCardMenu';
+export { DatePicker } from './DatePicker';
+export { ThemeSelector } from './ThemeSelector';

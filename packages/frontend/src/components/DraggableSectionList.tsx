@@ -5,10 +5,10 @@ import DraggableFlatList, {
   RenderItemParams,
 } from 'react-native-draggable-flatlist';
 import type { Section, Task, Epic } from '@kanban/shared';
+import { useTheme } from '@/theme/ThemeContext';
 import { DraggableTaskList } from './DraggableTaskList';
 
 const SECTION_WIDTH = 300;
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface SectionWithTasks extends Section {
   tasks: Task[];
@@ -20,6 +20,7 @@ interface DraggableSectionListProps {
   epics: Epic[];
   onTaskPress: (taskId: string) => void;
   onTaskReorder: (sectionId: string, taskIds: string[]) => void;
+  onMoveTask: (taskId: string, newSectionId: string) => void;
   onSectionReorder: (sectionIds: string[]) => void;
   onAddTask: (sectionId: string) => void;
   onAddSection: () => void;
@@ -27,13 +28,7 @@ interface DraggableSectionListProps {
 
 /**
  * DraggableSectionList - Horizontal list of draggable sections
- * Optimized with memoization for performance.
- *
- * Requirements:
- * - 2.6: Enable section reordering via drag
- * - 4.3: Handle task reordering within section
- * - 4.4: Handle task movement between sections
- * - 13.2: Optimize re-renders with React.memo
+ * Now with theme support and quick move functionality.
  */
 function DraggableSectionListComponent({
   sections,
@@ -41,10 +36,13 @@ function DraggableSectionListComponent({
   epics,
   onTaskPress,
   onTaskReorder,
+  onMoveTask,
   onSectionReorder,
   onAddTask,
   onAddSection,
 }: DraggableSectionListProps): React.JSX.Element {
+  const { colors } = useTheme();
+
   // Combine sections with their tasks for rendering
   const sectionsWithTasks: SectionWithTasks[] = useMemo(
     () =>
@@ -76,33 +74,45 @@ function DraggableSectionListComponent({
     ({ item, drag, isActive }: RenderItemParams<SectionWithTasks>) => {
       return (
         <ScaleDecorator>
-          <View style={[styles.sectionColumn, isActive && styles.sectionDragging]}>
+          <View
+            style={[
+              styles.sectionColumn,
+              { backgroundColor: colors.sectionBackground },
+              isActive && styles.sectionDragging,
+            ]}
+          >
             {/* Section Header - Draggable */}
             <TouchableOpacity
-              style={styles.sectionHeader}
+              style={[
+                styles.sectionHeader,
+                { backgroundColor: colors.sectionBackground, borderBottomColor: colors.border },
+              ]}
               onLongPress={drag}
               disabled={isActive}
               delayLongPress={200}
               accessibilityRole="button"
               accessibilityLabel={`Drag to reorder ${item.name} section`}
-              accessibilityHint="Long press to drag and reorder this section"
             >
               <View style={styles.headerContent}>
-                <Text style={styles.sectionTitle}>{item.name}</Text>
-                <View style={styles.countBadge}>
-                  <Text style={styles.countText}>{item.tasks.length}</Text>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>{item.name}</Text>
+                <View style={[styles.countBadge, { backgroundColor: colors.border }]}>
+                  <Text style={[styles.countText, { color: colors.textSecondary }]}>
+                    {item.tasks.length}
+                  </Text>
                 </View>
               </View>
-              <Text style={styles.dragHint}>⋮⋮</Text>
+              <Text style={[styles.dragHint, { color: colors.textMuted }]}>⋮⋮</Text>
             </TouchableOpacity>
 
             {/* Task List */}
             <DraggableTaskList
               tasks={item.tasks}
               epics={epics}
+              sections={sections}
               sectionId={item.id}
               onTaskPress={onTaskPress}
               onReorder={onTaskReorder}
+              onMoveTask={onMoveTask}
               onAddTask={() => handleAddTask(item.id)}
               sectionName={item.name}
             />
@@ -110,7 +120,7 @@ function DraggableSectionListComponent({
         </ScaleDecorator>
       );
     },
-    [epics, onTaskPress, onTaskReorder, handleAddTask]
+    [colors, epics, sections, onTaskPress, onTaskReorder, onMoveTask, handleAddTask]
   );
 
   const keyExtractor = useCallback((item: SectionWithTasks) => item.id, []);
@@ -118,15 +128,18 @@ function DraggableSectionListComponent({
   const ListFooterComponent = useCallback(
     () => (
       <TouchableOpacity
-        style={styles.addSectionButton}
+        style={[
+          styles.addSectionButton,
+          { backgroundColor: colors.sectionBackground, borderColor: colors.border },
+        ]}
         onPress={onAddSection}
         accessibilityRole="button"
         accessibilityLabel="Add new section"
       >
-        <Text style={styles.addSectionText}>+ Add Section</Text>
+        <Text style={[styles.addSectionText, { color: colors.textSecondary }]}>+ Add Section</Text>
       </TouchableOpacity>
     ),
-    [onAddSection]
+    [onAddSection, colors]
   );
 
   return (
@@ -151,7 +164,6 @@ const styles = StyleSheet.create({
   },
   sectionColumn: {
     width: SECTION_WIDTH,
-    backgroundColor: '#f3f4f6',
     borderRadius: 12,
     marginRight: 16,
     maxHeight: '100%',
@@ -171,8 +183,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    backgroundColor: '#f3f4f6',
   },
   headerContent: {
     flexDirection: 'row',
@@ -180,12 +190,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   countBadge: {
-    backgroundColor: '#e5e7eb',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
@@ -194,28 +204,23 @@ const styles = StyleSheet.create({
   countText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#6b7280',
   },
   dragHint: {
     fontSize: 16,
-    color: '#9ca3af',
     marginLeft: 8,
   },
   addSectionButton: {
     width: 200,
     height: 100,
-    backgroundColor: '#f3f4f6',
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#d1d5db',
     borderStyle: 'dashed',
     marginRight: 16,
   },
   addSectionText: {
-    fontSize: 16,
-    color: '#6b7280',
+    fontSize: 14,
     fontWeight: '500',
   },
 });
@@ -227,12 +232,10 @@ function arePropsEqual(
   prevProps: DraggableSectionListProps,
   nextProps: DraggableSectionListProps
 ): boolean {
-  // Check sections array
   if (prevProps.sections.length !== nextProps.sections.length) return false;
   for (let i = 0; i < prevProps.sections.length; i++) {
     const prevSection = prevProps.sections[i];
     const nextSection = nextProps.sections[i];
-    // Null check for safety
     if (!prevSection || !nextSection) return false;
     if (
       prevSection.id !== nextSection.id ||
@@ -243,7 +246,6 @@ function arePropsEqual(
     }
   }
 
-  // Check tasksBySectionId (compare task counts and IDs per section)
   const prevSectionIds = Object.keys(prevProps.tasksBySectionId);
   const nextSectionIds = Object.keys(nextProps.tasksBySectionId);
   if (prevSectionIds.length !== nextSectionIds.length) return false;
@@ -252,24 +254,21 @@ function arePropsEqual(
     const prevTasks = prevProps.tasksBySectionId[sectionId] || [];
     const nextTasks = nextProps.tasksBySectionId[sectionId] || [];
     if (prevTasks.length !== nextTasks.length) return false;
-    // Check task IDs in order
     for (let i = 0; i < prevTasks.length; i++) {
       const prevTask = prevTasks[i];
       const nextTask = nextTasks[i];
-      // Null check for safety
       if (!prevTask || !nextTask) return false;
-      if (prevTask.id !== nextTask.id) return false;
+      if (prevTask.id !== nextTask.id || prevTask.sectionId !== nextTask.sectionId) return false;
     }
   }
 
-  // Check epics reference
   if (prevProps.epics !== nextProps.epics) {
     if (prevProps.epics.length !== nextProps.epics.length) return false;
   }
 
-  // Check callback references
   if (prevProps.onTaskPress !== nextProps.onTaskPress) return false;
   if (prevProps.onTaskReorder !== nextProps.onTaskReorder) return false;
+  if (prevProps.onMoveTask !== nextProps.onMoveTask) return false;
   if (prevProps.onSectionReorder !== nextProps.onSectionReorder) return false;
   if (prevProps.onAddTask !== nextProps.onAddTask) return false;
   if (prevProps.onAddSection !== nextProps.onAddSection) return false;

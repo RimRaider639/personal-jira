@@ -35,8 +35,9 @@ import {
   selectTotalTaskCount,
   selectSyncStatus,
 } from '@/store/selectors';
-import { DraggableSectionList, SyncStatusIndicator } from '@/components';
-import type { Task, Section } from '@kanban/shared';
+import { DraggableSectionList, SyncStatusIndicator, ThemedBackground, ThemeSelector, DatePicker } from '@/components';
+import { useTheme } from '@/theme/ThemeContext';
+import type { Task } from '@kanban/shared';
 
 interface BoardScreenProps {
   boardId: string;
@@ -283,13 +284,10 @@ function CreateTaskModal({
             </View>
             <View style={[modalStyles.inputGroup, { flex: 1, marginLeft: 8 }]}>
               <Text style={modalStyles.label}>Due Date</Text>
-              <TextInput
-                style={modalStyles.input}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor="#9ca3af"
+              <DatePicker
                 value={endDate}
-                onChangeText={setEndDate}
-                editable={!isLoading}
+                onChange={setEndDate}
+                placeholder="Select date"
               />
             </View>
           </View>
@@ -450,6 +448,7 @@ export function BoardScreen({
   onTaskPress,
 }: BoardScreenProps): React.JSX.Element {
   const dispatch = useAppDispatch();
+  const { colors } = useTheme();
 
   const board = useAppSelector((state) => boardId ? selectBoardById(state, boardId) : null);
   const sections = useAppSelector((state) => boardId ? selectSectionsByBoardId(state, boardId) : []);
@@ -550,6 +549,34 @@ export function BoardScreen({
   );
 
   /**
+   * Handle moving task to a different section via quick menu
+   */
+  const handleMoveTask = useCallback(
+    (taskId: string, newSectionId: string) => {
+      // Find the current section of the task
+      let oldSectionId: string | null = null;
+      for (const [sectionId, tasks] of Object.entries(tasksBySectionId)) {
+        if (tasks.some((t) => t.id === taskId)) {
+          oldSectionId = sectionId;
+          break;
+        }
+      }
+
+      if (oldSectionId && oldSectionId !== newSectionId) {
+        // Dispatch move task action
+        dispatch(
+          moveTask({
+            taskId,
+            oldSectionId,
+            data: { sectionId: newSectionId, position: 0 },
+          })
+        );
+      }
+    },
+    [dispatch, tasksBySectionId]
+  );
+
+  /**
    * Handle section reorder (optimistic update)
    */
   const handleSectionReorder = useCallback(
@@ -633,90 +660,97 @@ export function BoardScreen({
 
   if (!boardId || !board) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366f1" />
-          <Text style={styles.loadingText}>Loading board...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading board...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: board.color || '#6366f1' }]}>
-        <View style={styles.headerLeft}>
-          {onBack && (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={onBack}
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-            >
-              <Text style={styles.backButtonText}>← Back</Text>
-            </TouchableOpacity>
-          )}
-          <View style={styles.headerContent}>
-            <Text style={styles.title} numberOfLines={1}>
-              {board.name}
-            </Text>
-            {hasActiveFilters && (
-              <Text style={styles.filterInfo}>
-                Showing {filteredCount} of {totalCount} tasks
-              </Text>
+    <ThemedBackground>
+      <SafeAreaView style={styles.container}>
+        {/* Header */}
+        <View style={[styles.header, { backgroundColor: board.color || colors.primary }]}>
+          <View style={styles.headerLeft}>
+            {onBack && (
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={onBack}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+              >
+                <Text style={styles.backButtonText}>← Back</Text>
+              </TouchableOpacity>
             )}
+            <View style={styles.headerContent}>
+              <Text style={styles.title} numberOfLines={1}>
+                {board.name}
+              </Text>
+              {hasActiveFilters && (
+                <Text style={styles.filterInfo}>
+                  Showing {filteredCount} of {totalCount} tasks
+                </Text>
+              )}
+            </View>
+          </View>
+          <View style={styles.headerRight}>
+            <SyncStatusIndicator status={syncStatus} />
+            <View style={styles.themeSelectorWrapper}>
+              <ThemeSelector />
+            </View>
           </View>
         </View>
-        <SyncStatusIndicator status={syncStatus} />
-      </View>
 
-      {/* Board content */}
-      {isLoading && sections.length === 0 ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366f1" />
-          <Text style={styles.loadingText}>Loading sections...</Text>
-        </View>
-      ) : (
-        <View style={styles.boardContent}>
-          <DraggableSectionList
-            sections={sections}
-            tasksBySectionId={tasksBySectionId}
-            epics={epics}
-            onTaskPress={handleTaskPress}
-            onTaskReorder={handleTaskReorder}
-            onSectionReorder={handleSectionReorder}
-            onAddTask={handleAddTask}
-            onAddSection={handleAddSection}
-          />
-        </View>
-      )}
+        {/* Board content */}
+        {isLoading && sections.length === 0 ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading sections...</Text>
+          </View>
+        ) : (
+          <View style={styles.boardContent}>
+            <DraggableSectionList
+              sections={sections}
+              tasksBySectionId={tasksBySectionId}
+              epics={epics}
+              onTaskPress={handleTaskPress}
+              onTaskReorder={handleTaskReorder}
+              onMoveTask={handleMoveTask}
+              onSectionReorder={handleSectionReorder}
+              onAddTask={handleAddTask}
+              onAddSection={handleAddSection}
+            />
+          </View>
+        )}
 
-      {/* Create Task Modal */}
-      <CreateTaskModal
-        visible={createTaskModal.visible}
-        sectionId={createTaskModal.sectionId}
-        sectionName={createTaskModal.sectionName}
-        onClose={() => setCreateTaskModal({ visible: false, sectionId: null, sectionName: '' })}
-        onSubmit={handleCreateTask}
-        isLoading={isCreatingTask}
-      />
+        {/* Create Task Modal */}
+        <CreateTaskModal
+          visible={createTaskModal.visible}
+          sectionId={createTaskModal.sectionId}
+          sectionName={createTaskModal.sectionName}
+          onClose={() => setCreateTaskModal({ visible: false, sectionId: null, sectionName: '' })}
+          onSubmit={handleCreateTask}
+          isLoading={isCreatingTask}
+        />
 
-      {/* Create Section Modal */}
-      <CreateSectionModal
-        visible={createSectionModalVisible}
-        onClose={() => setCreateSectionModalVisible(false)}
-        onSubmit={handleCreateSection}
-        isLoading={isCreatingSection}
-      />
-    </SafeAreaView>
+        {/* Create Section Modal */}
+        <CreateSectionModal
+          visible={createSectionModalVisible}
+          onClose={() => setCreateSectionModalVisible(false)}
+          onSubmit={handleCreateSection}
+          isLoading={isCreatingSection}
+        />
+      </SafeAreaView>
+    </ThemedBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   header: {
     flexDirection: 'row',
@@ -728,6 +762,13 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  themeSelectorWrapper: {
+    marginLeft: 12,
   },
   backButton: {
     marginRight: 12,
@@ -758,7 +799,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: '#6b7280',
     fontSize: 14,
   },
   boardContent: {

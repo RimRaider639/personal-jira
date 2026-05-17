@@ -24,6 +24,8 @@ import {
   clearBoardsError,
 } from '@/store/slices';
 import { selectAllBoards, selectCurrentUser } from '@/store/selectors';
+import { ThemedBackground, ThemeSelector } from '@/components';
+import { useTheme } from '@/theme/ThemeContext';
 import type { Board } from '@kanban/shared';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 
@@ -198,6 +200,7 @@ function BoardCard({ board, onPress, onDelete }: BoardCardProps): React.JSX.Elem
 export function BoardListScreen(): React.JSX.Element {
   const dispatch = useAppDispatch();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { colors } = useTheme();
   const boards = useAppSelector(selectAllBoards);
   const user = useAppSelector(selectCurrentUser);
   const isLoading = useAppSelector((state) => state.boards.isLoading);
@@ -289,125 +292,130 @@ export function BoardListScreen(): React.JSX.Element {
   }, [dispatch]);
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.title}>My Boards</Text>
-          <Text style={styles.subtitle}>
-            Welcome, {user?.displayName || 'User'}
-          </Text>
+    <ThemedBackground>
+      <SafeAreaView style={styles.container}>
+        {/* Header */}
+        <View style={[styles.header, { backgroundColor: colors.headerBackground }]}>
+          <View style={styles.headerContent}>
+            <Text style={[styles.title, { color: colors.headerText }]}>My Boards</Text>
+            <Text style={[styles.subtitle, { color: colors.headerText, opacity: 0.8 }]}>
+              Welcome, {user?.displayName || 'User'}
+            </Text>
+          </View>
+          <View style={styles.headerActions}>
+            <ThemeSelector />
+            <TouchableOpacity
+              style={[styles.logoutButton, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}
+              onPress={handleLogout}
+              accessibilityRole="button"
+              accessibilityLabel="Logout"
+            >
+              <Text style={styles.logoutButtonText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-          accessibilityRole="button"
-          accessibilityLabel="Logout"
-        >
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </TouchableOpacity>
-      </View>
 
-      {/* Error Banner */}
-      {error && (
-        <TouchableOpacity style={styles.errorBanner} onPress={handleClearError}>
-          <Text style={styles.errorText}>{error}</Text>
-          <Text style={styles.errorDismiss}>Tap to dismiss</Text>
-        </TouchableOpacity>
-      )}
-
-      {/* Content */}
-      {isLoading && boards.length === 0 ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366f1" />
-          <Text style={styles.loadingText}>Loading boards...</Text>
-        </View>
-      ) : (
-        <ScrollView
-          style={styles.content}
-          contentContainerStyle={styles.contentContainer}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={handleRefresh}
-              colors={['#6366f1']}
-              tintColor="#6366f1"
-            />
-          }
-        >
-          {boards.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>📋</Text>
-              <Text style={styles.emptyTitle}>No boards yet</Text>
-              <Text style={styles.emptyDescription}>
-                Create your first board to start organizing your tasks
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.boardGrid}>
-              {boards.map((board) => (
-                <BoardCard
-                  key={board.id}
-                  board={board}
-                  onPress={handleBoardPress}
-                  onDelete={handleBoardDelete}
-                />
-              ))}
-            </View>
-          )}
-
-          {/* Create Board Button */}
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => setIsCreateModalVisible(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Create new board"
-          >
-            <Text style={styles.addButtonText}>+ Create New Board</Text>
+        {/* Error Banner */}
+        {error && (
+          <TouchableOpacity style={[styles.errorBanner, { backgroundColor: colors.error + '10' }]} onPress={handleClearError}>
+            <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
+            <Text style={[styles.errorDismiss, { color: colors.textMuted }]}>Tap to dismiss</Text>
           </TouchableOpacity>
-        </ScrollView>
-      )}
+        )}
 
-      {/* Create Board Modal */}
-      <CreateBoardModal
-        visible={isCreateModalVisible}
-        onClose={() => setIsCreateModalVisible(false)}
-        onSubmit={handleCreateBoard}
-        isLoading={isCreating}
-      />
-    </SafeAreaView>
+        {/* Content */}
+        {isLoading && boards.length === 0 ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading boards...</Text>
+          </View>
+        ) : (
+          <ScrollView
+            style={styles.content}
+            contentContainerStyle={styles.contentContainer}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                colors={[colors.primary]}
+                tintColor={colors.primary}
+              />
+            }
+          >
+            {boards.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>📋</Text>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>No boards yet</Text>
+                <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>
+                  Create your first board to start organizing your tasks
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.boardGrid}>
+                {boards.map((board) => (
+                  <BoardCard
+                    key={board.id}
+                    board={board}
+                    onPress={handleBoardPress}
+                    onDelete={handleBoardDelete}
+                  />
+                ))}
+              </View>
+            )}
+
+            {/* Create Board Button */}
+            <TouchableOpacity
+              style={[styles.addButton, { backgroundColor: colors.primary }]}
+              onPress={() => setIsCreateModalVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Create new board"
+            >
+              <Text style={styles.addButtonText}>+ Create New Board</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        )}
+
+        {/* Create Board Modal */}
+        <CreateBoardModal
+          visible={isCreateModalVisible}
+          onClose={() => setIsCreateModalVisible(false)}
+          onSubmit={handleCreateBoard}
+          isLoading={isCreating}
+        />
+      </SafeAreaView>
+    </ThemedBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#6366f1',
   },
   headerContent: {
     flex: 1,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#ffffff',
   },
   subtitle: {
     fontSize: 14,
-    color: '#e0e7ff',
     marginTop: 4,
   },
   logoutButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 8,
   },
   logoutButtonText: {
@@ -416,18 +424,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   errorBanner: {
-    backgroundColor: '#fef2f2',
     padding: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#fecaca',
   },
   errorText: {
-    color: '#dc2626',
     fontSize: 14,
     textAlign: 'center',
   },
   errorDismiss: {
-    color: '#9ca3af',
     fontSize: 12,
     textAlign: 'center',
     marginTop: 4,
@@ -439,7 +444,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: '#6b7280',
     fontSize: 14,
   },
   content: {
@@ -459,12 +463,10 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#1f2937',
     marginBottom: 8,
   },
   emptyDescription: {
     fontSize: 14,
-    color: '#6b7280',
     textAlign: 'center',
     paddingHorizontal: 32,
   },
@@ -510,7 +512,6 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
   },
   addButton: {
-    backgroundColor: '#6366f1',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',

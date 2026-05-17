@@ -29,6 +29,8 @@ import {
   moveTask,
 } from '@/store/slices';
 import { selectTaskById, selectEpicsByBoardId, selectSectionsByBoardId } from '@/store/selectors';
+import { DatePicker } from '@/components';
+import { useTheme } from '@/theme/ThemeContext';
 import type { Priority, Epic } from '@kanban/shared';
 
 interface TaskDetailScreenProps {
@@ -477,12 +479,10 @@ export function TaskDetailScreen({
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Due Date</Text>
           {isEditing ? (
-            <TextInput
-              style={styles.dateInput}
+            <DatePicker
               value={editEndDate}
-              onChangeText={setEditEndDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor="#9ca3af"
+              onChange={setEditEndDate}
+              placeholder="Select due date"
             />
           ) : (
             <Text style={task.endDate ? styles.dateValue : styles.emptyValue}>

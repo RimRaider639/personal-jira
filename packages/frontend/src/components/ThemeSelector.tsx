@@ -7,24 +7,43 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Switch,
 } from 'react-native';
 import { useTheme } from '@/theme/ThemeContext';
 import { themes, ThemeType } from '@/theme';
 
+interface ThemeSelectorProps {
+  boardId?: string; // If provided, allows setting board-specific theme
+}
+
 /**
  * ThemeSelector - Component to select and preview themes
+ * Supports global dark mode toggle and per-board theme selection
  */
-export function ThemeSelector(): React.JSX.Element {
-  const { colors, themeName, setTheme, availableThemes } = useTheme();
+export function ThemeSelector({ boardId }: ThemeSelectorProps): React.JSX.Element {
+  const { colors, themeName, isDarkMode, setTheme, toggleDarkMode, getBoardTheme, setBoardTheme, availableThemes } = useTheme();
   const [visible, setVisible] = useState(false);
+
+  const currentBoardTheme = boardId ? getBoardTheme(boardId) : null;
 
   const handleSelectTheme = useCallback(
     (name: ThemeType) => {
-      setTheme(name);
-      setVisible(false);
+      if (boardId) {
+        // Set board-specific theme
+        setBoardTheme(boardId, name);
+      } else {
+        // Set global theme
+        setTheme(name);
+      }
     },
-    [setTheme]
+    [boardId, setTheme, setBoardTheme]
   );
+
+  const handleClearBoardTheme = useCallback(() => {
+    if (boardId) {
+      setBoardTheme(boardId, null);
+    }
+  }, [boardId, setBoardTheme]);
 
   const getThemePreviewColors = (name: ThemeType) => {
     const theme = themes[name];
@@ -56,15 +75,53 @@ export function ThemeSelector(): React.JSX.Element {
         <Pressable style={styles.overlay} onPress={() => setVisible(false)}>
           <Pressable
             style={[styles.modal, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={(e) => e.stopPropagation()}
           >
             <Text style={[styles.title, { color: colors.text, borderBottomColor: colors.borderLight }]}>
-              Choose Theme
+              {boardId ? 'Board Theme' : 'App Theme'}
             </Text>
 
-            <ScrollView style={styles.themeList} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+              {/* Dark Mode Toggle (only for global settings) */}
+              {!boardId && (
+                <View style={[styles.darkModeRow, { borderBottomColor: colors.borderLight }]}>
+                  <View style={styles.darkModeInfo}>
+                    <Text style={[styles.darkModeLabel, { color: colors.text }]}>Dark Mode</Text>
+                    <Text style={[styles.darkModeHint, { color: colors.textMuted }]}>
+                      Quick toggle for dark theme
+                    </Text>
+                  </View>
+                  <Switch
+                    value={isDarkMode}
+                    onValueChange={toggleDarkMode}
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                    thumbColor="#ffffff"
+                  />
+                </View>
+              )}
+
+              {/* Board-specific theme notice */}
+              {boardId && currentBoardTheme && (
+                <View style={[styles.boardThemeNotice, { backgroundColor: colors.primaryLight }]}>
+                  <Text style={[styles.boardThemeText, { color: colors.primary }]}>
+                    This board has a custom theme
+                  </Text>
+                  <TouchableOpacity onPress={handleClearBoardTheme}>
+                    <Text style={[styles.clearThemeText, { color: colors.error }]}>Reset to default</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Theme options */}
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
+                {boardId ? 'Choose Board Theme' : 'Choose Theme'}
+              </Text>
+
               {availableThemes.map((theme) => {
                 const preview = getThemePreviewColors(theme.name);
-                const isSelected = theme.name === themeName;
+                const isSelected = boardId 
+                  ? currentBoardTheme === theme.name 
+                  : (!isDarkMode && themeName === theme.name);
 
                 return (
                   <TouchableOpacity
@@ -103,6 +160,13 @@ export function ThemeSelector(): React.JSX.Element {
                 );
               })}
             </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.doneButton, { backgroundColor: colors.primary }]}
+              onPress={() => setVisible(false)}
+            >
+              <Text style={styles.doneButtonText}>Done</Text>
+            </TouchableOpacity>
           </Pressable>
         </Pressable>
       </Modal>
@@ -132,7 +196,7 @@ const styles = StyleSheet.create({
   modal: {
     width: '100%',
     maxWidth: 400,
-    maxHeight: '80%',
+    maxHeight: '85%',
     borderRadius: 16,
     borderWidth: 1,
     shadowColor: '#000',
@@ -147,8 +211,50 @@ const styles = StyleSheet.create({
     padding: 20,
     borderBottomWidth: 1,
   },
-  themeList: {
+  content: {
     padding: 16,
+    maxHeight: 400,
+  },
+  darkModeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    marginBottom: 16,
+    borderBottomWidth: 1,
+  },
+  darkModeInfo: {
+    flex: 1,
+  },
+  darkModeLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  darkModeHint: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  boardThemeNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  boardThemeText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  clearThemeText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginBottom: 12,
   },
   themeOption: {
     flexDirection: 'row',
@@ -198,6 +304,18 @@ const styles = StyleSheet.create({
   themeDescription: {
     fontSize: 12,
     marginTop: 2,
+  },
+  doneButton: {
+    margin: 16,
+    marginTop: 0,
+    padding: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  doneButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

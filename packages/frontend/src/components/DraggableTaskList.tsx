@@ -16,6 +16,7 @@ interface DraggableTaskListProps {
   onTaskPress: (taskId: string) => void;
   onReorder: (sectionId: string, taskIds: string[]) => void;
   onMoveTask: (taskId: string, newSectionId: string) => void;
+  onToggleEpic: (taskId: string, epicId: string) => void;
   onAddTask: () => void;
   sectionName: string;
 }
@@ -32,6 +33,7 @@ function DraggableTaskListComponent({
   onTaskPress,
   onReorder,
   onMoveTask,
+  onToggleEpic,
   onAddTask,
   sectionName,
 }: DraggableTaskListProps): React.JSX.Element {
@@ -63,13 +65,14 @@ function DraggableTaskListComponent({
               sections={sections}
               onPress={onTaskPress}
               onMove={onMoveTask}
+              onToggleEpic={onToggleEpic}
               isDragging={isActive}
             />
           </TouchableOpacity>
         </ScaleDecorator>
       );
     },
-    [epics, sections, onTaskPress, onMoveTask]
+    [epics, sections, onTaskPress, onMoveTask, onToggleEpic]
   );
 
   const keyExtractor = useCallback((item: Task) => item.id, []);
@@ -167,6 +170,7 @@ function arePropsEqual(
     ) {
       return false;
     }
+    if (prevTask.epicIds.length !== nextTask.epicIds.length) return false;
   }
 
   if (prevProps.epics !== nextProps.epics) {
@@ -180,6 +184,7 @@ function arePropsEqual(
   if (prevProps.onTaskPress !== nextProps.onTaskPress) return false;
   if (prevProps.onReorder !== nextProps.onReorder) return false;
   if (prevProps.onMoveTask !== nextProps.onMoveTask) return false;
+  if (prevProps.onToggleEpic !== nextProps.onToggleEpic) return false;
   if (prevProps.onAddTask !== nextProps.onAddTask) return false;
 
   return true;

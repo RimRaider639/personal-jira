@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, memo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import type { Task, Epic, Priority, Section } from '@kanban/shared';
+import type { Task, Epic, Section } from '@kanban/shared';
 import { useTheme } from '@/theme/ThemeContext';
 import { TaskCardMenu } from './TaskCardMenu';
 
@@ -10,6 +10,7 @@ interface TaskCardProps {
   sections: Section[];
   onPress: (taskId: string) => void;
   onMove?: (taskId: string, newSectionId: string) => void;
+  onToggleEpic?: (taskId: string, epicId: string) => void;
   isDragging?: boolean;
 }
 
@@ -31,6 +32,7 @@ function TaskCardComponent({
   sections,
   onPress,
   onMove,
+  onToggleEpic,
   isDragging = false,
 }: TaskCardProps): React.JSX.Element {
   const { colors } = useTheme();
@@ -44,6 +46,13 @@ function TaskCardComponent({
       onMove?.(taskId, newSectionId);
     },
     [onMove]
+  );
+
+  const handleToggleEpic = useCallback(
+    (taskId: string, epicId: string) => {
+      onToggleEpic?.(taskId, epicId);
+    },
+    [onToggleEpic]
   );
 
   const taskEpics = useMemo(
@@ -107,12 +116,15 @@ function TaskCardComponent({
           <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
             {task.title}
           </Text>
-          {onMove && sections.length > 1 && (
+          {(onMove || onToggleEpic) && sections.length > 0 && (
             <TaskCardMenu
               taskId={task.id}
               currentSectionId={task.sectionId}
               sections={sections}
+              epics={epics}
+              taskEpicIds={task.epicIds}
               onMove={handleMove}
+              onToggleEpic={handleToggleEpic}
             />
           )}
         </View>
@@ -281,6 +293,7 @@ function arePropsEqual(prevProps: TaskCardProps, nextProps: TaskCardProps): bool
 
   if (prevProps.onPress !== nextProps.onPress) return false;
   if (prevProps.onMove !== nextProps.onMove) return false;
+  if (prevProps.onToggleEpic !== nextProps.onToggleEpic) return false;
 
   return true;
 }

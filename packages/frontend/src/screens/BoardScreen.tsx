@@ -8,6 +8,7 @@ import {
   Modal,
   ActivityIndicator,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -19,11 +20,18 @@ import {
   fetchEpics,
   createSection,
   createTask,
+  updateBoard,
   setCurrentBoard,
   moveTask,
   reorderTasksInSection,
   setSectionOrder,
   reorderSections,
+  assignEpicToTask,
+  removeEpicFromTask,
+  toggleEpicFilter,
+  togglePriorityFilter,
+  setDueDateFilter,
+  clearFilters,
 } from '@/store/slices';
 import {
   selectBoardById,
@@ -34,15 +42,18 @@ import {
   selectFilteredTaskCount,
   selectTotalTaskCount,
   selectSyncStatus,
+  selectFiltersByBoardId,
+  selectTaskById,
 } from '@/store/selectors';
-import { DraggableSectionList, SyncStatusIndicator, ThemedBackground, ThemeSelector, DatePicker } from '@/components';
+import { DraggableSectionList, SyncStatusIndicator, ThemedBackground, ThemeSelector, DatePicker, FilterBar, FilterPanel, TaskPreviewModal } from '@/components';
 import { useTheme } from '@/theme/ThemeContext';
-import type { Task } from '@kanban/shared';
+import type { Task, Priority, DueDateFilter } from '@kanban/shared';
 
 interface BoardScreenProps {
   boardId: string;
   onBack?: () => void;
   onTaskPress?: (taskId: string) => void;
+  onEpicsPress?: () => void;
 }
 
 interface CreateTaskData {
@@ -137,6 +148,125 @@ function CreateSectionModal({
                 <ActivityIndicator color="#ffffff" size="small" />
               ) : (
                 <Text style={modalStyles.submitButtonText}>Add Section</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+interface EditBoardModalProps {
+  visible: boolean;
+  boardName: string;
+  boardDescription: string;
+  boardColor: string;
+  onClose: () => void;
+  onSubmit: (name: string, description: string, color: string) => void;
+  isLoading: boolean;
+}
+
+const BOARD_COLORS = [
+  '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316',
+  '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6',
+];
+
+/**
+ * EditBoardModal - Modal for editing board details
+ */
+function EditBoardModal({
+  visible,
+  boardName,
+  boardDescription,
+  boardColor,
+  onClose,
+  onSubmit,
+  isLoading,
+}: EditBoardModalProps): React.JSX.Element {
+  const [name, setName] = useState(boardName);
+  const [description, setDescription] = useState(boardDescription);
+  const [color, setColor] = useState(boardColor);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setName(boardName);
+    setDescription(boardDescription);
+    setColor(boardColor);
+    setError('');
+  }, [boardName, boardDescription, boardColor, visible]);
+
+  const handleSubmit = useCallback(() => {
+    if (!name.trim()) {
+      setError('Board name is required');
+      return;
+    }
+    onSubmit(name.trim(), description.trim(), color);
+  }, [name, description, color, onSubmit]);
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={modalStyles.overlay}>
+        <View style={modalStyles.container}>
+          <Text style={modalStyles.title}>Edit Board</Text>
+
+          <View style={modalStyles.inputGroup}>
+            <Text style={modalStyles.label}>Board Name *</Text>
+            <TextInput
+              style={[modalStyles.input, error && modalStyles.inputError]}
+              placeholder="Enter board name"
+              placeholderTextColor="#9ca3af"
+              value={name}
+              onChangeText={(text) => { setName(text); setError(''); }}
+              editable={!isLoading}
+            />
+            {error && <Text style={modalStyles.errorText}>{error}</Text>}
+          </View>
+
+          <View style={modalStyles.inputGroup}>
+            <Text style={modalStyles.label}>Description</Text>
+            <TextInput
+              style={[modalStyles.input, { minHeight: 80, textAlignVertical: 'top' }]}
+              placeholder="Enter description (optional)"
+              placeholderTextColor="#9ca3af"
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={3}
+              editable={!isLoading}
+            />
+          </View>
+
+          <View style={modalStyles.inputGroup}>
+            <Text style={modalStyles.label}>Color</Text>
+            <View style={modalStyles.colorPicker}>
+              {BOARD_COLORS.map((c) => (
+                <TouchableOpacity
+                  key={c}
+                  style={[
+                    modalStyles.colorOption,
+                    { backgroundColor: c },
+                    color === c && modalStyles.colorSelected,
+                  ]}
+                  onPress={() => setColor(c)}
+                />
+              ))}
+            </View>
+          </View>
+
+          <View style={modalStyles.buttons}>
+            <TouchableOpacity style={modalStyles.cancelButton} onPress={onClose} disabled={isLoading}>
+              <Text style={modalStyles.cancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[modalStyles.submitButton, { backgroundColor: color }, isLoading && modalStyles.buttonDisabled]}
+              onPress={handleSubmit}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <Text style={modalStyles.submitButtonText}>Save</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -428,6 +558,25 @@ const modalStyles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  colorPicker: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  colorOption: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  colorSelected: {
+    borderWidth: 3,
+    borderColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
 });
 
 /**
@@ -446,9 +595,14 @@ export function BoardScreen({
   boardId,
   onBack,
   onTaskPress,
+  onEpicsPress,
 }: BoardScreenProps): React.JSX.Element {
   const dispatch = useAppDispatch();
-  const { colors } = useTheme();
+  const { colors, getEffectiveTheme, getBoardTheme } = useTheme();
+
+  // Get board-specific theme if set
+  const boardTheme = boardId ? getEffectiveTheme(boardId) : null;
+  const effectiveColors = boardTheme?.colors || colors;
 
   const board = useAppSelector((state) => boardId ? selectBoardById(state, boardId) : null);
   const sections = useAppSelector((state) => boardId ? selectSectionsByBoardId(state, boardId) : []);
@@ -457,6 +611,7 @@ export function BoardScreen({
   const hasActiveFilters = useAppSelector((state) => boardId ? selectHasActiveFilters(state, boardId) : false);
   const filteredCount = useAppSelector((state) => boardId ? selectFilteredTaskCount(state, boardId) : 0);
   const totalCount = useAppSelector((state) => boardId ? selectTotalTaskCount(state, boardId) : 0);
+  const filters = useAppSelector((state) => boardId ? selectFiltersByBoardId(state, boardId) : { epicIds: [], priorities: [], dueDateFilter: null, searchQuery: '' });
 
   const isLoading = useAppSelector((state) => state.boards.isLoading || state.sections.isLoading || state.tasks.isLoading);
 
@@ -480,6 +635,17 @@ export function BoardScreen({
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [createSectionModalVisible, setCreateSectionModalVisible] = useState(false);
   const [isCreatingSection, setIsCreatingSection] = useState(false);
+  
+  // Edit board modal state
+  const [editBoardModalVisible, setEditBoardModalVisible] = useState(false);
+  const [isUpdatingBoard, setIsUpdatingBoard] = useState(false);
+  
+  // Filter panel state
+  const [filterPanelVisible, setFilterPanelVisible] = useState(false);
+  
+  // Task preview modal state
+  const [previewTask, setPreviewTask] = useState<Task | null>(null);
+  const [previewSectionName, setPreviewSectionName] = useState('');
 
   /**
    * Fetch board data on mount
@@ -489,7 +655,6 @@ export function BoardScreen({
       return;
     }
     dispatch(setCurrentBoard(boardId));
-    // Fetch the board itself (needed when refreshing directly on board page)
     dispatch(fetchBoard(boardId));
     dispatch(fetchSections(boardId));
     dispatch(fetchTasks(boardId));
@@ -501,38 +666,49 @@ export function BoardScreen({
   }, [dispatch, boardId]);
 
   /**
-   * Handle task press
+   * Handle task press - show preview modal first
    */
   const handleTaskPress = useCallback(
     (taskId: string) => {
-      if (onTaskPress) {
-        onTaskPress(taskId);
-      } else {
-        console.log('Navigate to task:', taskId);
+      // Find the task and its section
+      for (const [sectionId, tasks] of Object.entries(tasksBySectionId)) {
+        const task = tasks.find((t) => t.id === taskId);
+        if (task) {
+          const section = sections.find((s) => s.id === sectionId);
+          setPreviewTask(task);
+          setPreviewSectionName(section?.name || 'Unknown');
+          return;
+        }
       }
     },
-    [onTaskPress]
+    [tasksBySectionId, sections]
   );
+
+  /**
+   * Handle view full details from preview
+   */
+  const handleViewFullDetails = useCallback(() => {
+    if (previewTask && onTaskPress) {
+      onTaskPress(previewTask.id);
+    }
+    setPreviewTask(null);
+  }, [previewTask, onTaskPress]);
 
   /**
    * Handle task reorder within a section (optimistic update)
    */
   const handleTaskReorder = useCallback(
     (sectionId: string, taskIds: string[]) => {
-      // Optimistic update
       dispatch(reorderTasksInSection({ sectionId, taskIds }));
 
-      // Find the task that was moved and its new position
       const tasks = tasksBySectionId[sectionId] || [];
       const oldTaskIds = tasks.map((t) => t.id);
 
-      // Find which task moved
       for (let i = 0; i < taskIds.length; i++) {
         if (taskIds[i] !== oldTaskIds[i]) {
           const movedTaskId = taskIds[i];
           const task = tasks.find((t) => t.id === movedTaskId);
           if (task) {
-            // Sync with backend
             dispatch(
               moveTask({
                 taskId: movedTaskId,
@@ -553,7 +729,6 @@ export function BoardScreen({
    */
   const handleMoveTask = useCallback(
     (taskId: string, newSectionId: string) => {
-      // Find the current section of the task
       let oldSectionId: string | null = null;
       for (const [sectionId, tasks] of Object.entries(tasksBySectionId)) {
         if (tasks.some((t) => t.id === taskId)) {
@@ -563,7 +738,6 @@ export function BoardScreen({
       }
 
       if (oldSectionId && oldSectionId !== newSectionId) {
-        // Dispatch move task action
         dispatch(
           moveTask({
             taskId,
@@ -577,14 +751,38 @@ export function BoardScreen({
   );
 
   /**
+   * Handle toggling epic on a task
+   */
+  const handleToggleEpic = useCallback(
+    async (taskId: string, epicId: string) => {
+      // Find the task to check if epic is already assigned
+      let task: Task | undefined;
+      for (const tasks of Object.values(tasksBySectionId)) {
+        task = tasks.find((t) => t.id === taskId);
+        if (task) break;
+      }
+
+      if (!task) return;
+
+      try {
+        if (task.epicIds.includes(epicId)) {
+          await dispatch(removeEpicFromTask({ taskId, epicId })).unwrap();
+        } else {
+          await dispatch(assignEpicToTask({ taskId, epicId })).unwrap();
+        }
+      } catch {
+        Alert.alert('Error', 'Failed to update epic assignment');
+      }
+    },
+    [dispatch, tasksBySectionId]
+  );
+
+  /**
    * Handle section reorder (optimistic update)
    */
   const handleSectionReorder = useCallback(
     (sectionIds: string[]) => {
-      // Optimistic update
       dispatch(setSectionOrder({ boardId, sectionOrder: sectionIds }));
-
-      // Sync with backend
       dispatch(reorderSections({ boardId, sectionOrder: sectionIds }));
     },
     [dispatch, boardId]
@@ -658,12 +856,58 @@ export function BoardScreen({
     [dispatch, boardId]
   );
 
+  /**
+   * Handle update board
+   */
+  const handleUpdateBoard = useCallback(
+    async (name: string, description: string, color: string) => {
+      setIsUpdatingBoard(true);
+      try {
+        await dispatch(updateBoard({ id: boardId, data: { name, description: description || undefined, color } })).unwrap();
+        setEditBoardModalVisible(false);
+      } catch {
+        Alert.alert('Error', 'Failed to update board. Please try again.');
+      } finally {
+        setIsUpdatingBoard(false);
+      }
+    },
+    [dispatch, boardId]
+  );
+
+  /**
+   * Filter handlers
+   */
+  const handleToggleEpicFilter = useCallback(
+    (epicId: string) => {
+      dispatch(toggleEpicFilter({ boardId, epicId }));
+    },
+    [dispatch, boardId]
+  );
+
+  const handleTogglePriorityFilter = useCallback(
+    (priority: Priority) => {
+      dispatch(togglePriorityFilter({ boardId, priority }));
+    },
+    [dispatch, boardId]
+  );
+
+  const handleSetDueDateFilter = useCallback(
+    (dueDateFilter: DueDateFilter | null) => {
+      dispatch(setDueDateFilter({ boardId, dueDateFilter }));
+    },
+    [dispatch, boardId]
+  );
+
+  const handleClearFilters = useCallback(() => {
+    dispatch(clearFilters(boardId));
+  }, [dispatch, boardId]);
+
   if (!boardId || !board) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: effectiveColors.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading board...</Text>
+          <ActivityIndicator size="large" color={effectiveColors.primary} />
+          <Text style={[styles.loadingText, { color: effectiveColors.textSecondary }]}>Loading board...</Text>
         </View>
       </SafeAreaView>
     );
@@ -673,7 +917,7 @@ export function BoardScreen({
     <ThemedBackground>
       <SafeAreaView style={styles.container}>
         {/* Header */}
-        <View style={[styles.header, { backgroundColor: board.color || colors.primary }]}>
+        <View style={[styles.header, { backgroundColor: board.color || effectiveColors.primary }]}>
           <View style={styles.headerLeft}>
             {onBack && (
               <TouchableOpacity
@@ -685,30 +929,43 @@ export function BoardScreen({
                 <Text style={styles.backButtonText}>← Back</Text>
               </TouchableOpacity>
             )}
-            <View style={styles.headerContent}>
+            <TouchableOpacity 
+              style={styles.headerContent}
+              onPress={() => setEditBoardModalVisible(true)}
+            >
               <Text style={styles.title} numberOfLines={1}>
                 {board.name}
               </Text>
-              {hasActiveFilters && (
-                <Text style={styles.filterInfo}>
-                  Showing {filteredCount} of {totalCount} tasks
-                </Text>
-              )}
-            </View>
+              <Text style={styles.editHint}>Tap to edit</Text>
+            </TouchableOpacity>
           </View>
           <View style={styles.headerRight}>
+            {onEpicsPress && (
+              <TouchableOpacity style={styles.headerButton} onPress={onEpicsPress}>
+                <Text style={styles.headerButtonText}>🏷 Epics</Text>
+              </TouchableOpacity>
+            )}
             <SyncStatusIndicator status={syncStatus} />
             <View style={styles.themeSelectorWrapper}>
-              <ThemeSelector />
+              <ThemeSelector boardId={boardId} />
             </View>
           </View>
         </View>
 
+        {/* Filter Bar */}
+        <FilterBar
+          hasActiveFilters={hasActiveFilters}
+          filteredCount={filteredCount}
+          totalCount={totalCount}
+          onOpenFilters={() => setFilterPanelVisible(true)}
+          onClearFilters={handleClearFilters}
+        />
+
         {/* Board content */}
         {isLoading && sections.length === 0 ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading sections...</Text>
+            <ActivityIndicator size="large" color={effectiveColors.primary} />
+            <Text style={[styles.loadingText, { color: effectiveColors.textSecondary }]}>Loading sections...</Text>
           </View>
         ) : (
           <View style={styles.boardContent}>
@@ -719,12 +976,37 @@ export function BoardScreen({
               onTaskPress={handleTaskPress}
               onTaskReorder={handleTaskReorder}
               onMoveTask={handleMoveTask}
+              onToggleEpic={handleToggleEpic}
               onSectionReorder={handleSectionReorder}
               onAddTask={handleAddTask}
               onAddSection={handleAddSection}
             />
           </View>
         )}
+
+        {/* Task Preview Modal */}
+        <TaskPreviewModal
+          visible={previewTask !== null}
+          task={previewTask}
+          epics={epics}
+          sectionName={previewSectionName}
+          onClose={() => setPreviewTask(null)}
+          onViewDetails={handleViewFullDetails}
+        />
+
+        {/* Filter Panel */}
+        <FilterPanel
+          visible={filterPanelVisible}
+          onClose={() => setFilterPanelVisible(false)}
+          epics={epics}
+          selectedEpicIds={filters.epicIds}
+          onToggleEpic={handleToggleEpicFilter}
+          selectedPriorities={filters.priorities}
+          onTogglePriority={handleTogglePriorityFilter}
+          selectedDueDateFilter={filters.dueDateFilter}
+          onSetDueDateFilter={handleSetDueDateFilter}
+          onClearAll={handleClearFilters}
+        />
 
         {/* Create Task Modal */}
         <CreateTaskModal
@@ -742,6 +1024,17 @@ export function BoardScreen({
           onClose={() => setCreateSectionModalVisible(false)}
           onSubmit={handleCreateSection}
           isLoading={isCreatingSection}
+        />
+
+        {/* Edit Board Modal */}
+        <EditBoardModal
+          visible={editBoardModalVisible}
+          boardName={board.name}
+          boardDescription={board.description || ''}
+          boardColor={board.color || '#6366f1'}
+          onClose={() => setEditBoardModalVisible(false)}
+          onSubmit={handleUpdateBoard}
+          isLoading={isUpdatingBoard}
         />
       </SafeAreaView>
     </ThemedBackground>
@@ -767,8 +1060,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  headerButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  headerButtonText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
   themeSelectorWrapper: {
-    marginLeft: 12,
+    marginLeft: 8,
   },
   backButton: {
     marginRight: 12,
@@ -787,9 +1092,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#ffffff',
   },
-  filterInfo: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
+  editHint: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 2,
   },
   loadingContainer: {

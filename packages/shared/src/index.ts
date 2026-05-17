@@ -163,6 +163,7 @@ export interface ServerEvents {
 export interface CreateBoardRequest {
   name: string;
   description?: string;
+  color?: string;
 }
 
 export interface CreateTaskRequest {

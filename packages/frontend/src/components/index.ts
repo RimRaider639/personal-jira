@@ -14,3 +14,4 @@ export { ThemedBackground } from './ThemedBackground';
 export { TaskCardMenu } from './TaskCardMenu';
 export { DatePicker } from './DatePicker';
 export { ThemeSelector } from './ThemeSelector';
+export { TaskPreviewModal } from './TaskPreviewModal';

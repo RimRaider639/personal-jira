@@ -55,7 +55,7 @@ export function generateToken(userId: string): string {
  * @throws Error if the token is invalid or expired
  */
 export function verifyToken(token: string): JwtPayload {
-  const decoded = jwt.verify(token, config.jwtSecret) as JwtPayload;
+  const decoded = jwt.verify(token, config.jwtSecret) as unknown as JwtPayload;
   return decoded;
 }
 

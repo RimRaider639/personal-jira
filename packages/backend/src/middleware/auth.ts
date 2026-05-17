@@ -4,6 +4,7 @@ import { createError } from './errorHandler';
 
 /**
  * Extended Express Request interface with authenticated user
+ * Note: The 'file' property is added by multer middleware and typed via @types/multer
  */
 export interface AuthenticatedRequest extends Request {
   user?: {

@@ -11,6 +11,7 @@ import { LoginScreen } from '@/screens/LoginScreen';
 import { RegisterScreen } from '@/screens/RegisterScreen';
 import { BoardListScreen } from '@/screens/BoardListScreen';
 import { BoardScreen } from '@/screens/BoardScreen';
+import { TaskDetailScreen } from '@/screens/TaskDetailScreen';
 
 /**
  * Navigation param list types
@@ -20,7 +21,7 @@ export type RootStackParamList = {
   Register: undefined;
   BoardList: undefined;
   Board: { boardId: string };
-  TaskDetail: { taskId: string };
+  TaskDetail: { taskId: string; boardId: string };
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -32,20 +33,48 @@ function BoardScreenWrapper({
   route, 
   navigation 
 }: NativeStackScreenProps<RootStackParamList, 'Board'>): React.JSX.Element {
+  const { boardId } = route.params;
+
   const handleBack = useCallback(() => {
     navigation.goBack();
   }, [navigation]);
 
   const handleTaskPress = useCallback((taskId: string) => {
-    // TODO: Navigate to TaskDetail screen
-    console.log('Task pressed:', taskId);
-  }, []);
+    navigation.navigate('TaskDetail', { taskId, boardId });
+  }, [navigation, boardId]);
 
   return (
     <BoardScreen 
-      boardId={route.params.boardId} 
+      boardId={boardId} 
       onBack={handleBack}
       onTaskPress={handleTaskPress}
+    />
+  );
+}
+
+/**
+ * Wrapper for TaskDetailScreen to extract route params
+ */
+function TaskDetailScreenWrapper({ 
+  route, 
+  navigation 
+}: NativeStackScreenProps<RootStackParamList, 'TaskDetail'>): React.JSX.Element {
+  const { taskId, boardId } = route.params;
+
+  const handleBack = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
+
+  const handleDelete = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
+
+  return (
+    <TaskDetailScreen 
+      taskId={taskId}
+      boardId={boardId}
+      onBack={handleBack}
+      onDelete={handleDelete}
     />
   );
 }
@@ -85,6 +114,7 @@ function MainNavigator(): React.JSX.Element {
     >
       <Stack.Screen name="BoardList" component={BoardListScreen} />
       <Stack.Screen name="Board" component={BoardScreenWrapper} />
+      <Stack.Screen name="TaskDetail" component={TaskDetailScreenWrapper} />
     </Stack.Navigator>
   );
 }

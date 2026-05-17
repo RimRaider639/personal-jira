@@ -7,7 +7,7 @@ services:
     runtime: node
     region: oregon # Free tier available in Oregon
     plan: free
-    buildCommand: npm ci && npm run build -w @kanban/backend
+    buildCommand: npm ci && npm run build -w @kanban/shared && npm run build -w @kanban/backend
     startCommand: npm run start -w @kanban/backend
     healthCheckPath: /api/health
     envVars:

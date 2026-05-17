@@ -9,7 +9,8 @@
     "declaration": true,
     "declarationMap": true,
     "lib": ["ES2020"],
-    "ignoreDeprecations": "6.0"
+    "ignoreDeprecations": "6.0",
+    "skipLibCheck": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "src/**/*.test.ts", "src/__tests__/**/*"]

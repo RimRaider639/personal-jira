@@ -68,6 +68,10 @@ export {
   moveTask,
   assignEpicToTask,
   removeEpicFromTask,
+  uploadAttachment,
+  deleteAttachment,
+  addComment,
+  deleteComment,
 } from './tasksSlice';
 export type { TasksState } from './tasksSlice';
 

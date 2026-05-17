@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
+  Platform,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -18,6 +20,10 @@ import {
   deleteTask,
   assignEpicToTask,
   removeEpicFromTask,
+  uploadAttachment,
+  deleteAttachment,
+  addComment,
+  deleteComment,
 } from '@/store/slices';
 import { selectTaskById, selectEpicsByBoardId } from '@/store/selectors';
 import type { Priority, Epic } from '@kanban/shared';
@@ -63,11 +69,16 @@ export function TaskDetailScreen({
   const [editDescription, setEditDescription] = useState('');
   const [editPriority, setEditPriority] = useState<Priority | null>(null);
   const [editStoryPoints, setEditStoryPoints] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   // Comment state
   const [newComment, setNewComment] = useState('');
   const [isAddingComment, setIsAddingComment] = useState(false);
+
+  // Attachment state
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Epic selector state
   const [showEpicSelector, setShowEpicSelector] = useState(false);
@@ -82,6 +93,7 @@ export function TaskDetailScreen({
       setEditDescription(task.description || '');
       setEditPriority(task.priority);
       setEditStoryPoints(task.storyPoints?.toString() || '');
+      setEditEndDate(task.endDate ? new Date(task.endDate).toISOString().split('T')[0] : '');
     }
   }, [task]);
 
@@ -98,6 +110,7 @@ export function TaskDetailScreen({
             description: editDescription.trim() || undefined,
             priority: editPriority,
             storyPoints: editStoryPoints ? parseInt(editStoryPoints, 10) : undefined,
+            endDate: editEndDate || undefined,
           },
         })
       ).unwrap();
@@ -107,7 +120,7 @@ export function TaskDetailScreen({
     } finally {
       setIsSaving(false);
     }
-  }, [dispatch, taskId, task, editTitle, editDescription, editPriority, editStoryPoints]);
+  }, [dispatch, taskId, task, editTitle, editDescription, editPriority, editStoryPoints, editEndDate]);
 
   const handleDelete = useCallback(async () => {
     if (!task) return;
@@ -152,6 +165,99 @@ export function TaskDetailScreen({
       }
     },
     [dispatch, taskId, task]
+  );
+
+  // Handle file upload (web only)
+  const handleFileSelect = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      setIsUploadingAttachment(true);
+      try {
+        await dispatch(uploadAttachment({ taskId, file })).unwrap();
+        Alert.alert('Success', 'Attachment uploaded successfully');
+      } catch {
+        Alert.alert('Error', 'Failed to upload attachment');
+      } finally {
+        setIsUploadingAttachment(false);
+        // Reset the input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+      }
+    },
+    [dispatch, taskId]
+  );
+
+  const handleAddAttachment = useCallback(() => {
+    if (Platform.OS === 'web') {
+      fileInputRef.current?.click();
+    } else {
+      Alert.alert('Info', 'File upload is only available on web');
+    }
+  }, []);
+
+  const handleDeleteAttachment = useCallback(
+    async (attachmentId: string) => {
+      Alert.alert('Delete Attachment', 'Are you sure you want to delete this attachment?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(deleteAttachment({ taskId, attachmentId })).unwrap();
+            } catch {
+              Alert.alert('Error', 'Failed to delete attachment');
+            }
+          },
+        },
+      ]);
+    },
+    [dispatch, taskId]
+  );
+
+  const handleOpenAttachment = useCallback((url: string) => {
+    if (Platform.OS === 'web') {
+      window.open(url, '_blank');
+    } else {
+      Linking.openURL(url);
+    }
+  }, []);
+
+  const handleAddComment = useCallback(async () => {
+    if (!newComment.trim()) return;
+
+    setIsAddingComment(true);
+    try {
+      await dispatch(addComment({ taskId, content: newComment.trim() })).unwrap();
+      setNewComment('');
+    } catch {
+      Alert.alert('Error', 'Failed to add comment');
+    } finally {
+      setIsAddingComment(false);
+    }
+  }, [dispatch, taskId, newComment]);
+
+  const handleDeleteComment = useCallback(
+    async (commentId: string) => {
+      Alert.alert('Delete Comment', 'Are you sure you want to delete this comment?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(deleteComment({ taskId, commentId })).unwrap();
+            } catch {
+              Alert.alert('Error', 'Failed to delete comment');
+            }
+          },
+        },
+      ]);
+    },
+    [dispatch, taskId]
   );
 
   if (!task) {
@@ -322,9 +428,19 @@ export function TaskDetailScreen({
         {/* Due Date */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Due Date</Text>
-          <Text style={task.endDate ? styles.dateValue : styles.emptyValue}>
-            {task.endDate ? new Date(task.endDate).toLocaleDateString() : 'Not set'}
-          </Text>
+          {isEditing ? (
+            <TextInput
+              style={styles.dateInput}
+              value={editEndDate}
+              onChangeText={setEditEndDate}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor="#9ca3af"
+            />
+          ) : (
+            <Text style={task.endDate ? styles.dateValue : styles.emptyValue}>
+              {task.endDate ? new Date(task.endDate).toLocaleDateString() : 'Not set'}
+            </Text>
+          )}
         </View>
 
         {/* Epics */}
@@ -378,13 +494,43 @@ export function TaskDetailScreen({
         {/* Comments */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Comments ({task.comments.length})</Text>
+          
+          {/* Add comment input */}
+          <View style={styles.addCommentContainer}>
+            <TextInput
+              style={styles.commentInput}
+              value={newComment}
+              onChangeText={setNewComment}
+              placeholder="Add a comment..."
+              placeholderTextColor="#9ca3af"
+              multiline
+              editable={!isAddingComment}
+            />
+            <TouchableOpacity
+              style={[styles.addCommentButton, (!newComment.trim() || isAddingComment) && styles.buttonDisabled]}
+              onPress={handleAddComment}
+              disabled={!newComment.trim() || isAddingComment}
+            >
+              {isAddingComment ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.addCommentButtonText}>Add</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.commentsList}>
             {task.comments.map((comment) => (
               <View key={comment.id} style={styles.comment}>
+                <View style={styles.commentHeader}>
+                  <Text style={styles.commentDate}>
+                    {new Date(comment.createdAt).toLocaleString()}
+                  </Text>
+                  <TouchableOpacity onPress={() => handleDeleteComment(comment.id)}>
+                    <Text style={styles.deleteCommentText}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
                 <Text style={styles.commentContent}>{comment.content}</Text>
-                <Text style={styles.commentDate}>
-                  {new Date(comment.createdAt).toLocaleString()}
-                </Text>
               </View>
             ))}
             {task.comments.length === 0 && (
@@ -395,14 +541,54 @@ export function TaskDetailScreen({
 
         {/* Attachments */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Attachments ({task.attachments.length})</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionLabel}>Attachments ({task.attachments.length})</Text>
+            <TouchableOpacity 
+              onPress={handleAddAttachment}
+              disabled={isUploadingAttachment}
+            >
+              {isUploadingAttachment ? (
+                <ActivityIndicator size="small" color="#6366f1" />
+              ) : (
+                <Text style={styles.addButton}>+ Add</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+          
+          {/* Hidden file input for web */}
+          {Platform.OS === 'web' && (
+            <input
+              ref={fileInputRef as any}
+              type="file"
+              style={{ display: 'none' }}
+              onChange={handleFileSelect as any}
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+            />
+          )}
+
           <View style={styles.attachmentsList}>
             {task.attachments.map((attachment) => (
               <View key={attachment.id} style={styles.attachment}>
-                <Text style={styles.attachmentIcon}>📎</Text>
-                <Text style={styles.attachmentName} numberOfLines={1}>
-                  {attachment.filename}
-                </Text>
+                <TouchableOpacity 
+                  style={styles.attachmentInfo}
+                  onPress={() => handleOpenAttachment(attachment.cloudinaryUrl)}
+                >
+                  <Text style={styles.attachmentIcon}>📎</Text>
+                  <View style={styles.attachmentDetails}>
+                    <Text style={styles.attachmentName} numberOfLines={1}>
+                      {attachment.filename}
+                    </Text>
+                    <Text style={styles.attachmentSize}>
+                      {(attachment.fileSize / 1024).toFixed(1)} KB
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.deleteAttachmentButton}
+                  onPress={() => handleDeleteAttachment(attachment.id)}
+                >
+                  <Text style={styles.deleteAttachmentText}>×</Text>
+                </TouchableOpacity>
               </View>
             ))}
             {task.attachments.length === 0 && (
@@ -596,6 +782,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#374151',
   },
+  dateInput: {
+    fontSize: 16,
+    color: '#1f2937',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 12,
+  },
   addButton: {
     color: '#6366f1',
     fontWeight: '600',
@@ -649,20 +843,61 @@ const styles = StyleSheet.create({
   commentsList: {
     marginTop: 8,
   },
+  addCommentContainer: {
+    flexDirection: 'row',
+    marginBottom: 12,
+  },
+  commentInput: {
+    flex: 1,
+    backgroundColor: '#f9fafb',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 12,
+    marginRight: 8,
+    fontSize: 14,
+    color: '#1f2937',
+    minHeight: 44,
+  },
+  addCommentButton: {
+    backgroundColor: '#6366f1',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    justifyContent: 'center',
+  },
+  addCommentButtonText: {
+    color: '#ffffff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  buttonDisabled: {
+    backgroundColor: '#a5b4fc',
+  },
   comment: {
     backgroundColor: '#f9fafb',
     padding: 12,
     borderRadius: 8,
     marginBottom: 8,
   },
+  commentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   commentContent: {
     fontSize: 14,
     color: '#374151',
-    marginBottom: 4,
   },
   commentDate: {
     fontSize: 12,
     color: '#9ca3af',
+  },
+  deleteCommentText: {
+    fontSize: 12,
+    color: '#ef4444',
+    fontWeight: '500',
   },
   attachmentsList: {
     marginTop: 8,
@@ -675,14 +910,35 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 8,
   },
+  attachmentInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  attachmentDetails: {
+    flex: 1,
+  },
   attachmentIcon: {
     fontSize: 16,
     marginRight: 8,
   },
   attachmentName: {
-    flex: 1,
     fontSize: 14,
     color: '#374151',
+  },
+  attachmentSize: {
+    fontSize: 11,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  deleteAttachmentButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  deleteAttachmentText: {
+    fontSize: 20,
+    color: '#ef4444',
+    fontWeight: 'bold',
   },
   metadata: {
     marginTop: 4,

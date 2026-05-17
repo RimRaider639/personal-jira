@@ -354,12 +354,17 @@ taskSchema.set('toJSON', {
       }));
     }
     
-    // Transform attachments _id to id
+    // Transform attachments _id to id and rename fields to match shared types
     if (Array.isArray(obj.attachments)) {
       obj.attachments = (obj.attachments as Record<string, unknown>[]).map((attachment) => ({
-        ...attachment,
         id: attachment._id,
-        _id: undefined,
+        filename: attachment.filename,
+        mimeType: attachment.mimeType,
+        fileSize: attachment.size,
+        cloudinaryPublicId: attachment.cloudinaryPublicId,
+        cloudinaryUrl: attachment.url,
+        thumbnailUrl: null,
+        createdAt: attachment.createdAt,
       }));
     }
     

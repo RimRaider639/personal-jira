@@ -160,6 +160,88 @@ export const removeEpicFromTask = createAsyncThunk<
 });
 
 /**
+ * Async thunk for uploading an attachment to a task
+ */
+export const uploadAttachment = createAsyncThunk<
+  Task,
+  { taskId: string; file: File },
+  { rejectValue: string }
+>('tasks/uploadAttachment', async ({ taskId, file }, { rejectWithValue }) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await apiClient.post<{ data: { id: string } }>(
+      `/tasks/${taskId}/attachments`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+    
+    // Fetch the updated task to get the full attachment data
+    const taskResponse = await apiClient.get<{ data: Task }>(`/tasks/${taskId}`);
+    return taskResponse.data.data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to upload attachment';
+    return rejectWithValue(message);
+  }
+});
+
+/**
+ * Async thunk for deleting an attachment from a task
+ */
+export const deleteAttachment = createAsyncThunk<
+  { taskId: string; attachmentId: string },
+  { taskId: string; attachmentId: string },
+  { rejectValue: string }
+>('tasks/deleteAttachment', async ({ taskId, attachmentId }, { rejectWithValue }) => {
+  try {
+    await apiClient.delete(`/attachments/${attachmentId}`);
+    return { taskId, attachmentId };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to delete attachment';
+    return rejectWithValue(message);
+  }
+});
+
+/**
+ * Async thunk for adding a comment to a task
+ */
+export const addComment = createAsyncThunk<
+  Task,
+  { taskId: string; content: string },
+  { rejectValue: string }
+>('tasks/addComment', async ({ taskId, content }, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.post<{ data: Task }>(`/tasks/${taskId}/comments`, { content });
+    return response.data.data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to add comment';
+    return rejectWithValue(message);
+  }
+});
+
+/**
+ * Async thunk for deleting a comment from a task
+ */
+export const deleteComment = createAsyncThunk<
+  Task,
+  { taskId: string; commentId: string },
+  { rejectValue: string }
+>('tasks/deleteComment', async ({ taskId, commentId }, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.delete<{ data: Task }>(`/tasks/${taskId}/comments/${commentId}`);
+    return response.data.data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to delete comment';
+    return rejectWithValue(message);
+  }
+});
+
+/**
  * Helper to add task to indexes
  */
 const addTaskToIndexes = (state: TasksState, task: Task) => {
@@ -450,6 +532,73 @@ const tasksSlice = createSlice({
       })
       .addCase(removeEpicFromTask.rejected, (state, action) => {
         state.error = action.payload ?? 'Failed to remove epic';
+      });
+
+    // Upload attachment
+    builder
+      .addCase(uploadAttachment.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(uploadAttachment.fulfilled, (state, action) => {
+        state.isLoading = false;
+        const task = action.payload;
+        state.byId[task.id] = task;
+      })
+      .addCase(uploadAttachment.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload ?? 'Failed to upload attachment';
+      });
+
+    // Delete attachment
+    builder
+      .addCase(deleteAttachment.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(deleteAttachment.fulfilled, (state, action) => {
+        state.isLoading = false;
+        const { taskId, attachmentId } = action.payload;
+        const task = state.byId[taskId];
+        if (task) {
+          task.attachments = task.attachments.filter((a) => a.id !== attachmentId);
+        }
+      })
+      .addCase(deleteAttachment.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload ?? 'Failed to delete attachment';
+      });
+
+    // Add comment
+    builder
+      .addCase(addComment.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(addComment.fulfilled, (state, action) => {
+        state.isLoading = false;
+        const task = action.payload;
+        state.byId[task.id] = task;
+      })
+      .addCase(addComment.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload ?? 'Failed to add comment';
+      });
+
+    // Delete comment
+    builder
+      .addCase(deleteComment.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(deleteComment.fulfilled, (state, action) => {
+        state.isLoading = false;
+        const task = action.payload;
+        state.byId[task.id] = task;
+      })
+      .addCase(deleteComment.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload ?? 'Failed to delete comment';
       });
   },
 });

@@ -43,12 +43,20 @@ interface BoardScreenProps {
   onTaskPress?: (taskId: string) => void;
 }
 
+interface CreateTaskData {
+  title: string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high' | 'critical' | null;
+  storyPoints?: number;
+  endDate?: string;
+}
+
 interface CreateTaskModalProps {
   visible: boolean;
   sectionId: string | null;
   sectionName: string;
   onClose: () => void;
-  onSubmit: (title: string, sectionId: string) => void;
+  onSubmit: (data: CreateTaskData, sectionId: string) => void;
   isLoading: boolean;
 }
 
@@ -137,7 +145,7 @@ function CreateSectionModal({
 }
 
 /**
- * CreateTaskModal - Modal for creating a new task
+ * CreateTaskModal - Modal for creating a new task with all fields
  */
 function CreateTaskModal({
   visible,
@@ -148,7 +156,18 @@ function CreateTaskModal({
   isLoading,
 }: CreateTaskModalProps): React.JSX.Element {
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'critical' | null>(null);
+  const [storyPoints, setStoryPoints] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [error, setError] = useState('');
+
+  const PRIORITIES = [
+    { value: 'critical' as const, label: 'Critical', color: '#dc2626' },
+    { value: 'high' as const, label: 'High', color: '#f97316' },
+    { value: 'medium' as const, label: 'Medium', color: '#eab308' },
+    { value: 'low' as const, label: 'Low', color: '#22c55e' },
+  ];
 
   const handleSubmit = useCallback(() => {
     if (!title.trim()) {
@@ -156,12 +175,31 @@ function CreateTaskModal({
       return;
     }
     if (sectionId) {
-      onSubmit(title.trim(), sectionId);
+      const data: CreateTaskData = {
+        title: title.trim(),
+      };
+      if (description.trim()) {
+        data.description = description.trim();
+      }
+      if (priority) {
+        data.priority = priority;
+      }
+      if (storyPoints && !isNaN(parseInt(storyPoints, 10))) {
+        data.storyPoints = parseInt(storyPoints, 10);
+      }
+      if (endDate) {
+        data.endDate = endDate;
+      }
+      onSubmit(data, sectionId);
     }
-  }, [title, sectionId, onSubmit]);
+  }, [title, description, priority, storyPoints, endDate, sectionId, onSubmit]);
 
   const handleClose = useCallback(() => {
     setTitle('');
+    setDescription('');
+    setPriority(null);
+    setStoryPoints('');
+    setEndDate('');
     setError('');
     onClose();
   }, [onClose]);
@@ -169,9 +207,10 @@ function CreateTaskModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
       <View style={modalStyles.overlay}>
-        <View style={modalStyles.container}>
+        <View style={[modalStyles.container, { maxHeight: '90%' }]}>
           <Text style={modalStyles.title}>Add Task to {sectionName}</Text>
 
+          {/* Title */}
           <View style={modalStyles.inputGroup}>
             <Text style={modalStyles.label}>Task Title *</Text>
             <TextInput
@@ -187,6 +226,71 @@ function CreateTaskModal({
               editable={!isLoading}
             />
             {error && <Text style={modalStyles.errorText}>{error}</Text>}
+          </View>
+
+          {/* Description */}
+          <View style={modalStyles.inputGroup}>
+            <Text style={modalStyles.label}>Description</Text>
+            <TextInput
+              style={[modalStyles.input, { minHeight: 80, textAlignVertical: 'top' }]}
+              placeholder="Enter description (optional)"
+              placeholderTextColor="#9ca3af"
+              value={description}
+              onChangeText={setDescription}
+              multiline
+              numberOfLines={3}
+              editable={!isLoading}
+            />
+          </View>
+
+          {/* Priority */}
+          <View style={modalStyles.inputGroup}>
+            <Text style={modalStyles.label}>Priority</Text>
+            <View style={modalStyles.priorityRow}>
+              {PRIORITIES.map((p) => (
+                <TouchableOpacity
+                  key={p.value}
+                  style={[
+                    modalStyles.priorityButton,
+                    priority === p.value && { backgroundColor: p.color + '20', borderColor: p.color },
+                  ]}
+                  onPress={() => setPriority(priority === p.value ? null : p.value)}
+                  disabled={isLoading}
+                >
+                  <View style={[modalStyles.priorityDot, { backgroundColor: p.color }]} />
+                  <Text style={[modalStyles.priorityText, priority === p.value && { color: p.color }]}>
+                    {p.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Story Points and Due Date Row */}
+          <View style={modalStyles.rowGroup}>
+            <View style={[modalStyles.inputGroup, { flex: 1, marginRight: 8 }]}>
+              <Text style={modalStyles.label}>Story Points</Text>
+              <TextInput
+                style={modalStyles.input}
+                placeholder="0"
+                placeholderTextColor="#9ca3af"
+                value={storyPoints}
+                onChangeText={setStoryPoints}
+                keyboardType="numeric"
+                editable={!isLoading}
+              />
+            </View>
+            <View style={[modalStyles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+              <Text style={modalStyles.label}>Due Date</Text>
+              <TextInput
+                style={modalStyles.input}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor="#9ca3af"
+                value={endDate}
+                onChangeText={setEndDate}
+                editable={!isLoading}
+              />
+            </View>
           </View>
 
           <View style={modalStyles.buttons}>
@@ -228,7 +332,7 @@ const modalStyles = StyleSheet.create({
     borderRadius: 16,
     padding: 24,
     width: '100%',
-    maxWidth: 400,
+    maxWidth: 500,
   },
   title: {
     fontSize: 18,
@@ -237,6 +341,10 @@ const modalStyles = StyleSheet.create({
     marginBottom: 20,
   },
   inputGroup: {
+    marginBottom: 16,
+  },
+  rowGroup: {
+    flexDirection: 'row',
     marginBottom: 16,
   },
   label: {
@@ -261,6 +369,31 @@ const modalStyles = StyleSheet.create({
     color: '#ef4444',
     fontSize: 12,
     marginTop: 4,
+  },
+  priorityRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  priorityButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  priorityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  priorityText: {
+    fontSize: 13,
+    color: '#374151',
   },
   buttons: {
     flexDirection: 'row',
@@ -446,10 +579,20 @@ export function BoardScreen({
    * Handle create task
    */
   const handleCreateTask = useCallback(
-    async (title: string, sectionId: string) => {
+    async (data: CreateTaskData, sectionId: string) => {
       setIsCreatingTask(true);
       try {
-        await dispatch(createTask({ boardId, data: { title, sectionId } })).unwrap();
+        await dispatch(createTask({ 
+          boardId, 
+          data: { 
+            title: data.title,
+            sectionId,
+            description: data.description,
+            priority: data.priority ?? undefined,
+            storyPoints: data.storyPoints,
+            endDate: data.endDate,
+          } 
+        })).unwrap();
         setCreateTaskModal({ visible: false, sectionId: null, sectionName: '' });
       } catch {
         Alert.alert('Error', 'Failed to create task. Please try again.');

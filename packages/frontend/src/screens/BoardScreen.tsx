@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
+  fetchBoard,
   fetchSections,
   fetchTasks,
   fetchEpics,
@@ -458,7 +459,7 @@ export function BoardScreen({
   const filteredCount = useAppSelector((state) => boardId ? selectFilteredTaskCount(state, boardId) : 0);
   const totalCount = useAppSelector((state) => boardId ? selectTotalTaskCount(state, boardId) : 0);
 
-  const isLoading = useAppSelector((state) => state.sections.isLoading || state.tasks.isLoading);
+  const isLoading = useAppSelector((state) => state.boards.isLoading || state.sections.isLoading || state.tasks.isLoading);
 
   // Build tasks by section ID map
   const tasksBySectionId = useAppSelector((state) => {
@@ -489,6 +490,8 @@ export function BoardScreen({
       return;
     }
     dispatch(setCurrentBoard(boardId));
+    // Fetch the board itself (needed when refreshing directly on board page)
+    dispatch(fetchBoard(boardId));
     dispatch(fetchSections(boardId));
     dispatch(fetchTasks(boardId));
     dispatch(fetchEpics(boardId));

@@ -16,6 +16,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
   fetchTask,
+  fetchSections,
+  fetchEpics,
   updateTask,
   deleteTask,
   assignEpicToTask,
@@ -92,7 +94,12 @@ export function TaskDetailScreen({
 
   useEffect(() => {
     dispatch(fetchTask(taskId));
-  }, [dispatch, taskId]);
+    // Also fetch sections and epics for the board (needed for move and epic assignment)
+    if (boardId) {
+      dispatch(fetchSections(boardId));
+      dispatch(fetchEpics(boardId));
+    }
+  }, [dispatch, taskId, boardId]);
 
   useEffect(() => {
     if (task) {

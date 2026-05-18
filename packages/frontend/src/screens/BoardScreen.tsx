@@ -32,6 +32,9 @@ import {
   togglePriorityFilter,
   setDueDateFilter,
   clearFilters,
+  startSprint,
+  fetchArchivedTasks,
+  unarchiveTask,
 } from '@/store/slices';
 import {
   selectBoardById,
@@ -580,6 +583,180 @@ const modalStyles = StyleSheet.create({
 });
 
 /**
+ * ArchivedTasksModal - Modal for viewing and restoring archived tasks
+ */
+interface ArchivedTasksModalProps {
+  visible: boolean;
+  tasks: Task[];
+  onClose: () => void;
+  onUnarchive: (taskId: string) => void;
+}
+
+function ArchivedTasksModal({
+  visible,
+  tasks,
+  onClose,
+  onUnarchive,
+}: ArchivedTasksModalProps): React.JSX.Element {
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={archivedModalStyles.overlay}>
+        <View style={archivedModalStyles.container}>
+          <View style={archivedModalStyles.header}>
+            <Text style={archivedModalStyles.title}>Archived Tasks ({tasks.length})</Text>
+            <TouchableOpacity onPress={onClose} style={archivedModalStyles.closeButton}>
+              <Text style={archivedModalStyles.closeButtonText}>×</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={archivedModalStyles.taskList} showsVerticalScrollIndicator={false}>
+            {tasks.length === 0 ? (
+              <View style={archivedModalStyles.emptyState}>
+                <Text style={archivedModalStyles.emptyIcon}>📦</Text>
+                <Text style={archivedModalStyles.emptyText}>No archived tasks</Text>
+                <Text style={archivedModalStyles.emptySubtext}>
+                  Tasks in "Done" sections will be archived when you start a new sprint
+                </Text>
+              </View>
+            ) : (
+              tasks.map((task) => (
+                <View key={task.id} style={archivedModalStyles.taskItem}>
+                  <View style={archivedModalStyles.taskInfo}>
+                    <Text style={archivedModalStyles.taskTitle} numberOfLines={2}>
+                      {task.title}
+                    </Text>
+                    {task.description && (
+                      <Text style={archivedModalStyles.taskDescription} numberOfLines={1}>
+                        {task.description}
+                      </Text>
+                    )}
+                    <Text style={archivedModalStyles.taskDate}>
+                      Archived: {new Date(task.updatedAt).toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={archivedModalStyles.restoreButton}
+                    onPress={() => onUnarchive(task.id)}
+                  >
+                    <Text style={archivedModalStyles.restoreButtonText}>Restore</Text>
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const archivedModalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  container: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '80%',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1f2937',
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    fontSize: 24,
+    color: '#6b7280',
+    lineHeight: 28,
+  },
+  taskList: {
+    padding: 16,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#9ca3af',
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  taskItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  taskInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  taskTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+  taskDescription: {
+    fontSize: 13,
+    color: '#6b7280',
+    marginBottom: 4,
+  },
+  taskDate: {
+    fontSize: 12,
+    color: '#9ca3af',
+  },
+  restoreButton: {
+    backgroundColor: '#6366f1',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  restoreButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+});
+
+/**
  * BoardScreen - Displays a single board with sections and tasks.
  * Supports drag-and-drop for task reordering and section reordering.
  *
@@ -646,6 +823,11 @@ export function BoardScreen({
   // Task preview modal state
   const [previewTask, setPreviewTask] = useState<Task | null>(null);
   const [previewSectionName, setPreviewSectionName] = useState('');
+
+  // Sprint management state
+  const [showArchivedModal, setShowArchivedModal] = useState(false);
+  const [isStartingSprint, setIsStartingSprint] = useState(false);
+  const archivedTasks = useAppSelector((state) => boardId ? state.boards.archivedTasks[boardId] || [] : []);
 
   /**
    * Fetch board data on mount
@@ -902,6 +1084,57 @@ export function BoardScreen({
     dispatch(clearFilters(boardId));
   }, [dispatch, boardId]);
 
+  /**
+   * Handle starting a new sprint
+   */
+  const handleStartSprint = useCallback(async () => {
+    Alert.alert(
+      'Start New Sprint',
+      'This will archive all tasks in "Done" sections. Are you sure?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Start Sprint',
+          style: 'default',
+          onPress: async () => {
+            setIsStartingSprint(true);
+            try {
+              const result = await dispatch(startSprint(boardId)).unwrap();
+              Alert.alert('Sprint Started', `${result.archivedCount} tasks have been archived.`);
+              // Refresh tasks to reflect changes
+              dispatch(fetchTasks(boardId));
+            } catch {
+              Alert.alert('Error', 'Failed to start sprint. Please try again.');
+            } finally {
+              setIsStartingSprint(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [dispatch, boardId]);
+
+  /**
+   * Handle opening archived tasks modal
+   */
+  const handleShowArchived = useCallback(() => {
+    dispatch(fetchArchivedTasks(boardId));
+    setShowArchivedModal(true);
+  }, [dispatch, boardId]);
+
+  /**
+   * Handle unarchiving a task
+   */
+  const handleUnarchiveTask = useCallback(async (taskId: string) => {
+    try {
+      await dispatch(unarchiveTask({ boardId, taskId })).unwrap();
+      // Refresh tasks to show the restored task
+      dispatch(fetchTasks(boardId));
+    } catch {
+      Alert.alert('Error', 'Failed to restore task. Please try again.');
+    }
+  }, [dispatch, boardId]);
+
   if (!boardId || !board) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: effectiveColors.background }]}>
@@ -940,6 +1173,31 @@ export function BoardScreen({
             </TouchableOpacity>
           </View>
           <View style={styles.headerRight}>
+            {/* Sprint Management Buttons */}
+            <TouchableOpacity 
+              style={styles.headerIconButton}
+              onPress={handleShowArchived}
+              accessibilityLabel="View archived tasks"
+            >
+              <Text style={styles.headerIconText}>📦</Text>
+              {archivedTasks.length > 0 && (
+                <View style={styles.archiveBadge}>
+                  <Text style={styles.archiveBadgeText}>{archivedTasks.length > 99 ? '99+' : archivedTasks.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.headerButton, isStartingSprint && styles.headerButtonDisabled]}
+              onPress={handleStartSprint}
+              disabled={isStartingSprint}
+              accessibilityLabel="Start new sprint"
+            >
+              {isStartingSprint ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Text style={styles.headerButtonText}>🚀 Sprint</Text>
+              )}
+            </TouchableOpacity>
             {/* Filter Button */}
             <TouchableOpacity 
               style={[styles.headerIconButton, hasActiveFilters && styles.headerIconButtonActive]} 
@@ -1043,6 +1301,14 @@ export function BoardScreen({
           onSubmit={handleUpdateBoard}
           isLoading={isUpdatingBoard}
         />
+
+        {/* Archived Tasks Modal */}
+        <ArchivedTasksModal
+          visible={showArchivedModal}
+          tasks={archivedTasks}
+          onClose={() => setShowArchivedModal(false)}
+          onUnarchive={handleUnarchiveTask}
+        />
       </SafeAreaView>
     </ThemedBackground>
   );
@@ -1103,6 +1369,26 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: '#ef4444',
+  },
+  archiveBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#f97316',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  archiveBadgeText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  headerButtonDisabled: {
+    opacity: 0.6,
   },
   themeSelectorWrapper: {
     marginLeft: 8,

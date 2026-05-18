@@ -4,6 +4,7 @@ import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
 import Board from '../models/Board';
 import Task, { ITaskDocument, IComment } from '../models/Task';
+import Activity from '../models/Activity';
 
 const router = Router();
 
@@ -206,6 +207,19 @@ router.post(
 
       await task.save({ session });
 
+      // Log activity
+      await Activity.create([{
+        boardId: task.boardId,
+        userId: new mongoose.Types.ObjectId(userId),
+        type: 'comment_added',
+        entityId: comment._id,
+        entityType: 'comment',
+        metadata: {
+          taskId,
+          contentPreview: validatedContent.substring(0, 100),
+        },
+      }], { session });
+
       await session.commitTransaction();
 
       res.status(201).json({
@@ -323,6 +337,18 @@ router.delete(
       }
 
       await task.save({ session });
+
+      // Log activity
+      await Activity.create([{
+        boardId: task.boardId,
+        userId: new mongoose.Types.ObjectId(userId),
+        type: 'comment_deleted',
+        entityId: new mongoose.Types.ObjectId(commentId),
+        entityType: 'comment',
+        metadata: {
+          taskId: task._id.toString(),
+        },
+      }], { session });
 
       await session.commitTransaction();
 

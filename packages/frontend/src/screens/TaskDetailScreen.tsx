@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState, useRef } from 'react';
+import React, { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Alert,
   Platform,
   Linking,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -18,6 +19,7 @@ import {
   fetchTask,
   fetchSections,
   fetchEpics,
+  fetchTasks,
   updateTask,
   deleteTask,
   assignEpicToTask,
@@ -27,11 +29,13 @@ import {
   addComment,
   deleteComment,
   moveTask,
+  addDependency,
+  removeDependency,
 } from '@/store/slices';
-import { selectTaskById, selectEpicsByBoardId, selectSectionsByBoardId } from '@/store/selectors';
+import { selectTaskById, selectEpicsByBoardId, selectSectionsByBoardId, selectTasksByBoardId } from '@/store/selectors';
 import { DatePicker } from '@/components';
 import { useTheme } from '@/theme/ThemeContext';
-import type { Priority, Epic } from '@kanban/shared';
+import type { Priority, Epic, Task } from '@kanban/shared';
 
 interface TaskDetailScreenProps {
   taskId: string;
@@ -39,6 +43,7 @@ interface TaskDetailScreenProps {
   onBack?: () => void;
   onDelete?: () => void;
   onEpicPress?: (epicId: string) => void;
+  onTaskPress?: (taskId: string, boardId: string) => void;
 }
 
 const PRIORITIES: { value: Priority; label: string; color: string }[] = [
@@ -63,12 +68,15 @@ export function TaskDetailScreen({
   onBack,
   onDelete,
   onEpicPress,
+  onTaskPress,
 }: TaskDetailScreenProps): React.JSX.Element {
   const dispatch = useAppDispatch();
+  const { colors } = useTheme();
 
   const task = useAppSelector((state) => selectTaskById(state, taskId));
   const epics = useAppSelector((state) => selectEpicsByBoardId(state, boardId));
   const sections = useAppSelector((state) => selectSectionsByBoardId(state, boardId));
+  const allBoardTasks = useAppSelector((state) => selectTasksByBoardId(state, boardId));
   const isLoading = useAppSelector((state) => state.tasks.isLoading);
   const taskError = useAppSelector((state) => state.tasks.error);
 
@@ -96,12 +104,32 @@ export function TaskDetailScreen({
   // Section selector state (for moving tasks)
   const [showSectionSelector, setShowSectionSelector] = useState(false);
 
+  // Dependency selector state
+  const [showDependencySelector, setShowDependencySelector] = useState(false);
+  const [isAddingDependency, setIsAddingDependency] = useState(false);
+
+  // Get dependent tasks
+  const dependentTasks = useMemo(() => {
+    if (!task?.dependentTaskIds || task.dependentTaskIds.length === 0) return [];
+    return allBoardTasks.filter(t => task.dependentTaskIds.includes(t.id));
+  }, [task, allBoardTasks]);
+
+  // Get available tasks for dependency (exclude self and already dependent)
+  const availableTasksForDependency = useMemo(() => {
+    if (!task) return [];
+    return allBoardTasks.filter(t => 
+      t.id !== task.id && 
+      !task.dependentTaskIds?.includes(t.id)
+    );
+  }, [task, allBoardTasks]);
+
   useEffect(() => {
     dispatch(fetchTask(taskId));
-    // Also fetch sections and epics for the board (needed for move and epic assignment)
+    // Also fetch sections, epics, and tasks for the board (needed for move, epic assignment, and dependencies)
     if (boardId) {
       dispatch(fetchSections(boardId));
       dispatch(fetchEpics(boardId));
+      dispatch(fetchTasks(boardId));
     }
   }, [dispatch, taskId, boardId]);
 
@@ -310,6 +338,62 @@ export function TaskDetailScreen({
       }
     },
     [dispatch, taskId, task]
+  );
+
+  // Handle adding a dependency
+  const handleAddDependency = useCallback(
+    async (dependentTaskId: string) => {
+      if (!task) return;
+
+      setIsAddingDependency(true);
+      try {
+        await dispatch(addDependency({ taskId, dependentTaskId })).unwrap();
+        // Refresh the task to get updated dependentTaskIds
+        dispatch(fetchTask(taskId));
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to add dependency';
+        Alert.alert('Error', errorMessage);
+      } finally {
+        setIsAddingDependency(false);
+      }
+    },
+    [dispatch, taskId, task]
+  );
+
+  // Handle removing a dependency
+  const handleRemoveDependency = useCallback(
+    async (dependentTaskId: string) => {
+      if (!task) return;
+
+      Alert.alert('Remove Dependency', 'Are you sure you want to remove this dependency?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(removeDependency({ taskId, dependentTaskId })).unwrap();
+              // Refresh the task to get updated dependentTaskIds
+              dispatch(fetchTask(taskId));
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to remove dependency';
+              Alert.alert('Error', errorMessage);
+            }
+          },
+        },
+      ]);
+    },
+    [dispatch, taskId, task]
+  );
+
+  // Handle clicking on a dependent task
+  const handleDependentTaskPress = useCallback(
+    (depTaskId: string) => {
+      if (onTaskPress) {
+        onTaskPress(depTaskId, boardId);
+      }
+    },
+    [onTaskPress, boardId]
   );
 
   if (!task) {
@@ -568,6 +652,80 @@ export function TaskDetailScreen({
                 ))
               ) : (
                 <Text style={styles.emptyValue}>No epics assigned</Text>
+              )}
+            </View>
+          )}
+        </View>
+
+        {/* Dependent Tasks */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionLabel}>Dependent Tasks ({dependentTasks.length})</Text>
+            <TouchableOpacity onPress={() => setShowDependencySelector(!showDependencySelector)}>
+              <Text style={styles.addButton}>{showDependencySelector ? 'Done' : '+ Add'}</Text>
+            </TouchableOpacity>
+          </View>
+          {showDependencySelector ? (
+            <View style={styles.dependencySelector}>
+              {availableTasksForDependency.length > 0 ? (
+                availableTasksForDependency.map((depTask) => {
+                  const depSection = sections.find(s => s.id === depTask.sectionId);
+                  return (
+                    <TouchableOpacity
+                      key={depTask.id}
+                      style={styles.dependencyOption}
+                      onPress={() => handleAddDependency(depTask.id)}
+                      disabled={isAddingDependency}
+                    >
+                      <View style={styles.dependencyOptionInfo}>
+                        <Text style={styles.dependencyOptionTitle} numberOfLines={1}>
+                          {depTask.title}
+                        </Text>
+                        <Text style={styles.dependencyOptionSection}>
+                          {depSection?.name || 'Unknown'}
+                        </Text>
+                      </View>
+                      {isAddingDependency ? (
+                        <ActivityIndicator size="small" color="#6366f1" />
+                      ) : (
+                        <Text style={styles.addDependencyIcon}>+</Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })
+              ) : (
+                <Text style={styles.emptyValue}>No other tasks available</Text>
+              )}
+            </View>
+          ) : (
+            <View style={styles.dependenciesList}>
+              {dependentTasks.length > 0 ? (
+                dependentTasks.map((depTask) => {
+                  const depSection = sections.find(s => s.id === depTask.sectionId);
+                  return (
+                    <View key={depTask.id} style={styles.dependencyItem}>
+                      <TouchableOpacity
+                        style={styles.dependencyItemInfo}
+                        onPress={() => handleDependentTaskPress(depTask.id)}
+                      >
+                        <Text style={styles.dependencyItemTitle} numberOfLines={1}>
+                          {depTask.title}
+                        </Text>
+                        <Text style={styles.dependencyItemSection}>
+                          {depSection?.name || 'Unknown'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.removeDependencyButton}
+                        onPress={() => handleRemoveDependency(depTask.id)}
+                      >
+                        <Text style={styles.removeDependencyText}>×</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })
+              ) : (
+                <Text style={styles.emptyValue}>No dependent tasks</Text>
               )}
             </View>
           )}
@@ -953,6 +1111,74 @@ const styles = StyleSheet.create({
   epicBadgeText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  dependencySelector: {
+    marginTop: 8,
+  },
+  dependencyOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    marginBottom: 8,
+    backgroundColor: '#f9fafb',
+  },
+  dependencyOptionInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  dependencyOptionTitle: {
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  dependencyOptionSection: {
+    fontSize: 12,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  addDependencyIcon: {
+    fontSize: 20,
+    color: '#6366f1',
+    fontWeight: 'bold',
+  },
+  dependenciesList: {
+    marginTop: 4,
+  },
+  dependencyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  dependencyItemInfo: {
+    flex: 1,
+  },
+  dependencyItemTitle: {
+    fontSize: 14,
+    color: '#1e40af',
+    fontWeight: '500',
+  },
+  dependencyItemSection: {
+    fontSize: 12,
+    color: '#3b82f6',
+    marginTop: 2,
+  },
+  removeDependencyButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  removeDependencyText: {
+    fontSize: 20,
+    color: '#ef4444',
+    fontWeight: 'bold',
   },
   commentsList: {
     marginTop: 8,

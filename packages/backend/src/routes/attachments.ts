@@ -5,6 +5,7 @@ import { authenticate, AuthenticatedRequest } from '../middleware/auth';
 import { createError } from '../middleware/errorHandler';
 import Board from '../models/Board';
 import Task, { ITaskDocument, IAttachment } from '../models/Task';
+import Activity from '../models/Activity';
 import { uploadFile, deleteFile } from '../services/cloudinary.service';
 import { isValidMimeType, ALLOWED_MIME_TYPES } from '@kanban/shared';
 
@@ -225,6 +226,20 @@ router.post(
 
       await task.save({ session });
 
+      // Log activity
+      await Activity.create([{
+        boardId: task.boardId,
+        userId: new mongoose.Types.ObjectId(userId),
+        type: 'attachment_added',
+        entityId: attachment._id,
+        entityType: 'attachment',
+        metadata: {
+          taskId,
+          filename: file.originalname,
+          mimeType: file.mimetype,
+        },
+      }], { session });
+
       await session.commitTransaction();
 
       res.status(201).json({
@@ -279,6 +294,19 @@ router.delete(
       }
 
       await task.save({ session });
+
+      // Log activity
+      await Activity.create([{
+        boardId: task.boardId,
+        userId: new mongoose.Types.ObjectId(userId),
+        type: 'attachment_deleted',
+        entityId: new mongoose.Types.ObjectId(attachmentId),
+        entityType: 'attachment',
+        metadata: {
+          taskId: task._id.toString(),
+          filename: attachment.filename,
+        },
+      }], { session });
 
       await session.commitTransaction();
 

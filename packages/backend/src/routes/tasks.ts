@@ -6,6 +6,7 @@ import Board from '../models/Board';
 import Section from '../models/Section';
 import Task, { PRIORITY_VALUES, Priority } from '../models/Task';
 import Epic from '../models/Epic';
+import Activity from '../models/Activity';
 
 const router = Router();
 
@@ -414,6 +415,19 @@ router.post(
 
       await task.save({ session });
 
+      // Log activity
+      await Activity.create([{
+        boardId: new mongoose.Types.ObjectId(boardId),
+        userId: new mongoose.Types.ObjectId(userId),
+        type: 'task_created',
+        entityId: task._id,
+        entityType: 'task',
+        metadata: {
+          title: task.title,
+          sectionId: targetSectionId,
+        },
+      }], { session });
+
       await session.commitTransaction();
 
       res.status(201).json({
@@ -489,6 +503,7 @@ router.put(
       const { task } = await verifyTaskOwnership(id, userId, session);
 
       const taskDoc = task as unknown as {
+        _id: mongoose.Types.ObjectId;
         boardId: mongoose.Types.ObjectId;
         title: string;
         description: string | null;
@@ -570,6 +585,18 @@ router.put(
 
       await taskDoc.save({ session });
 
+      // Log activity
+      await Activity.create([{
+        boardId: taskDoc.boardId,
+        userId: new mongoose.Types.ObjectId(userId),
+        type: 'task_updated',
+        entityId: taskDoc._id,
+        entityType: 'task',
+        metadata: {
+          updatedFields: Object.keys(req.body),
+        },
+      }], { session });
+
       await session.commitTransaction();
 
       // Fetch updated task
@@ -616,15 +643,31 @@ router.delete(
 
       const taskDoc = task as unknown as {
         _id: mongoose.Types.ObjectId;
+        boardId: mongoose.Types.ObjectId;
         sectionId: mongoose.Types.ObjectId;
         position: number;
+        title: string;
       };
 
       // Get the section ID for reordering
       const sectionId = taskDoc.sectionId;
+      const boardId = taskDoc.boardId;
+      const taskTitle = taskDoc.title;
 
       // Delete the task (comments and attachments are embedded, so they're deleted automatically)
       await Task.findByIdAndDelete(id).session(session);
+
+      // Log activity
+      await Activity.create([{
+        boardId,
+        userId: new mongoose.Types.ObjectId(userId),
+        type: 'task_deleted',
+        entityId: taskDoc._id,
+        entityType: 'task',
+        metadata: {
+          title: taskTitle,
+        },
+      }], { session });
 
       // Reorder remaining tasks in the section to maintain contiguous positions
       const remainingTasks = await Task.find({ sectionId })
@@ -814,6 +857,19 @@ router.put(
         taskDoc.sectionId = new mongoose.Types.ObjectId(targetSectionId);
         taskDoc.position = clampedPosition;
         await taskDoc.save({ session });
+
+        // Log activity for cross-section move
+        await Activity.create([{
+          boardId: taskDoc.boardId,
+          userId: new mongoose.Types.ObjectId(userId),
+          type: 'task_moved',
+          entityId: taskDoc._id,
+          entityType: 'task',
+          metadata: {
+            fromSectionId: sourceSectionId.toString(),
+            toSectionId: targetSectionId,
+          },
+        }], { session });
       }
 
       await session.commitTransaction();
@@ -905,6 +961,19 @@ router.post(
       taskDoc.epicIds.push(epicObjectId);
       await taskDoc.save({ session });
 
+      // Log activity
+      await Activity.create([{
+        boardId: taskDoc.boardId,
+        userId: new mongoose.Types.ObjectId(userId),
+        type: 'epic_assigned',
+        entityId: taskDoc._id,
+        entityType: 'task',
+        metadata: {
+          epicId,
+          epicName: epic.name,
+        },
+      }], { session });
+
       await session.commitTransaction();
 
       // Fetch updated task
@@ -979,6 +1048,18 @@ router.delete(
       // Remove the epic from the task's epicIds array
       taskDoc.epicIds.splice(epicIndex, 1);
       await taskDoc.save({ session });
+
+      // Log activity
+      await Activity.create([{
+        boardId: taskDoc.boardId,
+        userId: new mongoose.Types.ObjectId(userId),
+        type: 'epic_removed',
+        entityId: taskDoc._id,
+        entityType: 'task',
+        metadata: {
+          epicId,
+        },
+      }], { session });
 
       await session.commitTransaction();
 

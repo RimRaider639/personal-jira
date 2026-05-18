@@ -116,6 +116,10 @@ function TaskDetailScreenWrapper({
     navigation.navigate('EpicDetail', { epicId });
   }, [navigation]);
 
+  const handleTaskPress = useCallback((depTaskId: string, depBoardId: string) => {
+    navigation.navigate('TaskDetail', { taskId: depTaskId, boardId: depBoardId });
+  }, [navigation]);
+
   return (
     <TaskDetailScreen 
       taskId={taskId}
@@ -123,6 +127,7 @@ function TaskDetailScreenWrapper({
       onBack={handleBack}
       onDelete={handleDelete}
       onEpicPress={handleEpicPress}
+      onTaskPress={handleTaskPress}
     />
   );
 }

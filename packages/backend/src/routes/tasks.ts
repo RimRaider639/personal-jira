@@ -179,9 +179,10 @@ router.get(
       // Verify board ownership
       await verifyBoardOwnership(boardId, userId);
 
-      // Build query
+      // Build query - exclude archived tasks by default
       const query: Record<string, unknown> = {
         boardId: new mongoose.Types.ObjectId(boardId),
+        isArchived: { $ne: true },
       };
 
       // Filter by section

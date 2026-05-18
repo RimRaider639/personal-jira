@@ -1154,12 +1154,12 @@ export function BoardScreen({
           <View style={styles.headerLeft}>
             {onBack && (
               <TouchableOpacity
-                style={styles.backButton}
+                style={styles.homeButton}
                 onPress={onBack}
                 accessibilityRole="button"
-                accessibilityLabel="Go back"
+                accessibilityLabel="Go to home"
               >
-                <Text style={styles.backButtonText}>← Back</Text>
+                <Text style={styles.homeButtonText}>🏠</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity 
@@ -1392,6 +1392,18 @@ const styles = StyleSheet.create({
   },
   themeSelectorWrapper: {
     marginLeft: 8,
+  },
+  homeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  homeButtonText: {
+    fontSize: 20,
   },
   backButton: {
     marginRight: 12,

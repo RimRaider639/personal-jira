@@ -61,11 +61,8 @@ function BoardScreenWrapper({
   const { boardId } = route.params;
 
   const handleBack = useCallback(() => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      navigation.navigate('BoardList');
-    }
+    // Always navigate to BoardList to avoid navigation loops
+    navigation.navigate('BoardList');
   }, [navigation]);
 
   const handleTaskPress = useCallback((taskId: string) => {

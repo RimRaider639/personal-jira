@@ -106,7 +106,7 @@ export function TaskDetailScreen({
 
   // Dependency selector state
   const [showDependencySelector, setShowDependencySelector] = useState(false);
-  const [isAddingDependency, setIsAddingDependency] = useState(false);
+  const [addingDependencyId, setAddingDependencyId] = useState<string | null>(null);
 
   // Get dependent tasks
   const dependentTasks = useMemo(() => {
@@ -345,7 +345,7 @@ export function TaskDetailScreen({
     async (dependentTaskId: string) => {
       if (!task) return;
 
-      setIsAddingDependency(true);
+      setAddingDependencyId(dependentTaskId);
       try {
         await dispatch(addDependency({ taskId, dependentTaskId })).unwrap();
         // Refresh the task to get updated dependentTaskIds
@@ -354,7 +354,7 @@ export function TaskDetailScreen({
         const errorMessage = error instanceof Error ? error.message : 'Failed to add dependency';
         Alert.alert('Error', errorMessage);
       } finally {
-        setIsAddingDependency(false);
+        setAddingDependencyId(null);
       }
     },
     [dispatch, taskId, task]
@@ -670,12 +670,13 @@ export function TaskDetailScreen({
               {availableTasksForDependency.length > 0 ? (
                 availableTasksForDependency.map((depTask) => {
                   const depSection = sections.find(s => s.id === depTask.sectionId);
+                  const isAdding = addingDependencyId === depTask.id;
                   return (
                     <TouchableOpacity
                       key={depTask.id}
                       style={styles.dependencyOption}
                       onPress={() => handleAddDependency(depTask.id)}
-                      disabled={isAddingDependency}
+                      disabled={addingDependencyId !== null}
                     >
                       <View style={styles.dependencyOptionInfo}>
                         <Text style={styles.dependencyOptionTitle} numberOfLines={1}>
@@ -685,7 +686,7 @@ export function TaskDetailScreen({
                           {depSection?.name || 'Unknown'}
                         </Text>
                       </View>
-                      {isAddingDependency ? (
+                      {isAdding ? (
                         <ActivityIndicator size="small" color="#6366f1" />
                       ) : (
                         <Text style={styles.addDependencyIcon}>+</Text>

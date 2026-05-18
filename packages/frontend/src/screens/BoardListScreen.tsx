@@ -268,16 +268,14 @@ function BoardCard({ board, onPress, onDelete, onHeatmapPress, colors, cardWidth
           </View>
         )}
         
-        {/* Mini Heatmap */}
-        {heatmap && heatmap.length > 0 && (
-          <TouchableOpacity 
-            style={styles.heatmapContainer}
-            onPress={() => onHeatmapPress(board.id)}
-          >
-            <MiniHeatmap data={heatmap} colors={colors} />
-            <Text style={[styles.heatmapLabel, { color: colors.textMuted }]}>Activity</Text>
-          </TouchableOpacity>
-        )}
+        {/* Mini Heatmap - always show */}
+        <TouchableOpacity 
+          style={styles.heatmapContainer}
+          onPress={() => onHeatmapPress(board.id)}
+        >
+          <MiniHeatmap data={heatmap || []} colors={colors} />
+          <Text style={[styles.heatmapLabel, { color: colors.textMuted }]}>Activity</Text>
+        </TouchableOpacity>
         
         <Text style={[styles.boardMeta, { color: colors.textMuted }]}>
           {board.sectionOrder.length} sections
@@ -310,7 +308,8 @@ export function BoardListScreen(): React.JSX.Element {
   const error = useAppSelector((state) => state.boards.error);
 
   // Calculate responsive card width
-  // Desktop: 5 cards per row, Tablet: 3-4 cards, Mobile: 2 cards
+  // Desktop: 4 cards per row, Tablet: 3 cards, Mobile: 2 cards
+  // Wider cards to accommodate stats and heatmap
   const boardCardWidth = useMemo(() => {
     const padding = 32; // Total horizontal padding
     const gap = 16; // Gap between cards
@@ -318,13 +317,13 @@ export function BoardListScreen(): React.JSX.Element {
     
     let cardsPerRow: number;
     if (screenWidth >= 1200) {
-      cardsPerRow = 5;
-    } else if (screenWidth >= 900) {
       cardsPerRow = 4;
-    } else if (screenWidth >= 600) {
+    } else if (screenWidth >= 900) {
       cardsPerRow = 3;
-    } else {
+    } else if (screenWidth >= 600) {
       cardsPerRow = 2;
+    } else {
+      cardsPerRow = 1;
     }
     
     const cardWidth = (availableWidth - (gap * (cardsPerRow - 1))) / cardsPerRow;
@@ -1121,7 +1120,7 @@ const styles = StyleSheet.create({
     elevation: 3,
     overflow: 'hidden',
     borderWidth: 1,
-    aspectRatio: 1, // Make it square
+    minHeight: 180, // Minimum height to fit content
   },
   boardColorBar: {
     height: 6,

@@ -71,6 +71,7 @@ export {
   fetchAllTasks,
   fetchPinnedTasks,
   toggleTaskPin,
+  reorderPinnedTasks,
   fetchTask,
   createTask,
   updateTask,
@@ -169,5 +170,6 @@ export {
   createNote,
   updateNote,
   deleteNote,
+  reorderNotes,
 } from './notesSlice';
 export type { NotesState } from './notesSlice';

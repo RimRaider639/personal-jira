@@ -168,16 +168,84 @@ router.get(
       const boards = await Board.find({ userId: new mongoose.Types.ObjectId(userId) });
       const boardIds = boards.map(b => b._id);
 
-      // Get all pinned tasks for those boards
+      // Get all pinned tasks for those boards, sorted by pinnedPosition
       const tasks = await Task.find({ 
         boardId: { $in: boardIds },
         isPinned: true,
-      }).sort({ updatedAt: -1 });
+      }).sort({ pinnedPosition: 1, updatedAt: -1 });
 
       res.status(200).json({
         success: true,
         data: tasks,
         count: tasks.length,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * PUT /api/tasks/pinned/reorder
+ * Reorder pinned tasks
+ */
+router.put(
+  '/tasks/pinned/reorder',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw createError('User not authenticated', 401);
+      }
+
+      const { taskIds } = req.body;
+
+      if (!Array.isArray(taskIds)) {
+        throw createError('taskIds must be an array', 400);
+      }
+
+      // Validate all task IDs
+      for (const taskId of taskIds) {
+        if (!mongoose.Types.ObjectId.isValid(taskId)) {
+          throw createError(`Invalid task ID: ${taskId}`, 400);
+        }
+      }
+
+      // Get all boards for the user
+      const boards = await Board.find({ userId: new mongoose.Types.ObjectId(userId) });
+      const boardIds = boards.map(b => b._id);
+
+      // Verify all tasks belong to the user's boards and are pinned
+      const tasks = await Task.find({
+        _id: { $in: taskIds.map((id: string) => new mongoose.Types.ObjectId(id)) },
+        boardId: { $in: boardIds },
+        isPinned: true,
+      });
+
+      if (tasks.length !== taskIds.length) {
+        throw createError('Some tasks not found, not pinned, or access denied', 400);
+      }
+
+      // Update positions
+      const bulkOps = taskIds.map((taskId: string, index: number) => ({
+        updateOne: {
+          filter: { _id: new mongoose.Types.ObjectId(taskId) },
+          update: { $set: { pinnedPosition: index } },
+        },
+      }));
+
+      await Task.bulkWrite(bulkOps);
+
+      // Fetch updated pinned tasks
+      const updatedTasks = await Task.find({
+        boardId: { $in: boardIds },
+        isPinned: true,
+      }).sort({ pinnedPosition: 1, updatedAt: -1 });
+
+      res.status(200).json({
+        success: true,
+        data: updatedTasks,
       });
     } catch (error) {
       next(error);
@@ -209,11 +277,28 @@ router.put(
 
       const taskDoc = task as unknown as {
         isPinned: boolean;
+        pinnedPosition: number;
         save: () => Promise<void>;
       };
 
       // Toggle pin status
       taskDoc.isPinned = !taskDoc.isPinned;
+      
+      // If pinning, set position to end
+      if (taskDoc.isPinned) {
+        // Get all boards for the user
+        const boards = await Board.find({ userId: new mongoose.Types.ObjectId(userId) });
+        const boardIds = boards.map(b => b._id);
+        
+        // Get max pinnedPosition
+        const maxPinnedTask = await Task.findOne({
+          boardId: { $in: boardIds },
+          isPinned: true,
+        }).sort({ pinnedPosition: -1 });
+        
+        taskDoc.pinnedPosition = maxPinnedTask ? ((maxPinnedTask as unknown as { pinnedPosition?: number }).pinnedPosition || 0) + 1 : 0;
+      }
+      
       await taskDoc.save();
 
       // Fetch updated task

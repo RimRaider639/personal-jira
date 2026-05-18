@@ -91,6 +91,23 @@ export const deleteNote = createAsyncThunk<
 });
 
 /**
+ * Async thunk for reordering notes
+ */
+export const reorderNotes = createAsyncThunk<
+  Note[],
+  string[],
+  { rejectValue: string }
+>('notes/reorder', async (noteIds, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.put<{ data: Note[] }>('/notes/reorder', { noteIds });
+    return response.data.data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to reorder notes';
+    return rejectWithValue(message);
+  }
+});
+
+/**
  * Notes slice
  */
 const notesSlice = createSlice({
@@ -177,6 +194,20 @@ const notesSlice = createSlice({
       .addCase(deleteNote.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload ?? 'Failed to delete note';
+      });
+
+    // Reorder notes
+    builder
+      .addCase(reorderNotes.fulfilled, (state, action) => {
+        state.byId = {};
+        state.allIds = [];
+        action.payload.forEach((note) => {
+          state.byId[note.id] = note;
+          state.allIds.push(note.id);
+        });
+      })
+      .addCase(reorderNotes.rejected, (state, action) => {
+        state.error = action.payload ?? 'Failed to reorder notes';
       });
   },
 });

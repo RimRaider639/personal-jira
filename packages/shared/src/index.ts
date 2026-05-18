@@ -85,6 +85,7 @@ export interface Task {
   dependentTaskIds: string[];
   isArchived: boolean;
   isPinned: boolean;
+  pinnedPosition: number;
   comments: Comment[];
   attachments: Attachment[];
   createdAt: string;
@@ -96,6 +97,7 @@ export interface Note {
   userId: string;
   content: string;
   color: string;
+  position: number;
   createdAt: string;
   updatedAt: string;
 }

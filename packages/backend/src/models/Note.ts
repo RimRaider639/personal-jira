@@ -7,6 +7,7 @@ export interface INote extends Document {
   userId: mongoose.Types.ObjectId;
   content: string;
   color: string;
+  position: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -31,6 +32,10 @@ const noteSchema = new Schema<INote>(
       type: String,
       default: '#fef08a', // Default yellow sticky note color
     },
+    position: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
@@ -45,6 +50,9 @@ const noteSchema = new Schema<INote>(
     },
   }
 );
+
+// Index for sorting by position
+noteSchema.index({ userId: 1, position: 1 });
 
 const Note = mongoose.model<INote>('Note', noteSchema);
 

@@ -44,6 +44,7 @@ export interface ITask {
   position: number;
   isArchived: boolean;
   isPinned: boolean;
+  pinnedPosition: number;
   comments: IComment[];
   attachments: IAttachment[];
   createdAt: Date;
@@ -221,6 +222,10 @@ const taskSchema = new Schema<ITaskDocument, ITaskModel>(
       type: Boolean,
       default: false,
       index: true,
+    },
+    pinnedPosition: {
+      type: Number,
+      default: 0,
     },
     comments: [commentSchema],
     attachments: [attachmentSchema],

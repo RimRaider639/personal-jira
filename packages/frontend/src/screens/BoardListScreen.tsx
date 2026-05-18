@@ -1195,6 +1195,8 @@ export function BoardListScreen(): React.JSX.Element {
       const result = await dispatch(createTask({ boardId, data: { title, sectionId } })).unwrap();
       // Pin the task automatically
       await dispatch(toggleTaskPin(result.id)).unwrap();
+      // Refresh board stats to update task counts
+      dispatch(fetchBoardStats(boardId));
       setIsCreateFridgeTaskModalVisible(false);
     } catch {
       Alert.alert('Error', 'Failed to create task');

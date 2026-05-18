@@ -93,6 +93,23 @@ export const toggleTaskPin = createAsyncThunk<
 });
 
 /**
+ * Async thunk for reordering pinned tasks
+ */
+export const reorderPinnedTasks = createAsyncThunk<
+  Task[],
+  string[],
+  { rejectValue: string }
+>('tasks/reorderPinned', async (taskIds, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.put<{ data: Task[] }>('/tasks/pinned/reorder', { taskIds });
+    return response.data.data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to reorder pinned tasks';
+    return rejectWithValue(message);
+  }
+});
+
+/**
  * Async thunk for fetching a single task
  */
 export const fetchTask = createAsyncThunk<Task, string, { rejectValue: string }>(
@@ -800,6 +817,18 @@ const tasksSlice = createSlice({
       })
       .addCase(toggleTaskPin.rejected, (state, action) => {
         state.error = action.payload ?? 'Failed to toggle pin status';
+      });
+
+    // Reorder pinned tasks
+    builder
+      .addCase(reorderPinnedTasks.fulfilled, (state, action) => {
+        // Update all pinned tasks with new positions
+        action.payload.forEach((task) => {
+          state.byId[task.id] = task;
+        });
+      })
+      .addCase(reorderPinnedTasks.rejected, (state, action) => {
+        state.error = action.payload ?? 'Failed to reorder pinned tasks';
       });
   },
 });

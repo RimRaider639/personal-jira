@@ -58,9 +58,7 @@ export function EpicModal({
   const [description, setDescription] = useState('');
   const [color, setColor] = useState(EPIC_COLORS[0]);
   const [endDate, setEndDate] = useState('');
-  const [selectedBoardIds, setSelectedBoardIds] = useState<string[]>([]);
   const [error, setError] = useState('');
-  const [showBoardSelector, setShowBoardSelector] = useState(false);
 
   // Reset form when epic changes
   useEffect(() => {
@@ -84,16 +82,14 @@ export function EpicModal({
       } else {
         setEndDate('');
       }
-      setSelectedBoardIds(linkedBoardIds);
     } else {
       setName('');
       setDescription('');
       setColor(EPIC_COLORS[Math.floor(Math.random() * EPIC_COLORS.length)]);
       setEndDate('');
-      setSelectedBoardIds([]);
     }
     setError('');
-  }, [epic, linkedBoardIds, visible]);
+  }, [epic, visible]);
 
   const handleSave = useCallback(() => {
     if (!name.trim()) {
@@ -105,17 +101,9 @@ export function EpicModal({
       description: description.trim(),
       color,
       endDate: endDate || undefined,
-      boardIds: selectedBoardIds,
+      boardIds: linkedBoardIds, // Pass the existing linked boards
     });
-  }, [name, description, color, endDate, selectedBoardIds, onSave]);
-
-  const toggleBoard = useCallback((boardId: string) => {
-    setSelectedBoardIds(prev => 
-      prev.includes(boardId) 
-        ? prev.filter(id => id !== boardId)
-        : [...prev, boardId]
-    );
-  }, []);
+  }, [name, description, color, endDate, linkedBoardIds, onSave]);
 
   // Group tasks by board
   const tasksByBoard = useMemo(() => {
@@ -215,58 +203,26 @@ export function EpicModal({
               <DatePicker value={endDate} onChange={setEndDate} placeholder="Select date" />
             </View>
 
-            {/* Scope / Boards */}
-            <View style={styles.field}>
-              <View style={styles.fieldHeader}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>Scope (Boards)</Text>
-                <TouchableOpacity onPress={() => setShowBoardSelector(!showBoardSelector)}>
-                  <Text style={[styles.editLink, { color: colors.primary }]}>
-                    {showBoardSelector ? 'Done' : 'Edit'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              
-              {showBoardSelector ? (
-                <View style={[styles.boardSelector, { borderColor: colors.border }]}>
-                  {allBoards.map(board => (
-                    <TouchableOpacity
-                      key={board.id}
-                      style={[
-                        styles.boardOption,
-                        { borderColor: colors.border },
-                        selectedBoardIds.includes(board.id) && { backgroundColor: colors.primaryLight, borderColor: colors.primary }
-                      ]}
-                      onPress={() => toggleBoard(board.id)}
-                    >
-                      <View style={[styles.boardDot, { backgroundColor: board.color || '#6366f1' }]} />
-                      <Text style={[styles.boardName, { color: colors.text }]}>{board.name}</Text>
-                      {selectedBoardIds.includes(board.id) && (
-                        <Text style={[styles.checkmark, { color: colors.primary }]}>✓</Text>
-                      )}
-                    </TouchableOpacity>
-                  ))}
-                  {allBoards.length === 0 && (
-                    <Text style={[styles.emptyText, { color: colors.textMuted }]}>No boards available</Text>
-                  )}
-                </View>
-              ) : (
+            {/* Scope / Boards - Read-only display of linked boards */}
+            {!isNew && linkedBoardIds.length > 0 && (
+              <View style={styles.field}>
+                <Text style={[styles.label, { color: colors.textSecondary }]}>Linked Boards</Text>
                 <View style={styles.boardTags}>
-                  {selectedBoardIds.length > 0 ? (
-                    selectedBoardIds.map(boardId => {
-                      const board = allBoards.find(b => b.id === boardId);
-                      return board ? (
-                        <View key={boardId} style={[styles.boardTag, { backgroundColor: (board.color || '#6366f1') + '20' }]}>
-                          <View style={[styles.boardTagDot, { backgroundColor: board.color || '#6366f1' }]} />
-                          <Text style={[styles.boardTagText, { color: colors.text }]}>{board.name}</Text>
-                        </View>
-                      ) : null;
-                    })
-                  ) : (
-                    <Text style={[styles.noBoards, { color: colors.textMuted }]}>Available in all boards</Text>
-                  )}
+                  {linkedBoardIds.map(boardId => {
+                    const board = allBoards.find(b => b.id === boardId);
+                    return board ? (
+                      <View key={boardId} style={[styles.boardTag, { backgroundColor: (board.color || '#6366f1') + '20' }]}>
+                        <View style={[styles.boardTagDot, { backgroundColor: board.color || '#6366f1' }]} />
+                        <Text style={[styles.boardTagText, { color: colors.text }]}>{board.name}</Text>
+                      </View>
+                    ) : null;
+                  })}
                 </View>
-              )}
-            </View>
+                <Text style={[styles.scopeHint, { color: colors.textMuted }]}>
+                  Boards are linked when tasks in those boards are assigned to this epic
+                </Text>
+              </View>
+            )}
 
             {/* Progress (only for existing epics) */}
             {!isNew && linkedTasks.length > 0 && (
@@ -501,6 +457,11 @@ const styles = StyleSheet.create({
   noBoards: {
     fontSize: 14,
     fontStyle: 'italic',
+  },
+  scopeHint: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 8,
   },
   emptyText: {
     fontSize: 14,

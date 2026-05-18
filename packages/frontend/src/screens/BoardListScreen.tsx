@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -22,11 +22,15 @@ import {
   deleteBoard,
   logout,
   clearBoardsError,
+  fetchAllEpics,
+  createEpic,
+  updateEpic,
+  deleteEpic,
 } from '@/store/slices';
-import { selectAllBoards, selectCurrentUser } from '@/store/selectors';
-import { ThemedBackground, ThemeSelector } from '@/components';
+import { selectAllBoards, selectCurrentUser, selectAllEpics, selectAllTasks } from '@/store/selectors';
+import { ThemedBackground, DarkModeToggle, EpicModal } from '@/components';
 import { useTheme } from '@/theme/ThemeContext';
-import type { Board } from '@kanban/shared';
+import type { Board, Epic, Task } from '@kanban/shared';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 
 interface CreateBoardModalProps {
@@ -136,12 +140,13 @@ interface BoardCardProps {
   board: Board;
   onPress: (boardId: string) => void;
   onDelete: (boardId: string) => void;
+  colors: ReturnType<typeof useTheme>['colors'];
 }
 
 /**
  * BoardCard - Individual board card component
  */
-function BoardCard({ board, onPress, onDelete }: BoardCardProps): React.JSX.Element {
+function BoardCard({ board, onPress, onDelete, colors }: BoardCardProps): React.JSX.Element {
   const handlePress = useCallback(() => {
     onPress(board.id);
   }, [board.id, onPress]);
@@ -163,7 +168,7 @@ function BoardCard({ board, onPress, onDelete }: BoardCardProps): React.JSX.Elem
 
   return (
     <TouchableOpacity
-      style={styles.boardCard}
+      style={[styles.boardCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}
       onPress={handlePress}
       onLongPress={handleLongPress}
       activeOpacity={0.7}
@@ -173,15 +178,15 @@ function BoardCard({ board, onPress, onDelete }: BoardCardProps): React.JSX.Elem
     >
       <View style={[styles.boardColorBar, { backgroundColor: board.color || '#6366f1' }]} />
       <View style={styles.boardContent}>
-        <Text style={styles.boardName} numberOfLines={1}>
+        <Text style={[styles.boardName, { color: colors.text }]} numberOfLines={1}>
           {board.name}
         </Text>
         {board.description && (
-          <Text style={styles.boardDescription} numberOfLines={2}>
+          <Text style={[styles.boardDescription, { color: colors.textSecondary }]} numberOfLines={2}>
             {board.description}
           </Text>
         )}
-        <Text style={styles.boardMeta}>
+        <Text style={[styles.boardMeta, { color: colors.textMuted }]}>
           {board.sectionOrder.length} sections
         </Text>
       </View>
@@ -203,19 +208,42 @@ export function BoardListScreen(): React.JSX.Element {
   const { colors } = useTheme();
   const boards = useAppSelector(selectAllBoards);
   const user = useAppSelector(selectCurrentUser);
+  const epics = useAppSelector(selectAllEpics);
+  const allTasks = useAppSelector(selectAllTasks);
   const isLoading = useAppSelector((state) => state.boards.isLoading);
   const error = useAppSelector((state) => state.boards.error);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  
+  // Epic modal state
+  const [epicModalVisible, setEpicModalVisible] = useState(false);
+  const [selectedEpic, setSelectedEpic] = useState<Epic | null>(null);
+  const [isNewEpic, setIsNewEpic] = useState(false);
+  const [isSavingEpic, setIsSavingEpic] = useState(false);
 
   /**
-   * Fetch boards on mount
+   * Fetch boards and epics on mount
    */
   useEffect(() => {
     dispatch(fetchBoards());
+    dispatch(fetchAllEpics());
   }, [dispatch]);
+
+  // Get linked tasks for selected epic
+  const linkedTasks = useMemo(() => {
+    if (!selectedEpic) return [];
+    return allTasks.filter(task => task.epicIds?.includes(selectedEpic.id));
+  }, [selectedEpic, allTasks]);
+
+  // Get linked board IDs for selected epic
+  const linkedBoardIds = useMemo(() => {
+    if (!selectedEpic) return [];
+    // Get unique board IDs from linked tasks
+    const boardIds = new Set(linkedTasks.map(t => t.boardId));
+    return Array.from(boardIds);
+  }, [selectedEpic, linkedTasks]);
 
   /**
    * Handle pull-to-refresh
@@ -223,7 +251,10 @@ export function BoardListScreen(): React.JSX.Element {
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      await dispatch(fetchBoards()).unwrap();
+      await Promise.all([
+        dispatch(fetchBoards()).unwrap(),
+        dispatch(fetchAllEpics()).unwrap(),
+      ]);
     } catch {
       // Error handled by slice
     } finally {
@@ -271,6 +302,94 @@ export function BoardListScreen(): React.JSX.Element {
   );
 
   /**
+   * Handle epic press - open modal
+   */
+  const handleEpicPress = useCallback((epic: Epic) => {
+    setSelectedEpic(epic);
+    setIsNewEpic(false);
+    setEpicModalVisible(true);
+  }, []);
+
+  /**
+   * Handle create new epic
+   */
+  const handleCreateEpicPress = useCallback(() => {
+    setSelectedEpic(null);
+    setIsNewEpic(true);
+    setEpicModalVisible(true);
+  }, []);
+
+  /**
+   * Handle save epic
+   */
+  const handleSaveEpic = useCallback(
+    async (data: { name: string; description: string; color: string; endDate?: string; boardIds: string[] }) => {
+      setIsSavingEpic(true);
+      try {
+        if (isNewEpic) {
+          // Create new epic - use first board if available, or create without board
+          const boardId = data.boardIds[0] || boards[0]?.id;
+          if (!boardId) {
+            Alert.alert('Error', 'Please create a board first');
+            return;
+          }
+          await dispatch(createEpic({ 
+            boardId, 
+            data: { name: data.name, description: data.description || undefined, color: data.color } 
+          })).unwrap();
+        } else if (selectedEpic) {
+          await dispatch(updateEpic({ 
+            id: selectedEpic.id, 
+            data: { name: data.name, description: data.description || undefined, color: data.color } 
+          })).unwrap();
+        }
+        setEpicModalVisible(false);
+        setSelectedEpic(null);
+      } catch {
+        Alert.alert('Error', 'Failed to save epic');
+      } finally {
+        setIsSavingEpic(false);
+      }
+    },
+    [dispatch, isNewEpic, selectedEpic, boards]
+  );
+
+  /**
+   * Handle delete epic
+   */
+  const handleDeleteEpic = useCallback(() => {
+    if (!selectedEpic) return;
+    Alert.alert(
+      'Delete Epic',
+      `Are you sure you want to delete "${selectedEpic.name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await dispatch(deleteEpic({ epicId: selectedEpic.id, boardId: selectedEpic.boardId })).unwrap();
+              setEpicModalVisible(false);
+              setSelectedEpic(null);
+            } catch {
+              Alert.alert('Error', 'Failed to delete epic');
+            }
+          },
+        },
+      ]
+    );
+  }, [dispatch, selectedEpic]);
+
+  /**
+   * Handle task press from epic modal
+   */
+  const handleTaskPress = useCallback((taskId: string, boardId: string) => {
+    setEpicModalVisible(false);
+    navigation.navigate('TaskDetail', { taskId, boardId });
+  }, [navigation]);
+
+  /**
    * Handle logout
    */
   const handleLogout = useCallback(() => {
@@ -291,6 +410,15 @@ export function BoardListScreen(): React.JSX.Element {
     dispatch(clearBoardsError());
   }, [dispatch]);
 
+  // Get task count per epic
+  const epicTaskCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    epics.forEach(epic => {
+      counts[epic.id] = allTasks.filter(t => t.epicIds?.includes(epic.id)).length;
+    });
+    return counts;
+  }, [epics, allTasks]);
+
   return (
     <ThemedBackground>
       <SafeAreaView style={styles.container}>
@@ -303,7 +431,7 @@ export function BoardListScreen(): React.JSX.Element {
             </Text>
           </View>
           <View style={styles.headerActions}>
-            <ThemeSelector />
+            <DarkModeToggle />
             <TouchableOpacity
               style={[styles.logoutButton, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}
               onPress={handleLogout}
@@ -342,36 +470,76 @@ export function BoardListScreen(): React.JSX.Element {
               />
             }
           >
-            {boards.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyIcon}>📋</Text>
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>No boards yet</Text>
-                <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>
-                  Create your first board to start organizing your tasks
+            {/* Epics Section */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>🏷 Epics</Text>
+                <TouchableOpacity onPress={handleCreateEpicPress}>
+                  <Text style={[styles.addLink, { color: colors.primary }]}>+ New</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {epics.length === 0 ? (
+                <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                  No epics yet. Create one to group related tasks.
                 </Text>
-              </View>
-            ) : (
-              <View style={styles.boardGrid}>
-                {boards.map((board) => (
-                  <BoardCard
-                    key={board.id}
-                    board={board}
-                    onPress={handleBoardPress}
-                    onDelete={handleBoardDelete}
-                  />
-                ))}
-              </View>
-            )}
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.epicsScroll}>
+                  {epics.map(epic => (
+                    <TouchableOpacity
+                      key={epic.id}
+                      style={[styles.epicCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}
+                      onPress={() => handleEpicPress(epic)}
+                    >
+                      <View style={[styles.epicColorBar, { backgroundColor: epic.color }]} />
+                      <Text style={[styles.epicName, { color: colors.text }]} numberOfLines={1}>
+                        {epic.name}
+                      </Text>
+                      <Text style={[styles.epicTaskCount, { color: colors.textMuted }]}>
+                        {epicTaskCounts[epic.id] || 0} tasks
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+            </View>
 
-            {/* Create Board Button */}
-            <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: colors.primary }]}
-              onPress={() => setIsCreateModalVisible(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Create new board"
-            >
-              <Text style={styles.addButtonText}>+ Create New Board</Text>
-            </TouchableOpacity>
+            {/* Boards Section */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>📋 Boards</Text>
+              
+              {boards.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyIcon}>📋</Text>
+                  <Text style={[styles.emptyTitle, { color: colors.text }]}>No boards yet</Text>
+                  <Text style={[styles.emptyDescription, { color: colors.textSecondary }]}>
+                    Create your first board to start organizing your tasks
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.boardGrid}>
+                  {boards.map((board) => (
+                    <BoardCard
+                      key={board.id}
+                      board={board}
+                      onPress={handleBoardPress}
+                      onDelete={handleBoardDelete}
+                      colors={colors}
+                    />
+                  ))}
+                </View>
+              )}
+
+              {/* Create Board Button */}
+              <TouchableOpacity
+                style={[styles.addButton, { backgroundColor: colors.primary }]}
+                onPress={() => setIsCreateModalVisible(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Create new board"
+              >
+                <Text style={styles.addButtonText}>+ Create New Board</Text>
+              </TouchableOpacity>
+            </View>
           </ScrollView>
         )}
 
@@ -381,6 +549,21 @@ export function BoardListScreen(): React.JSX.Element {
           onClose={() => setIsCreateModalVisible(false)}
           onSubmit={handleCreateBoard}
           isLoading={isCreating}
+        />
+
+        {/* Epic Modal */}
+        <EpicModal
+          visible={epicModalVisible}
+          epic={selectedEpic}
+          linkedTasks={linkedTasks}
+          allBoards={boards}
+          linkedBoardIds={linkedBoardIds}
+          onClose={() => { setEpicModalVisible(false); setSelectedEpic(null); }}
+          onSave={handleSaveEpic}
+          onDelete={selectedEpic ? handleDeleteEpic : undefined}
+          onTaskPress={handleTaskPress}
+          isLoading={isSavingEpic}
+          isNew={isNewEpic}
         />
       </SafeAreaView>
     </ThemedBackground>
@@ -452,6 +635,52 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 16,
   },
+  section: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  addLink: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyHint: {
+    fontSize: 14,
+    fontStyle: 'italic',
+  },
+  epicsScroll: {
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
+  },
+  epicCard: {
+    width: 140,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginRight: 12,
+  },
+  epicColorBar: {
+    width: 24,
+    height: 4,
+    borderRadius: 2,
+    marginBottom: 8,
+  },
+  epicName: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  epicTaskCount: {
+    fontSize: 12,
+  },
   emptyState: {
     alignItems: 'center',
     paddingVertical: 48,
@@ -476,7 +705,6 @@ const styles = StyleSheet.create({
     marginHorizontal: -8,
   },
   boardCard: {
-    backgroundColor: '#ffffff',
     borderRadius: 12,
     marginHorizontal: 8,
     marginBottom: 16,
@@ -488,6 +716,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     width: '100%',
     maxWidth: 400,
+    borderWidth: 1,
   },
   boardColorBar: {
     height: 4,
@@ -498,18 +727,15 @@ const styles = StyleSheet.create({
   boardName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1f2937',
     marginBottom: 4,
   },
   boardDescription: {
     fontSize: 14,
-    color: '#6b7280',
     marginBottom: 8,
     lineHeight: 20,
   },
   boardMeta: {
     fontSize: 12,
-    color: '#9ca3af',
   },
   addButton: {
     borderRadius: 12,

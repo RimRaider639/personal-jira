@@ -83,6 +83,7 @@ export {
   clearBoardEpics,
   resetEpics,
   fetchEpics,
+  fetchAllEpics,
   createEpic,
   updateEpic,
   deleteEpic,

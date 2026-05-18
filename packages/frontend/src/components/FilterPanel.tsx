@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   ScrollView,
   Modal,
+  Pressable,
+  Dimensions,
 } from 'react-native';
 import type { Epic, Priority, DueDateFilter } from '@kanban/shared';
 
@@ -41,8 +43,11 @@ const DUE_DATE_OPTIONS: { value: DueDateFilter | null; label: string }[] = [
   { value: 'overdue', label: 'Overdue' },
 ];
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const PANEL_WIDTH = Math.min(320, SCREEN_WIDTH * 0.85);
+
 /**
- * FilterPanel - Full filter panel with epic, priority, and due date filters
+ * FilterPanel - Side panel with epic, priority, and due date filters
  * Memoized for performance optimization.
  *
  * Requirements:
@@ -71,28 +76,25 @@ function FilterPanelComponent({
     [selectedEpicIds.length, selectedPriorities.length, selectedDueDateFilter]
   );
 
+  const handleClearAll = useCallback(() => {
+    onClearAll();
+  }, [onClearAll]);
+
   return (
     <Modal
       visible={visible}
-      animationType="slide"
+      animationType="fade"
       transparent
       onRequestClose={onClose}
     >
-      <View style={styles.overlay}>
-        <View style={styles.container}>
+      <Pressable style={styles.overlay} onPress={onClose}>
+        <Pressable style={styles.panel} onPress={e => e.stopPropagation()}>
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Filters</Text>
-            <View style={styles.headerActions}>
-              {hasActiveFilters && (
-                <TouchableOpacity onPress={onClearAll} style={styles.clearAllButton}>
-                  <Text style={styles.clearAllText}>Clear All</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <Text style={styles.closeText}>Done</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Text style={styles.closeText}>✕</Text>
+            </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -102,7 +104,7 @@ function FilterPanelComponent({
                 <Text style={styles.sectionTitle}>Epics</Text>
                 {selectedEpicIds.length > 0 && (
                   <Text style={styles.selectedCount}>
-                    {selectedEpicIds.length} selected (AND)
+                    {selectedEpicIds.length} selected
                   </Text>
                 )}
               </View>
@@ -141,7 +143,7 @@ function FilterPanelComponent({
                 <Text style={styles.sectionTitle}>Priority</Text>
                 {selectedPriorities.length > 0 && (
                   <Text style={styles.selectedCount}>
-                    {selectedPriorities.length} selected (OR)
+                    {selectedPriorities.length} selected
                   </Text>
                 )}
               </View>
@@ -198,8 +200,20 @@ function FilterPanelComponent({
               </View>
             </View>
           </ScrollView>
-        </View>
-      </View>
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            {hasActiveFilters && (
+              <TouchableOpacity style={styles.clearButton} onPress={handleClearAll}>
+                <Text style={styles.clearButtonText}>Clear All Filters</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={styles.doneButton} onPress={onClose}>
+              <Text style={styles.doneButtonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
     </Modal>
   );
 }
@@ -208,13 +222,18 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    flexDirection: 'row',
     justifyContent: 'flex-end',
   },
-  container: {
+  panel: {
+    width: PANEL_WIDTH,
     backgroundColor: '#ffffff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
+    height: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: -4, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   header: {
     flexDirection: 'row',
@@ -229,30 +248,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1f2937',
   },
-  headerActions: {
-    flexDirection: 'row',
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f3f4f6',
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  clearAllButton: {
-    marginRight: 16,
-  },
-  clearAllText: {
-    fontSize: 14,
-    color: '#ef4444',
-    fontWeight: '500',
-  },
-  closeButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#6366f1',
-    borderRadius: 8,
-  },
   closeText: {
-    fontSize: 14,
-    color: '#ffffff',
-    fontWeight: '600',
+    fontSize: 16,
+    color: '#6b7280',
   },
   content: {
+    flex: 1,
     padding: 16,
   },
   section: {
@@ -265,9 +274,10 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
     color: '#374151',
+    textTransform: 'uppercase',
   },
   selectedCount: {
     fontSize: 12,
@@ -280,7 +290,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   optionsList: {
-    gap: 8,
+    gap: 6,
   },
   option: {
     flexDirection: 'row',
@@ -289,16 +299,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    marginBottom: 8,
   },
   optionSelected: {
     backgroundColor: '#eef2ff',
     borderColor: '#6366f1',
   },
   epicDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     marginRight: 10,
   },
   priorityDot: {
@@ -313,7 +322,7 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   checkmark: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#6366f1',
     fontWeight: 'bold',
   },
@@ -323,6 +332,35 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     padding: 16,
+  },
+  footer: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    gap: 8,
+  },
+  clearButton: {
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    alignItems: 'center',
+  },
+  clearButtonText: {
+    fontSize: 14,
+    color: '#ef4444',
+    fontWeight: '600',
+  },
+  doneButton: {
+    padding: 14,
+    borderRadius: 8,
+    backgroundColor: '#6366f1',
+    alignItems: 'center',
+  },
+  doneButtonText: {
+    fontSize: 16,
+    color: '#ffffff',
+    fontWeight: '600',
   },
 });
 

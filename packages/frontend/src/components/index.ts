@@ -13,5 +13,6 @@ export { ExportButton } from './ExportButton';
 export { ThemedBackground } from './ThemedBackground';
 export { TaskCardMenu } from './TaskCardMenu';
 export { DatePicker } from './DatePicker';
-export { ThemeSelector } from './ThemeSelector';
+export { ThemeSelector, DarkModeToggle, BoardThemeSelector } from './ThemeSelector';
 export { TaskPreviewModal } from './TaskPreviewModal';
+export { EpicModal } from './EpicModal';

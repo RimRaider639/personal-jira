@@ -40,6 +40,23 @@ export const fetchEpics = createAsyncThunk<
 });
 
 /**
+ * Async thunk for fetching all epics across all boards
+ */
+export const fetchAllEpics = createAsyncThunk<
+  Epic[],
+  void,
+  { rejectValue: string }
+>('epics/fetchAll', async (_, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.get<{ data: Epic[] }>('/epics');
+    return response.data.data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch epics';
+    return rejectWithValue(message);
+  }
+});
+
+/**
  * Async thunk for creating an epic
  */
 export const createEpic = createAsyncThunk<
@@ -172,6 +189,33 @@ const epicsSlice = createSlice({
         });
       })
       .addCase(fetchEpics.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload ?? 'Failed to fetch epics';
+      });
+
+    // Fetch all epics
+    builder
+      .addCase(fetchAllEpics.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchAllEpics.fulfilled, (state, action) => {
+        state.isLoading = false;
+        const epics = action.payload;
+
+        // Add all epics
+        epics.forEach((epic) => {
+          state.byId[epic.id] = epic;
+          
+          if (!state.byBoardId[epic.boardId]) {
+            state.byBoardId[epic.boardId] = [];
+          }
+          if (!state.byBoardId[epic.boardId].includes(epic.id)) {
+            state.byBoardId[epic.boardId].push(epic.id);
+          }
+        });
+      })
+      .addCase(fetchAllEpics.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload ?? 'Failed to fetch epics';
       });

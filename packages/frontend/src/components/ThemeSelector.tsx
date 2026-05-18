@@ -14,35 +14,49 @@ import { themes, ThemeType } from '@/theme';
 
 interface ThemeSelectorProps {
   boardId?: string; // If provided, allows setting board-specific theme
+  showDarkModeOnly?: boolean; // If true, only show dark mode toggle (for global header)
 }
 
 /**
- * ThemeSelector - Component to select and preview themes
- * Supports global dark mode toggle and per-board theme selection
+ * DarkModeToggle - Simple dark mode toggle button for global header
  */
-export function ThemeSelector({ boardId }: ThemeSelectorProps): React.JSX.Element {
-  const { colors, themeName, isDarkMode, setTheme, toggleDarkMode, getBoardTheme, setBoardTheme, availableThemes } = useTheme();
+export function DarkModeToggle(): React.JSX.Element {
+  const { colors, isDarkMode, toggleDarkMode } = useTheme();
+
+  return (
+    <TouchableOpacity
+      style={[styles.darkModeButton, { backgroundColor: isDarkMode ? colors.primary : 'rgba(255,255,255,0.2)' }]}
+      onPress={toggleDarkMode}
+      accessibilityLabel={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+      accessibilityRole="button"
+    >
+      <Text style={styles.darkModeIcon}>{isDarkMode ? '🌙' : '☀️'}</Text>
+    </TouchableOpacity>
+  );
+}
+
+/**
+ * BoardThemeSelector - Theme selector specifically for board view
+ * Only shows board-specific themes (not dark mode toggle)
+ */
+export function BoardThemeSelector({ boardId }: { boardId: string }): React.JSX.Element {
+  const { colors, getBoardTheme, setBoardTheme, availableThemes } = useTheme();
   const [visible, setVisible] = useState(false);
 
-  const currentBoardTheme = boardId ? getBoardTheme(boardId) : null;
+  const currentBoardTheme = getBoardTheme(boardId);
+
+  // Filter out light/dark themes - only show decorative themes for boards
+  const boardThemes = availableThemes.filter(t => !['light', 'dark'].includes(t.name));
 
   const handleSelectTheme = useCallback(
     (name: ThemeType) => {
-      if (boardId) {
-        // Set board-specific theme
-        setBoardTheme(boardId, name);
-      } else {
-        // Set global theme
-        setTheme(name);
-      }
+      setBoardTheme(boardId, name);
     },
-    [boardId, setTheme, setBoardTheme]
+    [boardId, setBoardTheme]
   );
 
   const handleClearBoardTheme = useCallback(() => {
-    if (boardId) {
-      setBoardTheme(boardId, null);
-    }
+    setBoardTheme(boardId, null);
   }, [boardId, setBoardTheme]);
 
   const getThemePreviewColors = (name: ThemeType) => {
@@ -58,12 +72,12 @@ export function ThemeSelector({ boardId }: ThemeSelectorProps): React.JSX.Elemen
   return (
     <>
       <TouchableOpacity
-        style={[styles.button, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        style={[styles.button, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
         onPress={() => setVisible(true)}
-        accessibilityLabel="Change theme"
+        accessibilityLabel="Change board theme"
         accessibilityRole="button"
       >
-        <Text style={[styles.buttonText, { color: colors.text }]}>🎨</Text>
+        <Text style={styles.buttonText}>🎨</Text>
       </TouchableOpacity>
 
       <Modal
@@ -78,50 +92,59 @@ export function ThemeSelector({ boardId }: ThemeSelectorProps): React.JSX.Elemen
             onPress={(e) => e.stopPropagation()}
           >
             <Text style={[styles.title, { color: colors.text, borderBottomColor: colors.borderLight }]}>
-              {boardId ? 'Board Theme' : 'App Theme'}
+              Board Theme
             </Text>
 
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-              {/* Dark Mode Toggle (only for global settings) */}
-              {!boardId && (
-                <View style={[styles.darkModeRow, { borderBottomColor: colors.borderLight }]}>
-                  <View style={styles.darkModeInfo}>
-                    <Text style={[styles.darkModeLabel, { color: colors.text }]}>Dark Mode</Text>
-                    <Text style={[styles.darkModeHint, { color: colors.textMuted }]}>
-                      Quick toggle for dark theme
-                    </Text>
-                  </View>
-                  <Switch
-                    value={isDarkMode}
-                    onValueChange={toggleDarkMode}
-                    trackColor={{ false: colors.border, true: colors.primary }}
-                    thumbColor="#ffffff"
-                  />
-                </View>
-              )}
-
-              {/* Board-specific theme notice */}
-              {boardId && currentBoardTheme && (
+              {/* Current theme notice */}
+              {currentBoardTheme && (
                 <View style={[styles.boardThemeNotice, { backgroundColor: colors.primaryLight }]}>
                   <Text style={[styles.boardThemeText, { color: colors.primary }]}>
-                    This board has a custom theme
+                    Custom theme active
                   </Text>
                   <TouchableOpacity onPress={handleClearBoardTheme}>
-                    <Text style={[styles.clearThemeText, { color: colors.error }]}>Reset to default</Text>
+                    <Text style={[styles.clearThemeText, { color: colors.error }]}>Reset</Text>
                   </TouchableOpacity>
                 </View>
               )}
 
-              {/* Theme options */}
-              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-                {boardId ? 'Choose Board Theme' : 'Choose Theme'}
+              {/* Default option */}
+              <TouchableOpacity
+                style={[
+                  styles.themeOption,
+                  { borderColor: !currentBoardTheme ? colors.primary : colors.border },
+                  !currentBoardTheme && { backgroundColor: colors.primaryLight },
+                ]}
+                onPress={handleClearBoardTheme}
+              >
+                <View style={[styles.preview, { backgroundColor: colors.background }]}>
+                  <View style={[styles.previewSurface, { backgroundColor: colors.surface }]}>
+                    <View style={[styles.previewCard, { backgroundColor: colors.surface }]}>
+                      <View style={[styles.previewAccent, { backgroundColor: colors.primary }]} />
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.themeInfo}>
+                  <View style={styles.themeHeader}>
+                    <Text style={[styles.themeName, { color: colors.text }]}>Default</Text>
+                    {!currentBoardTheme && (
+                      <Text style={[styles.checkmark, { color: colors.primary }]}>✓</Text>
+                    )}
+                  </View>
+                  <Text style={[styles.themeDescription, { color: colors.textSecondary }]}>
+                    Use global theme setting
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Board theme options */}
+              <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginTop: 16 }]}>
+                Decorative Themes
               </Text>
 
-              {availableThemes.map((theme) => {
+              {boardThemes.map((theme) => {
                 const preview = getThemePreviewColors(theme.name);
-                const isSelected = boardId 
-                  ? currentBoardTheme === theme.name 
-                  : (!isDarkMode && themeName === theme.name);
+                const isSelected = currentBoardTheme === theme.name;
 
                 return (
                   <TouchableOpacity
@@ -133,7 +156,6 @@ export function ThemeSelector({ boardId }: ThemeSelectorProps): React.JSX.Elemen
                     ]}
                     onPress={() => handleSelectTheme(theme.name)}
                   >
-                    {/* Theme preview */}
                     <View style={[styles.preview, { backgroundColor: preview.bg }]}>
                       <View style={[styles.previewSurface, { backgroundColor: preview.surface }]}>
                         <View style={[styles.previewCard, { backgroundColor: preview.surface }]}>
@@ -141,8 +163,6 @@ export function ThemeSelector({ boardId }: ThemeSelectorProps): React.JSX.Elemen
                         </View>
                       </View>
                     </View>
-
-                    {/* Theme info */}
                     <View style={styles.themeInfo}>
                       <View style={styles.themeHeader}>
                         <Text style={[styles.themeName, { color: colors.text }]}>
@@ -174,16 +194,36 @@ export function ThemeSelector({ boardId }: ThemeSelectorProps): React.JSX.Elemen
   );
 }
 
+/**
+ * ThemeSelector - Legacy component for backwards compatibility
+ * @deprecated Use DarkModeToggle for global header, BoardThemeSelector for board view
+ */
+export function ThemeSelector({ boardId, showDarkModeOnly }: ThemeSelectorProps): React.JSX.Element {
+  if (showDarkModeOnly || !boardId) {
+    return <DarkModeToggle />;
+  }
+  return <BoardThemeSelector boardId={boardId} />;
+}
+
 const styles = StyleSheet.create({
   button: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   buttonText: {
+    fontSize: 18,
+  },
+  darkModeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  darkModeIcon: {
     fontSize: 18,
   },
   overlay: {

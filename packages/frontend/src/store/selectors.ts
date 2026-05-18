@@ -77,6 +77,18 @@ export const selectEpicsByBoardId = createSelector(
 export const selectEpicById = (state: RootState, epicId: string) => state.epics.byId[epicId];
 
 /**
+ * Select all epics across all boards
+ */
+export const selectAllEpics = (state: RootState): Epic[] =>
+  Object.values(state.epics.byId).filter(Boolean);
+
+/**
+ * Select all tasks across all boards
+ */
+export const selectAllTasks = (state: RootState): Task[] =>
+  Object.values(state.tasks.byId).filter(Boolean);
+
+/**
  * Select task by ID
  */
 export const selectTaskById = (state: RootState, taskId: string) => state.tasks.byId[taskId];

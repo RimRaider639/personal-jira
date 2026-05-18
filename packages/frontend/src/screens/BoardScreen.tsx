@@ -45,7 +45,7 @@ import {
   selectFiltersByBoardId,
   selectTaskById,
 } from '@/store/selectors';
-import { DraggableSectionList, SyncStatusIndicator, ThemedBackground, ThemeSelector, DatePicker, FilterBar, FilterPanel, TaskPreviewModal } from '@/components';
+import { DraggableSectionList, SyncStatusIndicator, ThemedBackground, BoardThemeSelector, DarkModeToggle, DatePicker, FilterPanel, TaskPreviewModal } from '@/components';
 import { useTheme } from '@/theme/ThemeContext';
 import type { Task, Priority, DueDateFilter } from '@kanban/shared';
 
@@ -53,7 +53,6 @@ interface BoardScreenProps {
   boardId: string;
   onBack?: () => void;
   onTaskPress?: (taskId: string) => void;
-  onEpicsPress?: () => void;
 }
 
 interface CreateTaskData {
@@ -595,7 +594,6 @@ export function BoardScreen({
   boardId,
   onBack,
   onTaskPress,
-  onEpicsPress,
 }: BoardScreenProps): React.JSX.Element {
   const dispatch = useAppDispatch();
   const { colors, getEffectiveTheme, getBoardTheme } = useTheme();
@@ -940,26 +938,32 @@ export function BoardScreen({
             </TouchableOpacity>
           </View>
           <View style={styles.headerRight}>
-            {onEpicsPress && (
-              <TouchableOpacity style={styles.headerButton} onPress={onEpicsPress}>
-                <Text style={styles.headerButtonText}>🏷 Epics</Text>
-              </TouchableOpacity>
-            )}
+            {/* Filter Button */}
+            <TouchableOpacity 
+              style={[styles.headerIconButton, hasActiveFilters && styles.headerIconButtonActive]} 
+              onPress={() => setFilterPanelVisible(true)}
+              accessibilityLabel={hasActiveFilters ? `Filters active, ${filteredCount} of ${totalCount} tasks` : 'Open filters'}
+            >
+              <Text style={styles.headerIconText}>⚙️</Text>
+              {hasActiveFilters && <View style={styles.filterActiveDot} />}
+            </TouchableOpacity>
+            <DarkModeToggle />
+            <BoardThemeSelector boardId={boardId} />
             <SyncStatusIndicator status={syncStatus} />
-            <View style={styles.themeSelectorWrapper}>
-              <ThemeSelector boardId={boardId} />
-            </View>
           </View>
         </View>
 
-        {/* Filter Bar */}
-        <FilterBar
-          hasActiveFilters={hasActiveFilters}
-          filteredCount={filteredCount}
-          totalCount={totalCount}
-          onOpenFilters={() => setFilterPanelVisible(true)}
-          onClearFilters={handleClearFilters}
-        />
+        {/* Filter count indicator (only when filters active) */}
+        {hasActiveFilters && (
+          <View style={[styles.filterIndicator, { backgroundColor: effectiveColors.primaryLight }]}>
+            <Text style={[styles.filterIndicatorText, { color: effectiveColors.primary }]}>
+              Showing {filteredCount} of {totalCount} tasks
+            </Text>
+            <TouchableOpacity onPress={handleClearFilters}>
+              <Text style={[styles.clearFiltersText, { color: effectiveColors.error }]}>Clear</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Board content */}
         {isLoading && sections.length === 0 ? (
@@ -1059,6 +1063,7 @@ const styles = StyleSheet.create({
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
   },
   headerButton: {
     paddingHorizontal: 12,
@@ -1071,6 +1076,30 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '600',
+  },
+  headerIconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  headerIconButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.35)',
+  },
+  headerIconText: {
+    fontSize: 18,
+  },
+  filterActiveDot: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
   },
   themeSelectorWrapper: {
     marginLeft: 8,
@@ -1096,6 +1125,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: 'rgba(255, 255, 255, 0.7)',
     marginTop: 2,
+  },
+  filterIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  filterIndicatorText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  clearFiltersText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,

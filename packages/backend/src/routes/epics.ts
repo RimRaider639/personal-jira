@@ -76,6 +76,37 @@ async function verifyEpicOwnership(
 }
 
 /**
+ * GET /api/epics
+ * List all epics for the authenticated user (across all boards)
+ */
+router.get(
+  '/epics',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw createError('User not authenticated', 401);
+      }
+
+      // Get all boards for the user
+      const boards = await Board.find({ userId: new mongoose.Types.ObjectId(userId) });
+      const boardIds = boards.map(b => b._id);
+
+      // Get all epics for those boards
+      const epics = await Epic.find({ boardId: { $in: boardIds } }).sort({ createdAt: -1 });
+
+      res.status(200).json({
+        success: true,
+        data: epics,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * GET /api/boards/:boardId/epics
  * List all epics for a board
  */

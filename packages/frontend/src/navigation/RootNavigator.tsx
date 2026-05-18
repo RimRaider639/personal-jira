@@ -12,7 +12,6 @@ import { RegisterScreen } from '@/screens/RegisterScreen';
 import { BoardListScreen } from '@/screens/BoardListScreen';
 import { BoardScreen } from '@/screens/BoardScreen';
 import { TaskDetailScreen } from '@/screens/TaskDetailScreen';
-import { EpicListScreen } from '@/screens/EpicListScreen';
 
 /**
  * Navigation param list types
@@ -23,7 +22,6 @@ export type RootStackParamList = {
   BoardList: undefined;
   Board: { boardId: string };
   TaskDetail: { taskId: string; boardId: string };
-  EpicList: { boardId: string };
 };
 
 /**
@@ -44,7 +42,6 @@ const linking: LinkingOptions<RootStackParamList> = {
       BoardList: 'boards',
       Board: 'boards/:boardId',
       TaskDetail: 'boards/:boardId/tasks/:taskId',
-      EpicList: 'boards/:boardId/epics',
     },
   },
 };
@@ -72,16 +69,11 @@ function BoardScreenWrapper({
     navigation.navigate('TaskDetail', { taskId, boardId });
   }, [navigation, boardId]);
 
-  const handleEpicsPress = useCallback(() => {
-    navigation.navigate('EpicList', { boardId });
-  }, [navigation, boardId]);
-
   return (
     <BoardScreen 
       boardId={boardId} 
       onBack={handleBack}
       onTaskPress={handleTaskPress}
-      onEpicsPress={handleEpicsPress}
     />
   );
 }
@@ -122,36 +114,6 @@ function TaskDetailScreenWrapper({
 }
 
 /**
- * Wrapper for EpicListScreen to extract route params
- */
-function EpicListScreenWrapper({ 
-  route, 
-  navigation 
-}: NativeStackScreenProps<RootStackParamList, 'EpicList'>): React.JSX.Element {
-  const { boardId } = route.params;
-
-  const handleBack = useCallback(() => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else {
-      navigation.navigate('Board', { boardId });
-    }
-  }, [navigation, boardId]);
-
-  const handleTaskPress = useCallback((taskId: string) => {
-    navigation.navigate('TaskDetail', { taskId, boardId });
-  }, [navigation, boardId]);
-
-  return (
-    <EpicListScreen 
-      boardId={boardId}
-      onBack={handleBack}
-      onTaskPress={handleTaskPress}
-    />
-  );
-}
-
-/**
  * Auth Navigator - Handles login and registration screens
  */
 function AuthNavigator(): React.JSX.Element {
@@ -187,7 +149,6 @@ function MainNavigator(): React.JSX.Element {
       <Stack.Screen name="BoardList" component={BoardListScreen} />
       <Stack.Screen name="Board" component={BoardScreenWrapper} />
       <Stack.Screen name="TaskDetail" component={TaskDetailScreenWrapper} />
-      <Stack.Screen name="EpicList" component={EpicListScreenWrapper} />
     </Stack.Navigator>
   );
 }

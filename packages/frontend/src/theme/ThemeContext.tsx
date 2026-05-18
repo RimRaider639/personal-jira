@@ -1,8 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { themes, getTheme, ThemeType, Theme, ThemeColors } from './index';
+import { 
+  themes, 
+  getTheme, 
+  getDecorativeTheme, 
+  getBaseTheme,
+  decorativeThemes,
+  ThemeType, 
+  DecorativeThemeType,
+  Theme, 
+  ThemeColors 
+} from './index';
 
-const THEME_STORAGE_KEY = '@kanban_theme';
 const BOARD_THEME_STORAGE_KEY = '@kanban_board_themes';
 const DARK_MODE_STORAGE_KEY = '@kanban_dark_mode';
 
@@ -14,10 +23,11 @@ interface ThemeContextType {
   setTheme: (themeName: ThemeType) => void;
   setDarkMode: (isDark: boolean) => void;
   toggleDarkMode: () => void;
-  getBoardTheme: (boardId: string) => ThemeType | null;
-  setBoardTheme: (boardId: string, themeName: ThemeType | null) => void;
+  getBoardTheme: (boardId: string) => DecorativeThemeType | null;
+  setBoardTheme: (boardId: string, themeName: DecorativeThemeType | null) => void;
   getEffectiveTheme: (boardId?: string) => Theme;
   availableThemes: { name: ThemeType; displayName: string; description: string }[];
+  decorativeThemeOptions: { name: DecorativeThemeType; displayName: string; description: string }[];
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -25,22 +35,18 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [themeName, setThemeName] = useState<ThemeType>('light');
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [boardThemes, setBoardThemes] = useState<Record<string, ThemeType>>({});
+  const [boardThemes, setBoardThemes] = useState<Record<string, DecorativeThemeType>>({});
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Load saved theme settings on mount
   useEffect(() => {
     const loadTheme = async () => {
       try {
-        const [savedTheme, savedDarkMode, savedBoardThemes] = await Promise.all([
-          AsyncStorage.getItem(THEME_STORAGE_KEY),
+        const [savedDarkMode, savedBoardThemes] = await Promise.all([
           AsyncStorage.getItem(DARK_MODE_STORAGE_KEY),
           AsyncStorage.getItem(BOARD_THEME_STORAGE_KEY),
         ]);
         
-        if (savedTheme && themes[savedTheme as ThemeType]) {
-          setThemeName(savedTheme as ThemeType);
-        }
         if (savedDarkMode !== null) {
           setIsDarkMode(savedDarkMode === 'true');
         }
@@ -56,13 +62,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }): Reac
     loadTheme();
   }, []);
 
-  const setTheme = useCallback(async (newTheme: ThemeType) => {
-    setThemeName(newTheme);
-    try {
-      await AsyncStorage.setItem(THEME_STORAGE_KEY, newTheme);
-    } catch (error) {
-      console.error('Failed to save theme:', error);
+  // Update themeName based on dark mode
+  useEffect(() => {
+    setThemeName(isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
+
+  const setTheme = useCallback((newTheme: ThemeType) => {
+    // For backwards compatibility, setting light/dark theme also sets dark mode
+    if (newTheme === 'dark') {
+      setIsDarkMode(true);
+    } else if (newTheme === 'light') {
+      setIsDarkMode(false);
     }
+    setThemeName(newTheme);
   }, []);
 
   const setDarkMode = useCallback(async (isDark: boolean) => {
@@ -78,11 +90,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }): Reac
     setDarkMode(!isDarkMode);
   }, [isDarkMode, setDarkMode]);
 
-  const getBoardTheme = useCallback((boardId: string): ThemeType | null => {
+  const getBoardTheme = useCallback((boardId: string): DecorativeThemeType | null => {
     return boardThemes[boardId] || null;
   }, [boardThemes]);
 
-  const setBoardTheme = useCallback(async (boardId: string, newTheme: ThemeType | null) => {
+  const setBoardTheme = useCallback(async (boardId: string, newTheme: DecorativeThemeType | null) => {
     const newBoardThemes = { ...boardThemes };
     if (newTheme === null) {
       delete newBoardThemes[boardId];
@@ -97,18 +109,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }): Reac
     }
   }, [boardThemes]);
 
-  // Get effective theme considering dark mode and board-specific theme
+  // Get effective theme considering dark mode and board-specific decorative theme
   const getEffectiveTheme = useCallback((boardId?: string): Theme => {
-    // Check for board-specific theme first
+    // Check for board-specific decorative theme
     if (boardId && boardThemes[boardId]) {
-      return getTheme(boardThemes[boardId]);
+      return getDecorativeTheme(boardThemes[boardId], isDarkMode);
     }
-    // If dark mode is on, use dark theme, otherwise use selected theme
-    if (isDarkMode) {
-      return getTheme('dark');
-    }
-    return getTheme(themeName);
-  }, [boardThemes, isDarkMode, themeName]);
+    // Return base theme based on dark mode
+    return getBaseTheme(isDarkMode);
+  }, [boardThemes, isDarkMode]);
 
   const theme = useMemo(() => getEffectiveTheme(), [getEffectiveTheme]);
   const colors = theme.colors;
@@ -117,6 +126,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }): Reac
     () =>
       Object.values(themes).map((t) => ({
         name: t.name as ThemeType,
+        displayName: t.displayName,
+        description: t.description,
+      })),
+    []
+  );
+
+  const decorativeThemeOptions = useMemo(
+    () =>
+      decorativeThemes.map((t) => ({
+        name: t.name,
         displayName: t.displayName,
         description: t.description,
       })),
@@ -136,8 +155,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }): Reac
       setBoardTheme,
       getEffectiveTheme,
       availableThemes,
+      decorativeThemeOptions,
     }),
-    [theme, themeName, colors, isDarkMode, setTheme, setDarkMode, toggleDarkMode, getBoardTheme, setBoardTheme, getEffectiveTheme, availableThemes]
+    [theme, themeName, colors, isDarkMode, setTheme, setDarkMode, toggleDarkMode, getBoardTheme, setBoardTheme, getEffectiveTheme, availableThemes, decorativeThemeOptions]
   );
 
   // Don't render until theme is loaded to prevent flash

@@ -12,7 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { useAppDispatch, useAppSelector } from '@/store';
@@ -23,11 +23,13 @@ import {
   logout,
   clearBoardsError,
   fetchAllEpics,
+  fetchAllTasks,
+  fetchAllSections,
   createEpic,
   updateEpic,
   deleteEpic,
 } from '@/store/slices';
-import { selectAllBoards, selectCurrentUser, selectAllEpics, selectAllTasks } from '@/store/selectors';
+import { selectAllBoards, selectCurrentUser, selectAllEpics, selectAllTasks, selectAllSections } from '@/store/selectors';
 import { ThemedBackground, DarkModeToggle, EpicModal } from '@/components';
 import { useTheme } from '@/theme/ThemeContext';
 import type { Board, Epic, Task } from '@kanban/shared';
@@ -205,11 +207,13 @@ function BoardCard({ board, onPress, onDelete, colors }: BoardCardProps): React.
 export function BoardListScreen(): React.JSX.Element {
   const dispatch = useAppDispatch();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'BoardList'>>();
   const { colors } = useTheme();
   const boards = useAppSelector(selectAllBoards);
   const user = useAppSelector(selectCurrentUser);
   const epics = useAppSelector(selectAllEpics);
   const allTasks = useAppSelector(selectAllTasks);
+  const allSections = useAppSelector(selectAllSections);
   const isLoading = useAppSelector((state) => state.boards.isLoading);
   const error = useAppSelector((state) => state.boards.error);
 
@@ -224,12 +228,31 @@ export function BoardListScreen(): React.JSX.Element {
   const [isSavingEpic, setIsSavingEpic] = useState(false);
 
   /**
-   * Fetch boards and epics on mount
+   * Fetch boards, epics, tasks, and sections on mount
    */
   useEffect(() => {
     dispatch(fetchBoards());
     dispatch(fetchAllEpics());
+    dispatch(fetchAllTasks());
+    dispatch(fetchAllSections());
   }, [dispatch]);
+
+  /**
+   * Handle openEpicId route parameter - open epic modal when navigating from task card
+   */
+  useEffect(() => {
+    const openEpicId = route.params?.openEpicId;
+    if (openEpicId && epics.length > 0) {
+      const epicToOpen = epics.find(e => e.id === openEpicId);
+      if (epicToOpen) {
+        setSelectedEpic(epicToOpen);
+        setIsNewEpic(false);
+        setEpicModalVisible(true);
+        // Clear the param to prevent re-opening on subsequent renders
+        navigation.setParams({ openEpicId: undefined });
+      }
+    }
+  }, [route.params?.openEpicId, epics, navigation]);
 
   // Get linked tasks for selected epic
   const linkedTasks = useMemo(() => {
@@ -254,6 +277,8 @@ export function BoardListScreen(): React.JSX.Element {
       await Promise.all([
         dispatch(fetchBoards()).unwrap(),
         dispatch(fetchAllEpics()).unwrap(),
+        dispatch(fetchAllTasks()).unwrap(),
+        dispatch(fetchAllSections()).unwrap(),
       ]);
     } catch {
       // Error handled by slice
@@ -335,12 +360,12 @@ export function BoardListScreen(): React.JSX.Element {
           }
           await dispatch(createEpic({ 
             boardId, 
-            data: { name: data.name, description: data.description || undefined, color: data.color } 
+            data: { name: data.name, description: data.description || undefined, color: data.color, endDate: data.endDate } 
           })).unwrap();
         } else if (selectedEpic) {
           await dispatch(updateEpic({ 
             id: selectedEpic.id, 
-            data: { name: data.name, description: data.description || undefined, color: data.color } 
+            data: { name: data.name, description: data.description || undefined, color: data.color, endDate: data.endDate } 
           })).unwrap();
         }
         setEpicModalVisible(false);
@@ -506,7 +531,12 @@ export function BoardListScreen(): React.JSX.Element {
 
             {/* Boards Section */}
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>📋 Boards</Text>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>📋 Boards</Text>
+                <TouchableOpacity onPress={() => setIsCreateModalVisible(true)}>
+                  <Text style={[styles.addLink, { color: colors.primary }]}>+ New</Text>
+                </TouchableOpacity>
+              </View>
               
               {boards.length === 0 ? (
                 <View style={styles.emptyState}>
@@ -529,16 +559,6 @@ export function BoardListScreen(): React.JSX.Element {
                   ))}
                 </View>
               )}
-
-              {/* Create Board Button */}
-              <TouchableOpacity
-                style={[styles.addButton, { backgroundColor: colors.primary }]}
-                onPress={() => setIsCreateModalVisible(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Create new board"
-              >
-                <Text style={styles.addButtonText}>+ Create New Board</Text>
-              </TouchableOpacity>
             </View>
           </ScrollView>
         )}
@@ -557,6 +577,7 @@ export function BoardListScreen(): React.JSX.Element {
           epic={selectedEpic}
           linkedTasks={linkedTasks}
           allBoards={boards}
+          allSections={allSections}
           linkedBoardIds={linkedBoardIds}
           onClose={() => { setEpicModalVisible(false); setSelectedEpic(null); }}
           onSave={handleSaveEpic}

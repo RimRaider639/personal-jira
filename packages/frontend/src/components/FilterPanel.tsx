@@ -9,6 +9,7 @@ import {
   Pressable,
   Dimensions,
 } from 'react-native';
+import { useTheme } from '@/theme/ThemeContext';
 import type { Epic, Priority, DueDateFilter } from '@kanban/shared';
 
 interface FilterPanelProps {
@@ -68,6 +69,8 @@ function FilterPanelComponent({
   onSetDueDateFilter,
   onClearAll,
 }: FilterPanelProps): React.JSX.Element {
+  const { colors } = useTheme();
+  
   const hasActiveFilters = useMemo(
     () =>
       selectedEpicIds.length > 0 ||
@@ -88,12 +91,12 @@ function FilterPanelComponent({
       onRequestClose={onClose}
     >
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.panel} onPress={e => e.stopPropagation()}>
+        <Pressable style={[styles.panel, { backgroundColor: colors.surface }]} onPress={e => e.stopPropagation()}>
           {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Filters</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Text style={styles.closeText}>✕</Text>
+          <View style={[styles.header, { borderBottomColor: colors.border }]}>
+            <Text style={[styles.title, { color: colors.text }]}>Filters</Text>
+            <TouchableOpacity onPress={onClose} style={[styles.closeButton, { backgroundColor: colors.surfaceSecondary }]}>
+              <Text style={[styles.closeText, { color: colors.textMuted }]}>✕</Text>
             </TouchableOpacity>
           </View>
 
@@ -101,14 +104,14 @@ function FilterPanelComponent({
             {/* Epic Filter */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Epics</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Epics</Text>
                 {selectedEpicIds.length > 0 && (
-                  <Text style={styles.selectedCount}>
+                  <Text style={[styles.selectedCount, { color: colors.primary }]}>
                     {selectedEpicIds.length} selected
                   </Text>
                 )}
               </View>
-              <Text style={styles.sectionHint}>
+              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
                 Tasks must have ALL selected epics
               </Text>
               <View style={styles.optionsList}>
@@ -118,21 +121,22 @@ function FilterPanelComponent({
                       key={epic.id}
                       style={[
                         styles.option,
-                        selectedEpicIds.includes(epic.id) && styles.optionSelected,
+                        { borderColor: colors.border },
+                        selectedEpicIds.includes(epic.id) && { backgroundColor: colors.primaryLight, borderColor: colors.primary },
                       ]}
                       onPress={() => onToggleEpic(epic.id)}
                       accessibilityRole="checkbox"
                       accessibilityState={{ checked: selectedEpicIds.includes(epic.id) }}
                     >
                       <View style={[styles.epicDot, { backgroundColor: epic.color }]} />
-                      <Text style={styles.optionText}>{epic.name}</Text>
+                      <Text style={[styles.optionText, { color: colors.text }]}>{epic.name}</Text>
                       {selectedEpicIds.includes(epic.id) && (
-                        <Text style={styles.checkmark}>✓</Text>
+                        <Text style={[styles.checkmark, { color: colors.primary }]}>✓</Text>
                       )}
                     </TouchableOpacity>
                   ))
                 ) : (
-                  <Text style={styles.emptyText}>No epics available</Text>
+                  <Text style={[styles.emptyText, { color: colors.textMuted }]}>No epics available</Text>
                 )}
               </View>
             </View>
@@ -140,14 +144,14 @@ function FilterPanelComponent({
             {/* Priority Filter */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Priority</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Priority</Text>
                 {selectedPriorities.length > 0 && (
-                  <Text style={styles.selectedCount}>
+                  <Text style={[styles.selectedCount, { color: colors.primary }]}>
                     {selectedPriorities.length} selected
                   </Text>
                 )}
               </View>
-              <Text style={styles.sectionHint}>
+              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
                 Tasks with ANY selected priority
               </Text>
               <View style={styles.optionsList}>
@@ -156,7 +160,8 @@ function FilterPanelComponent({
                     key={priority.value}
                     style={[
                       styles.option,
-                      selectedPriorities.includes(priority.value) && styles.optionSelected,
+                      { borderColor: colors.border },
+                      selectedPriorities.includes(priority.value) && { backgroundColor: colors.primaryLight, borderColor: colors.primary },
                     ]}
                     onPress={() => onTogglePriority(priority.value)}
                     accessibilityRole="checkbox"
@@ -165,9 +170,9 @@ function FilterPanelComponent({
                     <View
                       style={[styles.priorityDot, { backgroundColor: priority.color }]}
                     />
-                    <Text style={styles.optionText}>{priority.label}</Text>
+                    <Text style={[styles.optionText, { color: colors.text }]}>{priority.label}</Text>
                     {selectedPriorities.includes(priority.value) && (
-                      <Text style={styles.checkmark}>✓</Text>
+                      <Text style={[styles.checkmark, { color: colors.primary }]}>✓</Text>
                     )}
                   </TouchableOpacity>
                 ))}
@@ -177,7 +182,7 @@ function FilterPanelComponent({
             {/* Due Date Filter */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Due Date</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Due Date</Text>
               </View>
               <View style={styles.optionsList}>
                 {DUE_DATE_OPTIONS.map((option) => (
@@ -185,15 +190,16 @@ function FilterPanelComponent({
                     key={option.value || 'all'}
                     style={[
                       styles.option,
-                      selectedDueDateFilter === option.value && styles.optionSelected,
+                      { borderColor: colors.border },
+                      selectedDueDateFilter === option.value && { backgroundColor: colors.primaryLight, borderColor: colors.primary },
                     ]}
                     onPress={() => onSetDueDateFilter(option.value)}
                     accessibilityRole="radio"
                     accessibilityState={{ selected: selectedDueDateFilter === option.value }}
                   >
-                    <Text style={styles.optionText}>{option.label}</Text>
+                    <Text style={[styles.optionText, { color: colors.text }]}>{option.label}</Text>
                     {selectedDueDateFilter === option.value && (
-                      <Text style={styles.checkmark}>✓</Text>
+                      <Text style={[styles.checkmark, { color: colors.primary }]}>✓</Text>
                     )}
                   </TouchableOpacity>
                 ))}
@@ -202,13 +208,13 @@ function FilterPanelComponent({
           </ScrollView>
 
           {/* Footer */}
-          <View style={styles.footer}>
+          <View style={[styles.footer, { borderTopColor: colors.border }]}>
             {hasActiveFilters && (
-              <TouchableOpacity style={styles.clearButton} onPress={handleClearAll}>
-                <Text style={styles.clearButtonText}>Clear All Filters</Text>
+              <TouchableOpacity style={[styles.clearButton, { borderColor: colors.error }]} onPress={handleClearAll}>
+                <Text style={[styles.clearButtonText, { color: colors.error }]}>Clear All Filters</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={styles.doneButton} onPress={onClose}>
+            <TouchableOpacity style={[styles.doneButton, { backgroundColor: colors.primary }]} onPress={onClose}>
               <Text style={styles.doneButtonText}>Done</Text>
             </TouchableOpacity>
           </View>
@@ -227,7 +233,6 @@ const styles = StyleSheet.create({
   },
   panel: {
     width: PANEL_WIDTH,
-    backgroundColor: '#ffffff',
     height: '100%',
     shadowColor: '#000',
     shadowOffset: { width: -4, height: 0 },
@@ -241,24 +246,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
   },
   title: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#1f2937',
   },
   closeButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#f3f4f6',
     justifyContent: 'center',
     alignItems: 'center',
   },
   closeText: {
     fontSize: 16,
-    color: '#6b7280',
   },
   content: {
     flex: 1,
@@ -276,17 +277,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
     textTransform: 'uppercase',
   },
   selectedCount: {
     fontSize: 12,
-    color: '#6366f1',
     fontWeight: '500',
   },
   sectionHint: {
     fontSize: 12,
-    color: '#9ca3af',
     marginBottom: 12,
   },
   optionsList: {
@@ -298,11 +296,6 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  optionSelected: {
-    backgroundColor: '#eef2ff',
-    borderColor: '#6366f1',
   },
   epicDot: {
     width: 10,
@@ -319,16 +312,13 @@ const styles = StyleSheet.create({
   optionText: {
     flex: 1,
     fontSize: 14,
-    color: '#374151',
   },
   checkmark: {
     fontSize: 14,
-    color: '#6366f1',
     fontWeight: 'bold',
   },
   emptyText: {
     fontSize: 14,
-    color: '#9ca3af',
     fontStyle: 'italic',
     textAlign: 'center',
     padding: 16,
@@ -336,25 +326,21 @@ const styles = StyleSheet.create({
   footer: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
     gap: 8,
   },
   clearButton: {
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#ef4444',
     alignItems: 'center',
   },
   clearButtonText: {
     fontSize: 14,
-    color: '#ef4444',
     fontWeight: '600',
   },
   doneButton: {
     padding: 14,
     borderRadius: 8,
-    backgroundColor: '#6366f1',
     alignItems: 'center',
   },
   doneButtonText: {

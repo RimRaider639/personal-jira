@@ -19,7 +19,7 @@ import { TaskDetailScreen } from '@/screens/TaskDetailScreen';
 export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
-  BoardList: undefined;
+  BoardList: { openEpicId?: string } | undefined;
   Board: { boardId: string };
   TaskDetail: { taskId: string; boardId: string };
 };
@@ -69,11 +69,17 @@ function BoardScreenWrapper({
     navigation.navigate('TaskDetail', { taskId, boardId });
   }, [navigation, boardId]);
 
+  const handleEpicPress = useCallback((epicId: string) => {
+    // Navigate to BoardList with the epic ID to open the epic modal
+    navigation.navigate('BoardList', { openEpicId: epicId });
+  }, [navigation]);
+
   return (
     <BoardScreen 
       boardId={boardId} 
       onBack={handleBack}
       onTaskPress={handleTaskPress}
+      onEpicPress={handleEpicPress}
     />
   );
 }

@@ -7,10 +7,9 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  Switch,
 } from 'react-native';
 import { useTheme } from '@/theme/ThemeContext';
-import { themes, ThemeType } from '@/theme';
+import { decorativeThemes, DecorativeThemeType } from '@/theme';
 
 interface ThemeSelectorProps {
   boardId?: string; // If provided, allows setting board-specific theme
@@ -37,20 +36,21 @@ export function DarkModeToggle(): React.JSX.Element {
 
 /**
  * BoardThemeSelector - Theme selector specifically for board view
- * Only shows board-specific themes (not dark mode toggle)
+ * Shows decorative themes that have light/dark variants
  */
 export function BoardThemeSelector({ boardId }: { boardId: string }): React.JSX.Element {
-  const { colors, getBoardTheme, setBoardTheme, availableThemes } = useTheme();
+  const { colors, isDarkMode, getBoardTheme, setBoardTheme, decorativeThemeOptions } = useTheme();
   const [visible, setVisible] = useState(false);
 
   const currentBoardTheme = getBoardTheme(boardId);
 
-  // Filter out light/dark themes - only show decorative themes for boards
-  const boardThemes = availableThemes.filter(t => !['light', 'dark'].includes(t.name));
-
   const handleSelectTheme = useCallback(
-    (name: ThemeType) => {
-      setBoardTheme(boardId, name);
+    (name: DecorativeThemeType) => {
+      if (name === 'default') {
+        setBoardTheme(boardId, null);
+      } else {
+        setBoardTheme(boardId, name);
+      }
     },
     [boardId, setBoardTheme]
   );
@@ -59,13 +59,14 @@ export function BoardThemeSelector({ boardId }: { boardId: string }): React.JSX.
     setBoardTheme(boardId, null);
   }, [boardId, setBoardTheme]);
 
-  const getThemePreviewColors = (name: ThemeType) => {
-    const theme = themes[name];
+  const getThemePreviewColors = (name: DecorativeThemeType) => {
+    const theme = decorativeThemes.find(t => t.name === name);
+    if (!theme) return { bg: colors.background, surface: colors.surface, primary: colors.primary };
+    const variant = isDarkMode ? theme.dark : theme.light;
     return {
-      bg: theme.colors.background,
-      surface: theme.colors.surface,
-      primary: theme.colors.primary,
-      text: theme.colors.text,
+      bg: variant.colors.background,
+      surface: variant.colors.surface,
+      primary: variant.colors.primary,
     };
   };
 
@@ -108,43 +109,16 @@ export function BoardThemeSelector({ boardId }: { boardId: string }): React.JSX.
                 </View>
               )}
 
-              {/* Default option */}
-              <TouchableOpacity
-                style={[
-                  styles.themeOption,
-                  { borderColor: !currentBoardTheme ? colors.primary : colors.border },
-                  !currentBoardTheme && { backgroundColor: colors.primaryLight },
-                ]}
-                onPress={handleClearBoardTheme}
-              >
-                <View style={[styles.preview, { backgroundColor: colors.background }]}>
-                  <View style={[styles.previewSurface, { backgroundColor: colors.surface }]}>
-                    <View style={[styles.previewCard, { backgroundColor: colors.surface }]}>
-                      <View style={[styles.previewAccent, { backgroundColor: colors.primary }]} />
-                    </View>
-                  </View>
-                </View>
-                <View style={styles.themeInfo}>
-                  <View style={styles.themeHeader}>
-                    <Text style={[styles.themeName, { color: colors.text }]}>Default</Text>
-                    {!currentBoardTheme && (
-                      <Text style={[styles.checkmark, { color: colors.primary }]}>✓</Text>
-                    )}
-                  </View>
-                  <Text style={[styles.themeDescription, { color: colors.textSecondary }]}>
-                    Use global theme setting
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* Board theme options */}
-              <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginTop: 16 }]}>
-                Decorative Themes
+              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
+                Themes adapt to your global light/dark mode setting
               </Text>
 
-              {boardThemes.map((theme) => {
+              {/* Theme options */}
+              {decorativeThemeOptions.map((theme) => {
                 const preview = getThemePreviewColors(theme.name);
-                const isSelected = currentBoardTheme === theme.name;
+                const isSelected = theme.name === 'default' 
+                  ? !currentBoardTheme 
+                  : currentBoardTheme === theme.name;
 
                 return (
                   <TouchableOpacity
@@ -289,6 +263,11 @@ const styles = StyleSheet.create({
   clearThemeText: {
     fontSize: 13,
     fontWeight: '600',
+  },
+  sectionHint: {
+    fontSize: 12,
+    marginBottom: 16,
+    fontStyle: 'italic',
   },
   sectionTitle: {
     fontSize: 12,

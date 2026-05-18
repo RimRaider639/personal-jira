@@ -71,6 +71,37 @@ async function verifySectionOwnership(
 }
 
 /**
+ * GET /api/sections
+ * List all sections for the authenticated user (across all boards)
+ */
+router.get(
+  '/sections',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw createError('User not authenticated', 401);
+      }
+
+      // Get all boards for the user
+      const boards = await Board.find({ userId: new mongoose.Types.ObjectId(userId) });
+      const boardIds = boards.map(b => b._id);
+
+      // Get all sections for those boards
+      const sections = await Section.find({ boardId: { $in: boardIds } }).sort({ boardId: 1, position: 1 });
+
+      res.status(200).json({
+        success: true,
+        data: sections,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * GET /api/boards/:boardId/sections
  * List all sections for a board, ordered by position
  */

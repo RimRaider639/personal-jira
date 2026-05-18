@@ -45,6 +45,7 @@ export interface Epic {
   name: string;
   description: string | null;
   color: string;
+  endDate?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -194,6 +195,7 @@ export interface CreateEpicRequest {
   name: string;
   description?: string;
   color?: string;
+  endDate?: string;
 }
 
 export interface CreateCommentRequest {

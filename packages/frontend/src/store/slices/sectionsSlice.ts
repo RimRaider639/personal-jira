@@ -40,6 +40,23 @@ export const fetchSections = createAsyncThunk<
 });
 
 /**
+ * Async thunk for fetching all sections for the user (across all boards)
+ */
+export const fetchAllSections = createAsyncThunk<
+  Section[],
+  void,
+  { rejectValue: string }
+>('sections/fetchAll', async (_, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.get<{ data: Section[] }>('/sections');
+    return response.data.data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch sections';
+    return rejectWithValue(message);
+  }
+});
+
+/**
  * Async thunk for creating a section
  */
 export const createSection = createAsyncThunk<
@@ -208,6 +225,33 @@ const sectionsSlice = createSlice({
         });
       })
       .addCase(fetchSections.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload ?? 'Failed to fetch sections';
+      });
+
+    // Fetch all sections (across all boards)
+    builder
+      .addCase(fetchAllSections.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchAllSections.fulfilled, (state, action) => {
+        state.isLoading = false;
+        const sections = action.payload;
+
+        // Add all sections to the store
+        sections.forEach((section) => {
+          state.byId[section.id] = section;
+          
+          if (!state.byBoardId[section.boardId]) {
+            state.byBoardId[section.boardId] = [];
+          }
+          if (!state.byBoardId[section.boardId].includes(section.id)) {
+            state.byBoardId[section.boardId].push(section.id);
+          }
+        });
+      })
+      .addCase(fetchAllSections.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload ?? 'Failed to fetch sections';
       });

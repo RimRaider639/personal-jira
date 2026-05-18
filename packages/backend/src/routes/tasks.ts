@@ -118,6 +118,38 @@ async function validateEpicIds(
 }
 
 /**
+ * GET /api/tasks
+ * List all tasks for the authenticated user (across all boards)
+ */
+router.get(
+  '/tasks',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw createError('User not authenticated', 401);
+      }
+
+      // Get all boards for the user
+      const boards = await Board.find({ userId: new mongoose.Types.ObjectId(userId) });
+      const boardIds = boards.map(b => b._id);
+
+      // Get all tasks for those boards
+      const tasks = await Task.find({ boardId: { $in: boardIds } }).sort({ boardId: 1, sectionId: 1, position: 1 });
+
+      res.status(200).json({
+        success: true,
+        data: tasks,
+        count: tasks.length,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * GET /api/boards/:boardId/tasks
  * List all tasks for a board with optional filtering
  * Query params:

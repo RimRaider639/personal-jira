@@ -157,7 +157,7 @@ router.post(
       }
 
       const boardId = req.params.boardId as string;
-      const { name, description, color } = req.body;
+      const { name, description, color, endDate } = req.body;
 
       if (!boardId) {
         throw createError('Board ID is required', 400);
@@ -189,6 +189,15 @@ router.post(
         }
       }
 
+      // Validate end date
+      let parsedEndDate: Date | null = null;
+      if (endDate !== undefined && endDate !== null) {
+        parsedEndDate = new Date(endDate);
+        if (isNaN(parsedEndDate.getTime())) {
+          throw createError('Invalid end date format', 400);
+        }
+      }
+
       // Verify board ownership
       await verifyBoardOwnership(boardId, userId);
 
@@ -198,6 +207,7 @@ router.post(
         name: name.trim(),
         description: description?.trim() || null,
         color: color || undefined, // Let the model use default if not provided
+        endDate: parsedEndDate,
       });
 
       await epic.save();
@@ -227,7 +237,7 @@ router.put(
       }
 
       const id = req.params.id as string;
-      const { name, description, color } = req.body;
+      const { name, description, color, endDate } = req.body;
 
       if (!id) {
         throw createError('Epic ID is required', 400);
@@ -240,6 +250,7 @@ router.put(
         name: string;
         description: string | null;
         color: string;
+        endDate: Date | null;
         save: () => Promise<void>;
       };
 
@@ -272,6 +283,19 @@ router.put(
         }
         if (color) {
           epicDoc.color = color;
+        }
+      }
+
+      // Update end date if provided
+      if (endDate !== undefined) {
+        if (endDate === null || endDate === '') {
+          epicDoc.endDate = null;
+        } else {
+          const parsedEndDate = new Date(endDate);
+          if (isNaN(parsedEndDate.getTime())) {
+            throw createError('Invalid end date format', 400);
+          }
+          epicDoc.endDate = parsedEndDate;
         }
       }
 

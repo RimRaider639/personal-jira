@@ -8,6 +8,7 @@ export interface IEpic {
   name: string;
   description?: string | null;
   color: string;
+  endDate?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -68,6 +69,10 @@ const epicSchema = new Schema<IEpicDocument, IEpicModel>(
         },
         message: (props) => `${props.value} is not a valid hex color (e.g., #6366f1)`,
       },
+    },
+    endDate: {
+      type: Date,
+      default: null,
     },
   },
   {

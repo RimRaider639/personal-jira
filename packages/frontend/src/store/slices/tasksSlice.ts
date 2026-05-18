@@ -42,6 +42,23 @@ export const fetchTasks = createAsyncThunk<
 });
 
 /**
+ * Async thunk for fetching all tasks for the user (across all boards)
+ */
+export const fetchAllTasks = createAsyncThunk<
+  Task[],
+  void,
+  { rejectValue: string }
+>('tasks/fetchAll', async (_, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.get<{ data: Task[] }>('/tasks');
+    return response.data.data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch tasks';
+    return rejectWithValue(message);
+  }
+});
+
+/**
  * Async thunk for fetching a single task
  */
 export const fetchTask = createAsyncThunk<Task, string, { rejectValue: string }>(
@@ -417,6 +434,26 @@ const tasksSlice = createSlice({
         });
       })
       .addCase(fetchTasks.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload ?? 'Failed to fetch tasks';
+      });
+
+    // Fetch all tasks (across all boards)
+    builder
+      .addCase(fetchAllTasks.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchAllTasks.fulfilled, (state, action) => {
+        state.isLoading = false;
+        const tasks = action.payload;
+
+        // Add all tasks to the store
+        tasks.forEach((task) => {
+          addTaskToIndexes(state, task);
+        });
+      })
+      .addCase(fetchAllTasks.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload ?? 'Failed to fetch tasks';
       });

@@ -552,4 +552,176 @@ describe('Epic Operations', () => {
       expect(epic.color).toBe(DEFAULT_COLOR);
     });
   });
+
+  describe('Property 16: Epic End Date', () => {
+    interface EpicWithEndDate extends Epic {
+      endDate: Date | null;
+    }
+
+    const createEpicWithEndDate = (boardId: string, name: string, endDate?: Date | null): EpicWithEndDate => ({
+      id: createObjectId(),
+      boardId,
+      name,
+      description: null,
+      color: '#6366f1',
+      endDate: endDate ?? null,
+    });
+
+    it('should allow epic without end date', () => {
+      const epic = createEpicWithEndDate(createObjectId(), 'Epic');
+      expect(epic.endDate).toBeNull();
+    });
+
+    it('should allow epic with valid end date', () => {
+      const futureDate = new Date('2025-12-31');
+      const epic = createEpicWithEndDate(createObjectId(), 'Epic', futureDate);
+      expect(epic.endDate).toEqual(futureDate);
+    });
+
+    it('should validate end date format', () => {
+      const validateEndDate = (endDate: unknown): boolean => {
+        if (endDate === null || endDate === undefined || endDate === '') {
+          return true; // Optional field
+        }
+        const date = new Date(endDate as string);
+        return !isNaN(date.getTime());
+      };
+
+      expect(validateEndDate(null)).toBe(true);
+      expect(validateEndDate(undefined)).toBe(true);
+      expect(validateEndDate('')).toBe(true);
+      expect(validateEndDate('2025-12-31')).toBe(true);
+      expect(validateEndDate('2025-12-31T00:00:00.000Z')).toBe(true);
+      expect(validateEndDate('invalid-date')).toBe(false);
+    });
+
+    it('should allow updating end date', () => {
+      const epic = createEpicWithEndDate(createObjectId(), 'Epic');
+      expect(epic.endDate).toBeNull();
+
+      const newDate = new Date('2025-06-30');
+      epic.endDate = newDate;
+      expect(epic.endDate).toEqual(newDate);
+    });
+
+    it('should allow clearing end date', () => {
+      const epic = createEpicWithEndDate(createObjectId(), 'Epic', new Date('2025-12-31'));
+      expect(epic.endDate).not.toBeNull();
+
+      epic.endDate = null;
+      expect(epic.endDate).toBeNull();
+    });
+  });
+
+  describe('Property 17: Fetch All User Tasks', () => {
+    it('should return all tasks across all user boards', () => {
+      const userId = createObjectId();
+      const board1 = createBoard(userId, 'Board 1');
+      const board2 = createBoard(userId, 'Board 2');
+      
+      const task1 = createTask(board1.id, createObjectId(), 'Task 1');
+      const task2 = createTask(board1.id, createObjectId(), 'Task 2');
+      const task3 = createTask(board2.id, createObjectId(), 'Task 3');
+      
+      const allTasks = [task1, task2, task3];
+      const userBoards = [board1, board2];
+      
+      const fetchAllUserTasks = (boards: Board[], tasks: Task[]): Task[] => {
+        const boardIds = boards.map(b => b.id);
+        return tasks.filter(t => boardIds.includes(t.boardId));
+      };
+      
+      const result = fetchAllUserTasks(userBoards, allTasks);
+      
+      expect(result).toHaveLength(3);
+      expect(result.map(t => t.title)).toContain('Task 1');
+      expect(result.map(t => t.title)).toContain('Task 2');
+      expect(result.map(t => t.title)).toContain('Task 3');
+    });
+
+    it('should not return tasks from other users boards', () => {
+      const user1Id = createObjectId();
+      const user2Id = createObjectId();
+      
+      const user1Board = createBoard(user1Id, 'User 1 Board');
+      const user2Board = createBoard(user2Id, 'User 2 Board');
+      
+      const user1Task = createTask(user1Board.id, createObjectId(), 'User 1 Task');
+      const user2Task = createTask(user2Board.id, createObjectId(), 'User 2 Task');
+      
+      const allTasks = [user1Task, user2Task];
+      
+      const fetchAllUserTasks = (boards: Board[], tasks: Task[]): Task[] => {
+        const boardIds = boards.map(b => b.id);
+        return tasks.filter(t => boardIds.includes(t.boardId));
+      };
+      
+      const user1Result = fetchAllUserTasks([user1Board], allTasks);
+      expect(user1Result).toHaveLength(1);
+      expect(user1Result[0].title).toBe('User 1 Task');
+    });
+  });
+
+  describe('Property 18: Fetch All User Sections', () => {
+    interface Section {
+      id: string;
+      boardId: string;
+      name: string;
+      position: number;
+    }
+
+    const createSection = (boardId: string, name: string, position: number): Section => ({
+      id: createObjectId(),
+      boardId,
+      name,
+      position,
+    });
+
+    it('should return all sections across all user boards', () => {
+      const userId = createObjectId();
+      const board1 = createBoard(userId, 'Board 1');
+      const board2 = createBoard(userId, 'Board 2');
+      
+      const section1 = createSection(board1.id, 'To Do', 0);
+      const section2 = createSection(board1.id, 'Done', 1);
+      const section3 = createSection(board2.id, 'Backlog', 0);
+      
+      const allSections = [section1, section2, section3];
+      const userBoards = [board1, board2];
+      
+      const fetchAllUserSections = (boards: Board[], sections: Section[]): Section[] => {
+        const boardIds = boards.map(b => b.id);
+        return sections.filter(s => boardIds.includes(s.boardId));
+      };
+      
+      const result = fetchAllUserSections(userBoards, allSections);
+      
+      expect(result).toHaveLength(3);
+      expect(result.map(s => s.name)).toContain('To Do');
+      expect(result.map(s => s.name)).toContain('Done');
+      expect(result.map(s => s.name)).toContain('Backlog');
+    });
+
+    it('should not return sections from other users boards', () => {
+      const user1Id = createObjectId();
+      const user2Id = createObjectId();
+      
+      const user1Board = createBoard(user1Id, 'User 1 Board');
+      const user2Board = createBoard(user2Id, 'User 2 Board');
+      
+      const user1Section = createSection(user1Board.id, 'User 1 Section', 0);
+      const user2Section = createSection(user2Board.id, 'User 2 Section', 0);
+      
+      const allSections = [user1Section, user2Section];
+      
+      const fetchAllUserSections = (boards: Board[], sections: Section[]): Section[] => {
+        const boardIds = boards.map(b => b.id);
+        return sections.filter(s => boardIds.includes(s.boardId));
+      };
+      
+      const user1Result = fetchAllUserSections([user1Board], allSections);
+      expect(user1Result).toHaveLength(1);
+      expect(user1Result[0].name).toBe('User 1 Section');
+    });
+  });
 });

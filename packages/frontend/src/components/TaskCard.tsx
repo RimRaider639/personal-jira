@@ -11,6 +11,7 @@ interface TaskCardProps {
   onPress: (taskId: string) => void;
   onMove?: (taskId: string, newSectionId: string) => void;
   onToggleEpic?: (taskId: string, epicId: string) => void;
+  onEpicPress?: (epicId: string) => void;
   isDragging?: boolean;
 }
 
@@ -33,6 +34,7 @@ function TaskCardComponent({
   onPress,
   onMove,
   onToggleEpic,
+  onEpicPress,
   isDragging = false,
 }: TaskCardProps): React.JSX.Element {
   const { colors } = useTheme();
@@ -53,6 +55,13 @@ function TaskCardComponent({
       onToggleEpic?.(taskId, epicId);
     },
     [onToggleEpic]
+  );
+
+  const handleEpicPress = useCallback(
+    (epicId: string) => {
+      onEpicPress?.(epicId);
+    },
+    [onEpicPress]
   );
 
   const taskEpics = useMemo(
@@ -133,14 +142,16 @@ function TaskCardComponent({
         {taskEpics.length > 0 && (
           <View style={styles.epicsContainer}>
             {taskEpics.slice(0, 2).map((epic) => (
-              <View
+              <TouchableOpacity
                 key={epic.id}
                 style={[styles.epicBadge, { backgroundColor: epic.color + '20' }]}
+                onPress={() => handleEpicPress(epic.id)}
+                activeOpacity={0.7}
               >
                 <Text style={[styles.epicText, { color: epic.color }]} numberOfLines={1}>
                   {epic.name}
                 </Text>
-              </View>
+              </TouchableOpacity>
             ))}
             {taskEpics.length > 2 && (
               <Text style={[styles.moreEpics, { color: colors.textMuted }]}>
@@ -294,6 +305,7 @@ function arePropsEqual(prevProps: TaskCardProps, nextProps: TaskCardProps): bool
   if (prevProps.onPress !== nextProps.onPress) return false;
   if (prevProps.onMove !== nextProps.onMove) return false;
   if (prevProps.onToggleEpic !== nextProps.onToggleEpic) return false;
+  if (prevProps.onEpicPress !== nextProps.onEpicPress) return false;
 
   return true;
 }

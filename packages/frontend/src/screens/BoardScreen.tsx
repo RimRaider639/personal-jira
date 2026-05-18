@@ -53,6 +53,7 @@ interface BoardScreenProps {
   boardId: string;
   onBack?: () => void;
   onTaskPress?: (taskId: string) => void;
+  onEpicPress?: (epicId: string) => void;
 }
 
 interface CreateTaskData {
@@ -594,6 +595,7 @@ export function BoardScreen({
   boardId,
   onBack,
   onTaskPress,
+  onEpicPress,
 }: BoardScreenProps): React.JSX.Element {
   const dispatch = useAppDispatch();
   const { colors, getEffectiveTheme, getBoardTheme } = useTheme();
@@ -981,6 +983,7 @@ export function BoardScreen({
               onTaskReorder={handleTaskReorder}
               onMoveTask={handleMoveTask}
               onToggleEpic={handleToggleEpic}
+              onEpicPress={onEpicPress}
               onSectionReorder={handleSectionReorder}
               onAddTask={handleAddTask}
               onAddSection={handleAddSection}

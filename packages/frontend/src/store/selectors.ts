@@ -89,6 +89,12 @@ export const selectAllTasks = (state: RootState): Task[] =>
   Object.values(state.tasks.byId).filter(Boolean);
 
 /**
+ * Select all sections across all boards
+ */
+export const selectAllSections = (state: RootState): Section[] =>
+  Object.values(state.sections.byId).filter(Boolean);
+
+/**
  * Select task by ID
  */
 export const selectTaskById = (state: RootState, taskId: string) => state.tasks.byId[taskId];

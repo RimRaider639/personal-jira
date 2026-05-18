@@ -12,13 +12,14 @@ import {
 } from 'react-native';
 import { useTheme } from '@/theme/ThemeContext';
 import { DatePicker } from './DatePicker';
-import type { Epic, Task, Board } from '@kanban/shared';
+import type { Epic, Task, Board, Section } from '@kanban/shared';
 
 interface EpicModalProps {
   visible: boolean;
   epic: Epic | null;
   linkedTasks: Task[];
   allBoards: Board[];
+  allSections: Section[];
   linkedBoardIds: string[];
   onClose: () => void;
   onSave: (data: { name: string; description: string; color: string; endDate?: string; boardIds: string[] }) => void;
@@ -42,6 +43,7 @@ export function EpicModal({
   epic,
   linkedTasks,
   allBoards,
+  allSections,
   linkedBoardIds,
   onClose,
   onSave,
@@ -112,8 +114,23 @@ export function EpicModal({
     return grouped;
   }, [linkedTasks]);
 
-  const completedCount = 0; // Would need section info to determine completion
-  const progress = linkedTasks.length > 0 ? Math.round((completedCount / linkedTasks.length) * 100) : 0;
+  // Calculate completed tasks based on "done" sections
+  const { completedCount, progress } = useMemo(() => {
+    if (linkedTasks.length === 0) {
+      return { completedCount: 0, progress: 0 };
+    }
+    
+    // Find all "done" section IDs (case-insensitive match)
+    const doneSectionIds = allSections
+      .filter(section => section.name.toLowerCase() === 'done')
+      .map(section => section.id);
+    
+    // Count tasks in done sections
+    const completed = linkedTasks.filter(task => doneSectionIds.includes(task.sectionId)).length;
+    const progressPercent = Math.round((completed / linkedTasks.length) * 100);
+    
+    return { completedCount: completed, progress: progressPercent };
+  }, [linkedTasks, allSections]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>

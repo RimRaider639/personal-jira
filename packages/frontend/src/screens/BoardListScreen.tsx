@@ -344,6 +344,8 @@ export function BoardListScreen(): React.JSX.Element {
   const [heatmapModalVisible, setHeatmapModalVisible] = useState(false);
   const [selectedBoardForHeatmap, setSelectedBoardForHeatmap] = useState<string | null>(null);
   const [heatmapDays, setHeatmapDays] = useState(30);
+  const [customDaysInput, setCustomDaysInput] = useState('');
+  const [showCustomInput, setShowCustomInput] = useState(false);
 
   // Get stats and heatmaps from store
   const boardStats = useAppSelector((state) => state.boards.stats);
@@ -431,6 +433,8 @@ export function BoardListScreen(): React.JSX.Element {
   const handleHeatmapPress = useCallback((boardId: string) => {
     setSelectedBoardForHeatmap(boardId);
     setHeatmapDays(30);
+    setShowCustomInput(false);
+    setCustomDaysInput('');
     setHeatmapModalVisible(true);
     // Fetch fresh heatmap data
     dispatch(fetchActivityHeatmap({ boardId, days: 30 }));
@@ -441,10 +445,22 @@ export function BoardListScreen(): React.JSX.Element {
    */
   const handleHeatmapTimeframeChange = useCallback((days: number) => {
     setHeatmapDays(days);
+    setShowCustomInput(false);
     if (selectedBoardForHeatmap) {
       dispatch(fetchActivityHeatmap({ boardId: selectedBoardForHeatmap, days }));
     }
   }, [dispatch, selectedBoardForHeatmap]);
+
+  /**
+   * Handle custom days input
+   */
+  const handleCustomDaysSubmit = useCallback(() => {
+    const days = parseInt(customDaysInput, 10);
+    if (days > 0 && days <= 365 && selectedBoardForHeatmap) {
+      setHeatmapDays(days);
+      dispatch(fetchActivityHeatmap({ boardId: selectedBoardForHeatmap, days }));
+    }
+  }, [customDaysInput, selectedBoardForHeatmap, dispatch]);
 
   /**
    * Handle board press - navigate to board
@@ -610,6 +626,17 @@ export function BoardListScreen(): React.JSX.Element {
     return counts;
   }, [epics, allTasks]);
 
+  // Sort epics by name alphabetically
+  const sortedEpics = useMemo(() => {
+    return [...epics].sort((a, b) => a.name.localeCompare(b.name));
+  }, [epics]);
+
+  // Get selected board for heatmap modal
+  const selectedBoard = useMemo(() => {
+    if (!selectedBoardForHeatmap) return null;
+    return boards.find(b => b.id === selectedBoardForHeatmap) || null;
+  }, [selectedBoardForHeatmap, boards]);
+
   return (
     <ThemedBackground>
       <SafeAreaView style={styles.container}>
@@ -670,13 +697,13 @@ export function BoardListScreen(): React.JSX.Element {
                 </TouchableOpacity>
               </View>
               
-              {epics.length === 0 ? (
+              {sortedEpics.length === 0 ? (
                 <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
                   No epics yet. Create one to group related tasks.
                 </Text>
               ) : (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.epicsScroll}>
-                  {epics.map(epic => (
+                  {sortedEpics.map(epic => (
                     <TouchableOpacity
                       key={epic.id}
                       style={[styles.epicCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}
@@ -698,6 +725,11 @@ export function BoardListScreen(): React.JSX.Element {
                       <Text style={[styles.epicTaskCount, { color: colors.textMuted }]}>
                         {epicTaskCounts[epic.id] || 0} tasks
                       </Text>
+                      {epic.endDate && (
+                        <Text style={[styles.epicEndDate, { color: colors.textMuted }]}>
+                          Due: {new Date(epic.endDate).toLocaleDateString()}
+                        </Text>
+                      )}
                     </TouchableOpacity>
                   ))}
                 </ScrollView>
@@ -784,6 +816,13 @@ export function BoardListScreen(): React.JSX.Element {
                 </TouchableOpacity>
               </View>
               
+              {/* Board name */}
+              {selectedBoard && (
+                <Text style={[heatmapModalStyles.boardName, { color: colors.text }]}>
+                  {selectedBoard.name}
+                </Text>
+              )}
+              
               {/* Timeframe selector */}
               <View style={heatmapModalStyles.timeframeSelector}>
                 {[30, 60, 90].map(days => (
@@ -791,20 +830,61 @@ export function BoardListScreen(): React.JSX.Element {
                     key={days}
                     style={[
                       heatmapModalStyles.timeframeButton,
-                      heatmapDays === days && { backgroundColor: colors.primary },
-                      heatmapDays !== days && { backgroundColor: colors.border },
+                      heatmapDays === days && !showCustomInput && { backgroundColor: colors.primary },
+                      (heatmapDays !== days || showCustomInput) && { backgroundColor: colors.border },
                     ]}
                     onPress={() => handleHeatmapTimeframeChange(days)}
                   >
                     <Text style={[
                       heatmapModalStyles.timeframeText,
-                      { color: heatmapDays === days ? '#fff' : colors.text },
+                      { color: heatmapDays === days && !showCustomInput ? '#fff' : colors.text },
                     ]}>
-                      {days} days
+                      {days}d
                     </Text>
                   </TouchableOpacity>
                 ))}
+                <TouchableOpacity
+                  style={[
+                    heatmapModalStyles.timeframeButton,
+                    showCustomInput && { backgroundColor: colors.primary },
+                    !showCustomInput && { backgroundColor: colors.border },
+                  ]}
+                  onPress={() => setShowCustomInput(!showCustomInput)}
+                >
+                  <Text style={[
+                    heatmapModalStyles.timeframeText,
+                    { color: showCustomInput ? '#fff' : colors.text },
+                  ]}>
+                    Custom
+                  </Text>
+                </TouchableOpacity>
               </View>
+              
+              {/* Custom days input */}
+              {showCustomInput && (
+                <View style={heatmapModalStyles.customInputRow}>
+                  <TextInput
+                    style={[heatmapModalStyles.customInput, { backgroundColor: colors.border, color: colors.text }]}
+                    placeholder="Days (1-365)"
+                    placeholderTextColor={colors.textMuted}
+                    value={customDaysInput}
+                    onChangeText={setCustomDaysInput}
+                    keyboardType="numeric"
+                    maxLength={3}
+                  />
+                  <TouchableOpacity
+                    style={[heatmapModalStyles.applyButton, { backgroundColor: colors.primary }]}
+                    onPress={handleCustomDaysSubmit}
+                  >
+                    <Text style={heatmapModalStyles.applyButtonText}>Apply</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              {/* Current timeframe display */}
+              <Text style={[heatmapModalStyles.currentTimeframe, { color: colors.textMuted }]}>
+                Showing last {heatmapDays} days
+              </Text>
               
               {/* Large Heatmap */}
               {selectedBoardForHeatmap && boardHeatmaps[selectedBoardForHeatmap] && (
@@ -820,6 +900,18 @@ export function BoardListScreen(): React.JSX.Element {
               <Text style={[heatmapModalStyles.legend, { color: colors.textMuted }]}>
                 Activity includes: tasks created, status changes, comments, and attachments
               </Text>
+              
+              {/* Board Description */}
+              {selectedBoard?.description && (
+                <View style={[heatmapModalStyles.descriptionSection, { borderTopColor: colors.border }]}>
+                  <Text style={[heatmapModalStyles.descriptionLabel, { color: colors.textMuted }]}>
+                    Board Description
+                  </Text>
+                  <Text style={[heatmapModalStyles.descriptionText, { color: colors.text }]}>
+                    {selectedBoard.description}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         </Modal>
@@ -932,7 +1024,7 @@ const heatmapModalStyles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 8,
   },
   title: {
     fontSize: 20,
@@ -942,19 +1034,53 @@ const heatmapModalStyles = StyleSheet.create({
     fontSize: 24,
     padding: 4,
   },
+  boardName: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 16,
+  },
   timeframeSelector: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 20,
+    marginBottom: 12,
+    flexWrap: 'wrap',
   },
   timeframeButton: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
   },
   timeframeText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  customInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  customInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    fontSize: 14,
+  },
+  applyButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  applyButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  currentTimeframe: {
+    fontSize: 12,
+    marginBottom: 16,
+    textAlign: 'center',
   },
   heatmapContainer: {
     alignItems: 'center',
@@ -963,6 +1089,21 @@ const heatmapModalStyles = StyleSheet.create({
   legend: {
     fontSize: 12,
     textAlign: 'center',
+  },
+  descriptionSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+  },
+  descriptionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  descriptionText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
 });
 
@@ -1087,6 +1228,10 @@ const styles = StyleSheet.create({
   },
   epicTaskCount: {
     fontSize: 12,
+  },
+  epicEndDate: {
+    fontSize: 11,
+    marginTop: 4,
   },
   emptyState: {
     alignItems: 'center',

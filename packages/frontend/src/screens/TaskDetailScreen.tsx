@@ -19,6 +19,7 @@ import {
   fetchTask,
   fetchSections,
   fetchEpics,
+  fetchAllEpics,
   fetchTasks,
   updateTask,
   deleteTask,
@@ -32,7 +33,7 @@ import {
   addDependency,
   removeDependency,
 } from '@/store/slices';
-import { selectTaskById, selectEpicsByBoardId, selectSectionsByBoardId, selectTasksByBoardId } from '@/store/selectors';
+import { selectTaskById, selectAllEpics, selectSectionsByBoardId, selectTasksByBoardId } from '@/store/selectors';
 import { DatePicker } from '@/components';
 import { useTheme } from '@/theme/ThemeContext';
 import type { Priority, Epic, Task } from '@kanban/shared';
@@ -74,7 +75,8 @@ export function TaskDetailScreen({
   const { colors } = useTheme();
 
   const task = useAppSelector((state) => selectTaskById(state, taskId));
-  const epics = useAppSelector((state) => selectEpicsByBoardId(state, boardId));
+  // Use all epics instead of just board-specific epics, since epics can be shared across boards
+  const epics = useAppSelector(selectAllEpics);
   const sections = useAppSelector((state) => selectSectionsByBoardId(state, boardId));
   const allBoardTasks = useAppSelector((state) => selectTasksByBoardId(state, boardId));
   const isLoading = useAppSelector((state) => state.tasks.isLoading);
@@ -125,10 +127,11 @@ export function TaskDetailScreen({
 
   useEffect(() => {
     dispatch(fetchTask(taskId));
-    // Also fetch sections, epics, and tasks for the board (needed for move, epic assignment, and dependencies)
+    // Fetch all epics (not just board-specific) since epics can be shared across boards
+    dispatch(fetchAllEpics());
+    // Also fetch sections and tasks for the board (needed for move and dependencies)
     if (boardId) {
       dispatch(fetchSections(boardId));
-      dispatch(fetchEpics(boardId));
       dispatch(fetchTasks(boardId));
     }
   }, [dispatch, taskId, boardId]);
@@ -365,23 +368,26 @@ export function TaskDetailScreen({
     async (dependentTaskId: string) => {
       if (!task) return;
 
-      Alert.alert('Remove Dependency', 'Are you sure you want to remove this dependency?', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await dispatch(removeDependency({ taskId, dependentTaskId })).unwrap();
-              // Refresh the task to get updated dependentTaskIds
-              dispatch(fetchTask(taskId));
-            } catch (error) {
-              const errorMessage = error instanceof Error ? error.message : 'Failed to remove dependency';
-              Alert.alert('Error', errorMessage);
-            }
-          },
-        },
-      ]);
+      // On web, Alert.alert may not work properly, so use window.confirm as fallback
+      const confirmRemove = Platform.OS === 'web' 
+        ? window.confirm('Are you sure you want to remove this dependency?')
+        : await new Promise<boolean>((resolve) => {
+            Alert.alert('Remove Dependency', 'Are you sure you want to remove this dependency?', [
+              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Remove', style: 'destructive', onPress: () => resolve(true) },
+            ]);
+          });
+
+      if (!confirmRemove) return;
+
+      try {
+        await dispatch(removeDependency({ taskId, dependentTaskId })).unwrap();
+        // Refresh the task to get updated dependentTaskIds
+        dispatch(fetchTask(taskId));
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to remove dependency';
+        Alert.alert('Error', errorMessage);
+      }
     },
     [dispatch, taskId, task]
   );

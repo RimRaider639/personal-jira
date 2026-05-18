@@ -33,6 +33,12 @@ describe('Epic Operations', () => {
     epicIds: string[];
   }
 
+  interface Board {
+    id: string;
+    userId: string;
+    name: string;
+  }
+
   const createEpic = (boardId: string, name: string): Epic => ({
     id: createObjectId(),
     boardId,
@@ -47,6 +53,137 @@ describe('Epic Operations', () => {
     sectionId,
     title,
     epicIds: [],
+  });
+
+  const createBoard = (userId: string, name: string): Board => ({
+    id: createObjectId(),
+    userId,
+    name,
+  });
+
+  describe('Property 15: Fetch All User Epics', () => {
+    it('should return all epics across all user boards', () => {
+      const userId = createObjectId();
+      const board1 = createBoard(userId, 'Board 1');
+      const board2 = createBoard(userId, 'Board 2');
+      
+      const epic1 = createEpic(board1.id, 'Epic 1');
+      const epic2 = createEpic(board1.id, 'Epic 2');
+      const epic3 = createEpic(board2.id, 'Epic 3');
+      
+      const allEpics = [epic1, epic2, epic3];
+      const userBoards = [board1, board2];
+      
+      const fetchAllUserEpics = (boards: Board[], epics: Epic[]): Epic[] => {
+        const boardIds = boards.map(b => b.id);
+        return epics.filter(e => boardIds.includes(e.boardId));
+      };
+      
+      const result = fetchAllUserEpics(userBoards, allEpics);
+      
+      expect(result).toHaveLength(3);
+      expect(result.map(e => e.name)).toContain('Epic 1');
+      expect(result.map(e => e.name)).toContain('Epic 2');
+      expect(result.map(e => e.name)).toContain('Epic 3');
+    });
+
+    it('should not return epics from other users boards', () => {
+      const user1Id = createObjectId();
+      const user2Id = createObjectId();
+      
+      const user1Board = createBoard(user1Id, 'User 1 Board');
+      const user2Board = createBoard(user2Id, 'User 2 Board');
+      
+      const user1Epic = createEpic(user1Board.id, 'User 1 Epic');
+      const user2Epic = createEpic(user2Board.id, 'User 2 Epic');
+      
+      const allEpics = [user1Epic, user2Epic];
+      
+      const fetchAllUserEpics = (boards: Board[], epics: Epic[]): Epic[] => {
+        const boardIds = boards.map(b => b.id);
+        return epics.filter(e => boardIds.includes(e.boardId));
+      };
+      
+      // User 1 should only see their epic
+      const user1Result = fetchAllUserEpics([user1Board], allEpics);
+      expect(user1Result).toHaveLength(1);
+      expect(user1Result[0].name).toBe('User 1 Epic');
+      
+      // User 2 should only see their epic
+      const user2Result = fetchAllUserEpics([user2Board], allEpics);
+      expect(user2Result).toHaveLength(1);
+      expect(user2Result[0].name).toBe('User 2 Epic');
+    });
+
+    it('should return empty array when user has no boards', () => {
+      const userId = createObjectId();
+      const userBoards: Board[] = [];
+      const allEpics = [createEpic(createObjectId(), 'Some Epic')];
+      
+      const fetchAllUserEpics = (boards: Board[], epics: Epic[]): Epic[] => {
+        const boardIds = boards.map(b => b.id);
+        return epics.filter(e => boardIds.includes(e.boardId));
+      };
+      
+      const result = fetchAllUserEpics(userBoards, allEpics);
+      
+      expect(result).toHaveLength(0);
+    });
+
+    it('should return empty array when user boards have no epics', () => {
+      const userId = createObjectId();
+      const board = createBoard(userId, 'Empty Board');
+      const allEpics: Epic[] = [];
+      
+      const fetchAllUserEpics = (boards: Board[], epics: Epic[]): Epic[] => {
+        const boardIds = boards.map(b => b.id);
+        return epics.filter(e => boardIds.includes(e.boardId));
+      };
+      
+      const result = fetchAllUserEpics([board], allEpics);
+      
+      expect(result).toHaveLength(0);
+    });
+
+    it('should handle multiple boards with varying epic counts', () => {
+      fc.assert(
+        fc.property(
+          fc.nat({ max: 5 }),
+          fc.array(fc.nat({ max: 10 }), { maxLength: 5 }),
+          (boardCount, epicCounts) => {
+            const userId = createObjectId();
+            const boards = Array.from({ length: boardCount }, (_, i) =>
+              createBoard(userId, `Board ${i}`)
+            );
+            
+            const allEpics: Epic[] = [];
+            boards.forEach((board, boardIndex) => {
+              const count = epicCounts[boardIndex] || 0;
+              for (let i = 0; i < count; i++) {
+                allEpics.push(createEpic(board.id, `Epic ${boardIndex}-${i}`));
+              }
+            });
+            
+            const fetchAllUserEpics = (userBoards: Board[], epics: Epic[]): Epic[] => {
+              const boardIds = userBoards.map(b => b.id);
+              return epics.filter(e => boardIds.includes(e.boardId));
+            };
+            
+            const result = fetchAllUserEpics(boards, allEpics);
+            
+            // Should return exactly the epics we created
+            expect(result).toHaveLength(allEpics.length);
+            
+            // Each epic should belong to one of the user's boards
+            result.forEach(epic => {
+              expect(boards.map(b => b.id)).toContain(epic.boardId);
+            });
+            
+            return true;
+          }
+        )
+      );
+    });
   });
 
   describe('Property 10: Epic Board Constraint', () => {

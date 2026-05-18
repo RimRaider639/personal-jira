@@ -184,6 +184,15 @@ function CreateNoteModal({
   const [selectedColor, setSelectedColor] = useState(NOTE_COLORS[0]);
   const [error, setError] = useState('');
 
+  // Reset state when modal opens
+  useEffect(() => {
+    if (visible) {
+      setContent('');
+      setSelectedColor(NOTE_COLORS[0]);
+      setError('');
+    }
+  }, [visible]);
+
   const handleSubmit = useCallback(() => {
     if (!content.trim()) {
       setError('Note content is required');
@@ -194,6 +203,10 @@ function CreateNoteModal({
       return;
     }
     onSubmit(content.trim(), selectedColor);
+    // Reset state after submit
+    setContent('');
+    setSelectedColor(NOTE_COLORS[0]);
+    setError('');
   }, [content, selectedColor, onSubmit]);
 
   const handleClose = useCallback(() => {
@@ -465,7 +478,7 @@ interface StickyNoteCardProps {
 }
 
 function StickyNoteCard({ note, onEdit, onDelete, colors }: StickyNoteCardProps): React.JSX.Element {
-  const handleLongPress = useCallback(() => {
+  const handleDelete = useCallback(() => {
     if (typeof window !== 'undefined') {
       if (window.confirm(`Delete this note?`)) {
         onDelete(note.id);
@@ -483,15 +496,23 @@ function StickyNoteCard({ note, onEdit, onDelete, colors }: StickyNoteCardProps)
   }, [note.id, onDelete]);
 
   return (
-    <TouchableOpacity
-      style={[pinBoardStyles.stickyNote, { backgroundColor: note.color }]}
-      onPress={() => onEdit(note)}
-      onLongPress={handleLongPress}
-    >
-      <Text style={pinBoardStyles.stickyNoteText} numberOfLines={6}>
-        {note.content}
-      </Text>
-    </TouchableOpacity>
+    <View style={[pinBoardStyles.stickyNote, { backgroundColor: note.color }]}>
+      <TouchableOpacity
+        style={pinBoardStyles.stickyNoteContent}
+        onPress={() => onEdit(note)}
+      >
+        <Text style={pinBoardStyles.stickyNoteText} numberOfLines={5}>
+          {note.content}
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={pinBoardStyles.stickyNoteDeleteButton}
+        onPress={handleDelete}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Text style={pinBoardStyles.stickyNoteDeleteIcon}>×</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -2230,11 +2251,32 @@ const pinBoardStyles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
     transform: [{ rotate: '-1deg' }],
+    position: 'relative',
+  },
+  stickyNoteContent: {
+    flex: 1,
   },
   stickyNoteText: {
     fontSize: 13,
     color: '#1f2937',
     lineHeight: 18,
+  },
+  stickyNoteDeleteButton: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stickyNoteDeleteIcon: {
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: 'bold',
+    lineHeight: 16,
   },
   pinnedTask: {
     width: 160,

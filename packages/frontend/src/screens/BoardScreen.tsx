@@ -1092,30 +1092,45 @@ export function BoardScreen({
    * Handle starting a new sprint
    */
   const handleStartSprint = useCallback(async () => {
-    Alert.alert(
-      'Start New Sprint',
-      'This will archive all tasks in "Done" sections. Are you sure?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Start Sprint',
-          style: 'default',
-          onPress: async () => {
-            setIsStartingSprint(true);
-            try {
-              const result = await dispatch(startSprint(boardId)).unwrap();
-              Alert.alert('Sprint Started', `${result.archivedCount} tasks have been archived.`);
-              // Refresh tasks to reflect changes
-              dispatch(fetchTasks(boardId));
-            } catch {
-              Alert.alert('Error', 'Failed to start sprint. Please try again.');
-            } finally {
-              setIsStartingSprint(false);
-            }
-          },
-        },
-      ]
-    );
+    const confirmStart = () => {
+      if (typeof window !== 'undefined' && window.confirm) {
+        return window.confirm('This will archive all tasks in "Done" sections. Are you sure you want to start a new sprint?');
+      }
+      return new Promise<boolean>((resolve) => {
+        Alert.alert(
+          'Start New Sprint',
+          'This will archive all tasks in "Done" sections. Are you sure?',
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+            { text: 'Start Sprint', style: 'default', onPress: () => resolve(true) },
+          ]
+        );
+      });
+    };
+
+    const confirmed = await confirmStart();
+    if (!confirmed) return;
+
+    setIsStartingSprint(true);
+    try {
+      const result = await dispatch(startSprint(boardId)).unwrap();
+      if (typeof window !== 'undefined' && window.alert) {
+        window.alert(`Sprint Started! ${result.archivedCount} tasks have been archived.`);
+      } else {
+        Alert.alert('Sprint Started', `${result.archivedCount} tasks have been archived.`);
+      }
+      // Refresh tasks to reflect changes
+      dispatch(fetchTasks(boardId));
+    } catch (error) {
+      console.error('Sprint start error:', error);
+      if (typeof window !== 'undefined' && window.alert) {
+        window.alert('Failed to start sprint. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to start sprint. Please try again.');
+      }
+    } finally {
+      setIsStartingSprint(false);
+    }
   }, [dispatch, boardId]);
 
   /**

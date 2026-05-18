@@ -32,6 +32,10 @@ export type {
   Priority,
 } from './Task';
 
+// Note model for sticky notes
+export { default as Note } from './Note';
+export type { INote } from './Note';
+
 // Activity model for tracking board activity
 export { Activity, ACTIVITY_TYPES } from './Activity';
 export type {

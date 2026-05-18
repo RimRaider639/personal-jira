@@ -9,6 +9,7 @@ import commentRoutes from './comments';
 import attachmentRoutes from './attachments';
 import exportRoutes from './export';
 import activityRoutes from './activity';
+import notesRoutes from './notes';
 
 const router = Router();
 
@@ -41,5 +42,8 @@ router.use('/', exportRoutes);
 
 // Activity routes (includes /boards/:boardId/activity endpoints)
 router.use('/', activityRoutes);
+
+// Notes routes (sticky notes for the fridge)
+router.use('/notes', notesRoutes);
 
 export default router;

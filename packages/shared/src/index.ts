@@ -84,8 +84,18 @@ export interface Task {
   epicIds: string[];
   dependentTaskIds: string[];
   isArchived: boolean;
+  isPinned: boolean;
   comments: Comment[];
   attachments: Attachment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Note {
+  id: string;
+  userId: string;
+  content: string;
+  color: string;
   createdAt: string;
   updatedAt: string;
 }

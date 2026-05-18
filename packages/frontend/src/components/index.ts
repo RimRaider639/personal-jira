@@ -16,3 +16,4 @@ export { DatePicker } from './DatePicker';
 export { ThemeSelector, DarkModeToggle, BoardThemeSelector } from './ThemeSelector';
 export { TaskPreviewModal } from './TaskPreviewModal';
 export { EpicModal } from './EpicModal';
+export { ProfileAvatar } from './ProfileAvatar';

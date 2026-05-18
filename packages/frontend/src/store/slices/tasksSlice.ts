@@ -59,6 +59,40 @@ export const fetchAllTasks = createAsyncThunk<
 });
 
 /**
+ * Async thunk for fetching pinned tasks
+ */
+export const fetchPinnedTasks = createAsyncThunk<
+  Task[],
+  void,
+  { rejectValue: string }
+>('tasks/fetchPinned', async (_, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.get<{ data: Task[] }>('/tasks/pinned');
+    return response.data.data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch pinned tasks';
+    return rejectWithValue(message);
+  }
+});
+
+/**
+ * Async thunk for toggling task pin status
+ */
+export const toggleTaskPin = createAsyncThunk<
+  Task,
+  string,
+  { rejectValue: string }
+>('tasks/togglePin', async (taskId, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.put<{ data: Task }>(`/tasks/${taskId}/pin`);
+    return response.data.data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to toggle pin status';
+    return rejectWithValue(message);
+  }
+});
+
+/**
  * Async thunk for fetching a single task
  */
 export const fetchTask = createAsyncThunk<Task, string, { rejectValue: string }>(
@@ -738,6 +772,34 @@ const tasksSlice = createSlice({
       })
       .addCase(changeTaskSection.rejected, (state, action) => {
         state.error = action.payload ?? 'Failed to change task section';
+      });
+
+    // Fetch pinned tasks
+    builder
+      .addCase(fetchPinnedTasks.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(fetchPinnedTasks.fulfilled, (state, action) => {
+        state.isLoading = false;
+        // Add pinned tasks to the store
+        action.payload.forEach((task) => {
+          addTaskToIndexes(state, task);
+        });
+      })
+      .addCase(fetchPinnedTasks.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload ?? 'Failed to fetch pinned tasks';
+      });
+
+    // Toggle task pin
+    builder
+      .addCase(toggleTaskPin.fulfilled, (state, action) => {
+        const task = action.payload;
+        state.byId[task.id] = task;
+      })
+      .addCase(toggleTaskPin.rejected, (state, action) => {
+        state.error = action.payload ?? 'Failed to toggle pin status';
       });
   },
 });

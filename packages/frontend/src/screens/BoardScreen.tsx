@@ -35,6 +35,7 @@ import {
   startSprint,
   fetchArchivedTasks,
   unarchiveTask,
+  logout,
 } from '@/store/slices';
 import {
   selectBoardById,
@@ -47,8 +48,9 @@ import {
   selectSyncStatus,
   selectFiltersByBoardId,
   selectTaskById,
+  selectCurrentUser,
 } from '@/store/selectors';
-import { DraggableSectionList, SyncStatusIndicator, ThemedBackground, BoardThemeSelector, DarkModeToggle, DatePicker, FilterPanel, TaskPreviewModal } from '@/components';
+import { DraggableSectionList, ThemedBackground, BoardThemeSelector, DarkModeToggle, DatePicker, FilterPanel, TaskPreviewModal, ProfileAvatar } from '@/components';
 import { useTheme } from '@/theme/ThemeContext';
 import type { Task, Priority, DueDateFilter } from '@kanban/shared';
 
@@ -782,6 +784,7 @@ export function BoardScreen({
   const effectiveColors = boardTheme?.colors || colors;
 
   const board = useAppSelector((state) => boardId ? selectBoardById(state, boardId) : null);
+  const user = useAppSelector(selectCurrentUser);
   const sections = useAppSelector((state) => boardId ? selectSectionsByBoardId(state, boardId) : []);
   const epics = useAppSelector((state) => boardId ? selectEpicsByBoardId(state, boardId) : []);
   const syncStatus = useAppSelector(selectSyncStatus);
@@ -1135,6 +1138,20 @@ export function BoardScreen({
     }
   }, [dispatch, boardId]);
 
+  /**
+   * Handle logout
+   */
+  const handleLogout = useCallback(() => {
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: () => dispatch(logout()),
+      },
+    ]);
+  }, [dispatch]);
+
   if (!boardId || !board) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: effectiveColors.background }]}>
@@ -1209,7 +1226,10 @@ export function BoardScreen({
             </TouchableOpacity>
             <DarkModeToggle />
             <BoardThemeSelector boardId={boardId} />
-            <SyncStatusIndicator status={syncStatus} />
+            <ProfileAvatar
+              displayName={user?.displayName || 'User'}
+              onLogout={handleLogout}
+            />
           </View>
         </View>
 

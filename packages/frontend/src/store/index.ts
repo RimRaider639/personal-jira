@@ -20,6 +20,7 @@ import epicsReducer from './slices/epicsSlice';
 import filtersReducer from './slices/filtersSlice';
 import syncReducer from './slices/syncSlice';
 import uiReducer from './slices/uiSlice';
+import notesReducer from './slices/notesSlice';
 
 // Combine all reducers
 const rootReducer = combineReducers({
@@ -31,6 +32,7 @@ const rootReducer = combineReducers({
   filters: filtersReducer,
   sync: syncReducer,
   ui: uiReducer,
+  notes: notesReducer,
 });
 
 // Persist configuration
@@ -41,7 +43,7 @@ const persistConfig = {
   // Only persist auth - other data will be fetched fresh from API
   whitelist: ['auth'],
   // Blacklist slices that shouldn't be persisted
-  blacklist: ['sync', 'boards', 'sections', 'tasks', 'epics', 'filters', 'ui'],
+  blacklist: ['sync', 'boards', 'sections', 'tasks', 'epics', 'filters', 'ui', 'notes'],
 };
 
 // Create persisted reducer

@@ -1,6 +1,6 @@
 import { createSelector } from '@reduxjs/toolkit';
 import type { RootState } from './index';
-import type { Task, Section, Epic, FilterState, Priority } from '@kanban/shared';
+import type { Task, Section, Epic, FilterState, Priority, Note } from '@kanban/shared';
 
 // ==================== Basic Selectors ====================
 
@@ -389,3 +389,38 @@ export const selectAuthLoading = (state: RootState) => state.auth.isLoading;
  * Select auth error
  */
 export const selectAuthError = (state: RootState) => state.auth.error;
+
+// ==================== Notes Selectors ====================
+
+/**
+ * Select all notes as array
+ */
+export const selectAllNotes = (state: RootState): Note[] =>
+  state.notes.allIds.map((id) => state.notes.byId[id]).filter(Boolean);
+
+/**
+ * Select note by ID
+ */
+export const selectNoteById = (state: RootState, noteId: string) => state.notes.byId[noteId];
+
+/**
+ * Select notes loading state
+ */
+export const selectNotesLoading = (state: RootState) => state.notes.isLoading;
+
+/**
+ * Select notes error
+ */
+export const selectNotesError = (state: RootState) => state.notes.error;
+
+// ==================== Pinned Tasks Selectors ====================
+
+/**
+ * Select all pinned tasks
+ */
+export const selectPinnedTasks = createSelector(
+  [(state: RootState) => state.tasks.byId],
+  (byId): Task[] => {
+    return Object.values(byId).filter((task) => task && task.isPinned);
+  }
+);

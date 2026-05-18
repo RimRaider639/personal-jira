@@ -1,0 +1,51 @@
+import mongoose, { Document, Schema } from 'mongoose';
+
+/**
+ * Note interface - represents a sticky note in the fridge
+ */
+export interface INote extends Document {
+  userId: mongoose.Types.ObjectId;
+  content: string;
+  color: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Note schema
+ */
+const noteSchema = new Schema<INote>(
+  {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
+    content: {
+      type: String,
+      required: true,
+      maxlength: 500,
+    },
+    color: {
+      type: String,
+      default: '#fef08a', // Default yellow sticky note color
+    },
+  },
+  {
+    timestamps: true,
+    toJSON: {
+      virtuals: true,
+      transform: (_doc, ret: Record<string, unknown>) => {
+        ret.id = String(ret._id);
+        delete (ret as { _id?: unknown })._id;
+        delete (ret as { __v?: unknown }).__v;
+        return ret;
+      },
+    },
+  }
+);
+
+const Note = mongoose.model<INote>('Note', noteSchema);
+
+export default Note;

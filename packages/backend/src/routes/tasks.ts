@@ -151,6 +151,86 @@ router.get(
 );
 
 /**
+ * GET /api/tasks/pinned
+ * Get all pinned tasks for the authenticated user (across all boards)
+ */
+router.get(
+  '/tasks/pinned',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw createError('User not authenticated', 401);
+      }
+
+      // Get all boards for the user
+      const boards = await Board.find({ userId: new mongoose.Types.ObjectId(userId) });
+      const boardIds = boards.map(b => b._id);
+
+      // Get all pinned tasks for those boards
+      const tasks = await Task.find({ 
+        boardId: { $in: boardIds },
+        isPinned: true,
+      }).sort({ updatedAt: -1 });
+
+      res.status(200).json({
+        success: true,
+        data: tasks,
+        count: tasks.length,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * PUT /api/tasks/:id/pin
+ * Toggle pin status of a task
+ */
+router.put(
+  '/tasks/:id/pin',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw createError('User not authenticated', 401);
+      }
+
+      const taskId = req.params.id as string;
+      if (!taskId || !mongoose.Types.ObjectId.isValid(taskId)) {
+        throw createError('Invalid task ID', 400);
+      }
+
+      // Verify task ownership through board
+      const { task } = await verifyTaskOwnership(taskId, userId);
+
+      const taskDoc = task as unknown as {
+        isPinned: boolean;
+        save: () => Promise<void>;
+      };
+
+      // Toggle pin status
+      taskDoc.isPinned = !taskDoc.isPinned;
+      await taskDoc.save();
+
+      // Fetch updated task
+      const updatedTask = await Task.findById(taskId);
+
+      res.status(200).json({
+        success: true,
+        data: updatedTask,
+        message: taskDoc.isPinned ? 'Task pinned' : 'Task unpinned',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * GET /api/boards/:boardId/tasks
  * List all tasks for a board with optional filtering
  * Query params:

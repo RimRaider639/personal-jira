@@ -7,6 +7,7 @@ export { default as epicsReducer } from './epicsSlice';
 export { default as filtersReducer } from './filtersSlice';
 export { default as syncReducer } from './syncSlice';
 export { default as uiReducer } from './uiSlice';
+export { default as notesReducer } from './notesSlice';
 
 // Export auth actions
 export {
@@ -68,6 +69,8 @@ export {
   resetTasks,
   fetchTasks,
   fetchAllTasks,
+  fetchPinnedTasks,
+  toggleTaskPin,
   fetchTask,
   createTask,
   updateTask,
@@ -157,3 +160,14 @@ export {
   resetUI,
 } from './uiSlice';
 export type { UIState, DragState } from './uiSlice';
+
+// Export notes actions
+export {
+  clearNotesError,
+  resetNotes,
+  fetchNotes,
+  createNote,
+  updateNote,
+  deleteNote,
+} from './notesSlice';
+export type { NotesState } from './notesSlice';

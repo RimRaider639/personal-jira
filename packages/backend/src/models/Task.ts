@@ -43,6 +43,7 @@ export interface ITask {
   endDate?: Date | null;
   position: number;
   isArchived: boolean;
+  isPinned: boolean;
   comments: IComment[];
   attachments: IAttachment[];
   createdAt: Date;
@@ -212,6 +213,11 @@ const taskSchema = new Schema<ITaskDocument, ITaskModel>(
       },
     },
     isArchived: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    isPinned: {
       type: Boolean,
       default: false,
       index: true,

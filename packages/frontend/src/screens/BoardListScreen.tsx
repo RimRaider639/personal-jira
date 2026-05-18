@@ -31,11 +31,18 @@ import {
   deleteEpic,
   fetchBoardStats,
   fetchActivityHeatmap,
+  fetchPinnedTasks,
+  toggleTaskPin,
+  createTask,
+  fetchNotes,
+  createNote,
+  updateNote,
+  deleteNote,
 } from '@/store/slices';
-import { selectAllBoards, selectCurrentUser, selectAllEpics, selectAllTasks, selectAllSections } from '@/store/selectors';
-import { ThemedBackground, DarkModeToggle, EpicModal } from '@/components';
+import { selectAllBoards, selectCurrentUser, selectAllEpics, selectAllTasks, selectAllSections, selectPinnedTasks, selectAllNotes } from '@/store/selectors';
+import { ThemedBackground, DarkModeToggle, EpicModal, ProfileAvatar } from '@/components';
 import { useTheme } from '@/theme/ThemeContext';
-import type { Board, Epic, Task, BoardStats, ActivityHeatmapEntry } from '@kanban/shared';
+import type { Board, Epic, Task, BoardStats, ActivityHeatmapEntry, Note, Section } from '@kanban/shared';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 
 interface CreateBoardModalProps {
@@ -140,6 +147,484 @@ function CreateBoardModal({
         </View>
       </View>
     </Modal>
+  );
+}
+
+/**
+ * Note colors for sticky notes
+ */
+const NOTE_COLORS = [
+  '#fef08a', // Yellow
+  '#fca5a5', // Red
+  '#86efac', // Green
+  '#93c5fd', // Blue
+  '#c4b5fd', // Purple
+  '#fdba74', // Orange
+];
+
+interface CreateNoteModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onSubmit: (content: string, color: string) => void;
+  isLoading: boolean;
+  colors: ReturnType<typeof useTheme>['colors'];
+}
+
+/**
+ * CreateNoteModal - Modal for creating a new sticky note
+ */
+function CreateNoteModal({
+  visible,
+  onClose,
+  onSubmit,
+  isLoading,
+  colors,
+}: CreateNoteModalProps): React.JSX.Element {
+  const [content, setContent] = useState('');
+  const [selectedColor, setSelectedColor] = useState(NOTE_COLORS[0]);
+  const [error, setError] = useState('');
+
+  const handleSubmit = useCallback(() => {
+    if (!content.trim()) {
+      setError('Note content is required');
+      return;
+    }
+    if (content.length > 500) {
+      setError('Note cannot exceed 500 characters');
+      return;
+    }
+    onSubmit(content.trim(), selectedColor);
+  }, [content, selectedColor, onSubmit]);
+
+  const handleClose = useCallback(() => {
+    setContent('');
+    setSelectedColor(NOTE_COLORS[0]);
+    setError('');
+    onClose();
+  }, [onClose]);
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={handleClose}
+    >
+      <View style={modalStyles.overlay}>
+        <View style={[modalStyles.container, { backgroundColor: colors.surface }]}>
+          <Text style={[modalStyles.title, { color: colors.text }]}>New Sticky Note</Text>
+
+          <View style={modalStyles.inputGroup}>
+            <Text style={[modalStyles.label, { color: colors.text }]}>Content *</Text>
+            <TextInput
+              style={[modalStyles.input, modalStyles.textArea, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text, minHeight: 100 }, error && modalStyles.inputError]}
+              placeholder="Write your note..."
+              placeholderTextColor={colors.textMuted}
+              value={content}
+              onChangeText={(text) => {
+                setContent(text);
+                setError('');
+              }}
+              multiline
+              numberOfLines={4}
+              autoFocus
+              editable={!isLoading}
+              maxLength={500}
+            />
+            <Text style={[noteModalStyles.charCount, { color: colors.textMuted }]}>
+              {content.length}/500
+            </Text>
+            {error && <Text style={modalStyles.errorText}>{error}</Text>}
+          </View>
+
+          <View style={modalStyles.inputGroup}>
+            <Text style={[modalStyles.label, { color: colors.text }]}>Color</Text>
+            <View style={noteModalStyles.colorPicker}>
+              {NOTE_COLORS.map((color) => (
+                <TouchableOpacity
+                  key={color}
+                  style={[
+                    noteModalStyles.colorOption,
+                    { backgroundColor: color },
+                    selectedColor === color && noteModalStyles.colorSelected,
+                  ]}
+                  onPress={() => setSelectedColor(color)}
+                />
+              ))}
+            </View>
+          </View>
+
+          <View style={modalStyles.buttons}>
+            <TouchableOpacity
+              style={[modalStyles.cancelButton, { borderColor: colors.border }]}
+              onPress={handleClose}
+              disabled={isLoading}
+            >
+              <Text style={[modalStyles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[modalStyles.submitButton, { backgroundColor: colors.primary }, isLoading && modalStyles.buttonDisabled]}
+              onPress={handleSubmit}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <Text style={modalStyles.submitButtonText}>Create</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+interface CreateFridgeTaskModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onSubmit: (title: string, boardId: string, sectionId: string) => void;
+  isLoading: boolean;
+  boards: Board[];
+  sections: Section[];
+  colors: ReturnType<typeof useTheme>['colors'];
+}
+
+/**
+ * CreateFridgeTaskModal - Modal for creating a new task from the Fridge
+ */
+function CreateFridgeTaskModal({
+  visible,
+  onClose,
+  onSubmit,
+  isLoading,
+  boards,
+  sections,
+  colors,
+}: CreateFridgeTaskModalProps): React.JSX.Element {
+  const [title, setTitle] = useState('');
+  const [selectedBoardId, setSelectedBoardId] = useState('');
+  const [selectedSectionId, setSelectedSectionId] = useState('');
+  const [error, setError] = useState('');
+
+  // Get sections for selected board
+  const boardSections = useMemo(() => {
+    if (!selectedBoardId) return [];
+    return sections.filter(s => s.boardId === selectedBoardId).sort((a, b) => a.position - b.position);
+  }, [selectedBoardId, sections]);
+
+  // Auto-select first board and section
+  useEffect(() => {
+    if (visible && boards.length > 0 && !selectedBoardId) {
+      setSelectedBoardId(boards[0].id);
+    }
+  }, [visible, boards, selectedBoardId]);
+
+  useEffect(() => {
+    if (boardSections.length > 0 && !selectedSectionId) {
+      setSelectedSectionId(boardSections[0].id);
+    } else if (boardSections.length > 0 && !boardSections.find(s => s.id === selectedSectionId)) {
+      setSelectedSectionId(boardSections[0].id);
+    }
+  }, [boardSections, selectedSectionId]);
+
+  const handleSubmit = useCallback(() => {
+    if (!title.trim()) {
+      setError('Task title is required');
+      return;
+    }
+    if (!selectedBoardId) {
+      setError('Please select a board');
+      return;
+    }
+    if (!selectedSectionId) {
+      setError('Please select a section');
+      return;
+    }
+    onSubmit(title.trim(), selectedBoardId, selectedSectionId);
+  }, [title, selectedBoardId, selectedSectionId, onSubmit]);
+
+  const handleClose = useCallback(() => {
+    setTitle('');
+    setSelectedBoardId('');
+    setSelectedSectionId('');
+    setError('');
+    onClose();
+  }, [onClose]);
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={handleClose}
+    >
+      <View style={modalStyles.overlay}>
+        <View style={[modalStyles.container, { backgroundColor: colors.surface }]}>
+          <Text style={[modalStyles.title, { color: colors.text }]}>New Task</Text>
+
+          <View style={modalStyles.inputGroup}>
+            <Text style={[modalStyles.label, { color: colors.text }]}>Title *</Text>
+            <TextInput
+              style={[modalStyles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }, error && modalStyles.inputError]}
+              placeholder="Enter task title"
+              placeholderTextColor={colors.textMuted}
+              value={title}
+              onChangeText={(text) => {
+                setTitle(text);
+                setError('');
+              }}
+              autoFocus
+              editable={!isLoading}
+            />
+            {error && <Text style={modalStyles.errorText}>{error}</Text>}
+          </View>
+
+          <View style={modalStyles.inputGroup}>
+            <Text style={[modalStyles.label, { color: colors.text }]}>Board *</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={fridgeTaskModalStyles.optionScroll}>
+              {boards.map((board) => (
+                <TouchableOpacity
+                  key={board.id}
+                  style={[
+                    fridgeTaskModalStyles.optionButton,
+                    { borderColor: colors.border },
+                    selectedBoardId === board.id && { backgroundColor: colors.primary, borderColor: colors.primary },
+                  ]}
+                  onPress={() => setSelectedBoardId(board.id)}
+                >
+                  <Text style={[
+                    fridgeTaskModalStyles.optionText,
+                    { color: selectedBoardId === board.id ? '#fff' : colors.text },
+                  ]}>
+                    {board.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          <View style={modalStyles.inputGroup}>
+            <Text style={[modalStyles.label, { color: colors.text }]}>Section *</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={fridgeTaskModalStyles.optionScroll}>
+              {boardSections.map((section) => (
+                <TouchableOpacity
+                  key={section.id}
+                  style={[
+                    fridgeTaskModalStyles.optionButton,
+                    { borderColor: colors.border },
+                    selectedSectionId === section.id && { backgroundColor: colors.primary, borderColor: colors.primary },
+                  ]}
+                  onPress={() => setSelectedSectionId(section.id)}
+                >
+                  <Text style={[
+                    fridgeTaskModalStyles.optionText,
+                    { color: selectedSectionId === section.id ? '#fff' : colors.text },
+                  ]}>
+                    {section.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          <View style={modalStyles.buttons}>
+            <TouchableOpacity
+              style={[modalStyles.cancelButton, { borderColor: colors.border }]}
+              onPress={handleClose}
+              disabled={isLoading}
+            >
+              <Text style={[modalStyles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[modalStyles.submitButton, { backgroundColor: colors.primary }, isLoading && modalStyles.buttonDisabled]}
+              onPress={handleSubmit}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <Text style={modalStyles.submitButtonText}>Create</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+/**
+ * StickyNoteCard - Individual sticky note card
+ */
+interface StickyNoteCardProps {
+  note: Note;
+  onEdit: (note: Note) => void;
+  onDelete: (noteId: string) => void;
+  colors: ReturnType<typeof useTheme>['colors'];
+}
+
+function StickyNoteCard({ note, onEdit, onDelete, colors }: StickyNoteCardProps): React.JSX.Element {
+  const handleLongPress = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      if (window.confirm(`Delete this note?`)) {
+        onDelete(note.id);
+      }
+    } else {
+      Alert.alert(
+        'Delete Note',
+        'Are you sure you want to delete this note?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: () => onDelete(note.id) },
+        ]
+      );
+    }
+  }, [note.id, onDelete]);
+
+  return (
+    <TouchableOpacity
+      style={[fridgeStyles.stickyNote, { backgroundColor: note.color }]}
+      onPress={() => onEdit(note)}
+      onLongPress={handleLongPress}
+    >
+      <Text style={fridgeStyles.stickyNoteText} numberOfLines={6}>
+        {note.content}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+/**
+ * EditNoteContent - Content for editing a note in a modal
+ */
+interface EditNoteContentProps {
+  note: Note;
+  onSave: (content: string, color: string) => void;
+  onClose: () => void;
+  colors: ReturnType<typeof useTheme>['colors'];
+}
+
+function EditNoteContent({ note, onSave, onClose, colors }: EditNoteContentProps): React.JSX.Element {
+  const [content, setContent] = useState(note.content);
+  const [selectedColor, setSelectedColor] = useState(note.color);
+  const [error, setError] = useState('');
+
+  const handleSave = useCallback(() => {
+    if (!content.trim()) {
+      setError('Note content is required');
+      return;
+    }
+    if (content.length > 500) {
+      setError('Note cannot exceed 500 characters');
+      return;
+    }
+    onSave(content.trim(), selectedColor);
+  }, [content, selectedColor, onSave]);
+
+  return (
+    <>
+      <View style={modalStyles.inputGroup}>
+        <Text style={[modalStyles.label, { color: colors.text }]}>Content *</Text>
+        <TextInput
+          style={[modalStyles.input, modalStyles.textArea, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text, minHeight: 100 }, error && modalStyles.inputError]}
+          placeholder="Write your note..."
+          placeholderTextColor={colors.textMuted}
+          value={content}
+          onChangeText={(text) => {
+            setContent(text);
+            setError('');
+          }}
+          multiline
+          numberOfLines={4}
+          maxLength={500}
+        />
+        <Text style={[noteModalStyles.charCount, { color: colors.textMuted }]}>
+          {content.length}/500
+        </Text>
+        {error && <Text style={modalStyles.errorText}>{error}</Text>}
+      </View>
+
+      <View style={modalStyles.inputGroup}>
+        <Text style={[modalStyles.label, { color: colors.text }]}>Color</Text>
+        <View style={noteModalStyles.colorPicker}>
+          {NOTE_COLORS.map((color) => (
+            <TouchableOpacity
+              key={color}
+              style={[
+                noteModalStyles.colorOption,
+                { backgroundColor: color },
+                selectedColor === color && noteModalStyles.colorSelected,
+              ]}
+              onPress={() => setSelectedColor(color)}
+            />
+          ))}
+        </View>
+      </View>
+
+      <View style={modalStyles.buttons}>
+        <TouchableOpacity
+          style={[modalStyles.cancelButton, { borderColor: colors.border }]}
+          onPress={onClose}
+        >
+          <Text style={[modalStyles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[modalStyles.submitButton, { backgroundColor: colors.primary }]}
+          onPress={handleSave}
+        >
+          <Text style={modalStyles.submitButtonText}>Save</Text>
+        </TouchableOpacity>
+      </View>
+    </>
+  );
+}
+
+/**
+ * PinnedTaskCard - Individual pinned task card
+ */
+interface PinnedTaskCardProps {
+  task: Task;
+  board: Board | undefined;
+  section: Section | undefined;
+  onPress: (taskId: string, boardId: string) => void;
+  onUnpin: (taskId: string) => void;
+  colors: ReturnType<typeof useTheme>['colors'];
+}
+
+function PinnedTaskCard({ task, board, section, onPress, onUnpin, colors }: PinnedTaskCardProps): React.JSX.Element {
+  const handleUnpin = useCallback((e: any) => {
+    e.stopPropagation();
+    onUnpin(task.id);
+  }, [task.id, onUnpin]);
+
+  const priorityColors: Record<string, string> = {
+    critical: '#ef4444',
+    high: '#f97316',
+    medium: '#eab308',
+    low: '#22c55e',
+  };
+
+  return (
+    <TouchableOpacity
+      style={[fridgeStyles.pinnedTask, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}
+      onPress={() => onPress(task.id, task.boardId)}
+    >
+      <View style={fridgeStyles.pinnedTaskHeader}>
+        {task.priority && (
+          <View style={[fridgeStyles.priorityDot, { backgroundColor: priorityColors[task.priority] }]} />
+        )}
+        <TouchableOpacity onPress={handleUnpin} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <Text style={fridgeStyles.unpinIcon}>📌</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={[fridgeStyles.pinnedTaskTitle, { color: colors.text }]} numberOfLines={2}>
+        {task.title}
+      </Text>
+      <Text style={[fridgeStyles.pinnedTaskMeta, { color: colors.textMuted }]} numberOfLines={1}>
+        {board?.name || 'Unknown'} • {section?.name || 'Unknown'}
+      </Text>
+    </TouchableOpacity>
   );
 }
 
@@ -306,6 +791,8 @@ export function BoardListScreen(): React.JSX.Element {
   const epics = useAppSelector(selectAllEpics);
   const allTasks = useAppSelector(selectAllTasks);
   const allSections = useAppSelector(selectAllSections);
+  const pinnedTasks = useAppSelector(selectPinnedTasks);
+  const notes = useAppSelector(selectAllNotes);
   const isLoading = useAppSelector((state) => state.boards.isLoading);
   const error = useAppSelector((state) => state.boards.error);
 
@@ -349,18 +836,27 @@ export function BoardListScreen(): React.JSX.Element {
   const [customDaysInput, setCustomDaysInput] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
 
+  // Fridge state
+  const [isCreateNoteModalVisible, setIsCreateNoteModalVisible] = useState(false);
+  const [isCreateFridgeTaskModalVisible, setIsCreateFridgeTaskModalVisible] = useState(false);
+  const [isCreatingNote, setIsCreatingNote] = useState(false);
+  const [isCreatingFridgeTask, setIsCreatingFridgeTask] = useState(false);
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
+
   // Get stats and heatmaps from store
   const boardStats = useAppSelector((state) => state.boards.stats);
   const boardHeatmaps = useAppSelector((state) => state.boards.heatmaps);
 
   /**
-   * Fetch boards, epics, tasks, and sections on mount
+   * Fetch boards, epics, tasks, sections, and notes on mount
    */
   useEffect(() => {
     dispatch(fetchBoards());
     dispatch(fetchAllEpics());
     dispatch(fetchAllTasks());
     dispatch(fetchAllSections());
+    dispatch(fetchPinnedTasks());
+    dispatch(fetchNotes());
   }, [dispatch]);
 
   /**
@@ -418,6 +914,8 @@ export function BoardListScreen(): React.JSX.Element {
         dispatch(fetchAllEpics()).unwrap(),
         dispatch(fetchAllTasks()).unwrap(),
         dispatch(fetchAllSections()).unwrap(),
+        dispatch(fetchPinnedTasks()).unwrap(),
+        dispatch(fetchNotes()).unwrap(),
         // Refresh stats and heatmaps for all boards
         ...boardsResult.map(board => dispatch(fetchBoardStats(board.id))),
         ...boardsResult.map(board => dispatch(fetchActivityHeatmap({ boardId: board.id, days: 30 }))),
@@ -619,6 +1117,89 @@ export function BoardListScreen(): React.JSX.Element {
     dispatch(clearBoardsError());
   }, [dispatch]);
 
+  // ==================== Fridge Handlers ====================
+
+  /**
+   * Handle create note
+   */
+  const handleCreateNote = useCallback(async (content: string, color: string) => {
+    setIsCreatingNote(true);
+    try {
+      await dispatch(createNote({ content, color })).unwrap();
+      setIsCreateNoteModalVisible(false);
+    } catch {
+      Alert.alert('Error', 'Failed to create note');
+    } finally {
+      setIsCreatingNote(false);
+    }
+  }, [dispatch]);
+
+  /**
+   * Handle edit note
+   */
+  const handleEditNote = useCallback((note: Note) => {
+    setEditingNote(note);
+  }, []);
+
+  /**
+   * Handle save edited note
+   */
+  const handleSaveEditedNote = useCallback(async (content: string, color: string) => {
+    if (!editingNote) return;
+    try {
+      await dispatch(updateNote({ id: editingNote.id, content, color })).unwrap();
+      setEditingNote(null);
+    } catch {
+      Alert.alert('Error', 'Failed to update note');
+    }
+  }, [dispatch, editingNote]);
+
+  /**
+   * Handle delete note
+   */
+  const handleDeleteNote = useCallback(async (noteId: string) => {
+    try {
+      await dispatch(deleteNote(noteId)).unwrap();
+    } catch {
+      Alert.alert('Error', 'Failed to delete note');
+    }
+  }, [dispatch]);
+
+  /**
+   * Handle create fridge task
+   */
+  const handleCreateFridgeTask = useCallback(async (title: string, boardId: string, sectionId: string) => {
+    setIsCreatingFridgeTask(true);
+    try {
+      const result = await dispatch(createTask({ boardId, data: { title, sectionId } })).unwrap();
+      // Pin the task automatically
+      await dispatch(toggleTaskPin(result.id)).unwrap();
+      setIsCreateFridgeTaskModalVisible(false);
+    } catch {
+      Alert.alert('Error', 'Failed to create task');
+    } finally {
+      setIsCreatingFridgeTask(false);
+    }
+  }, [dispatch]);
+
+  /**
+   * Handle unpin task
+   */
+  const handleUnpinTask = useCallback(async (taskId: string) => {
+    try {
+      await dispatch(toggleTaskPin(taskId)).unwrap();
+    } catch {
+      Alert.alert('Error', 'Failed to unpin task');
+    }
+  }, [dispatch]);
+
+  /**
+   * Handle pinned task press
+   */
+  const handlePinnedTaskPress = useCallback((taskId: string, boardId: string) => {
+    navigation.navigate('TaskDetail', { taskId, boardId });
+  }, [navigation]);
+
   // Get task count per epic
   const epicTaskCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -678,21 +1259,17 @@ export function BoardListScreen(): React.JSX.Element {
         {/* Header */}
         <View style={[styles.header, { backgroundColor: colors.headerBackground }]}>
           <View style={styles.headerContent}>
-            <Text style={[styles.title, { color: colors.headerText }]}>My Boards</Text>
+            <Text style={[styles.title, { color: colors.headerText }]}>Pragma</Text>
             <Text style={[styles.subtitle, { color: colors.headerText, opacity: 0.8 }]}>
               Welcome, {user?.displayName || 'User'}
             </Text>
           </View>
           <View style={styles.headerActions}>
             <DarkModeToggle />
-            <TouchableOpacity
-              style={[styles.logoutButton, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}
-              onPress={handleLogout}
-              accessibilityRole="button"
-              accessibilityLabel="Logout"
-            >
-              <Text style={styles.logoutButtonText}>Logout</Text>
-            </TouchableOpacity>
+            <ProfileAvatar
+              displayName={user?.displayName || 'User'}
+              onLogout={handleLogout}
+            />
           </View>
         </View>
 
@@ -776,6 +1353,71 @@ export function BoardListScreen(): React.JSX.Element {
               )}
             </View>
 
+            {/* Fridge Section - Pinned Tasks & Sticky Notes */}
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>🧊 Fridge</Text>
+                <View style={fridgeStyles.fridgeActions}>
+                  <TouchableOpacity onPress={() => setIsCreateNoteModalVisible(true)}>
+                    <Text style={[styles.addLink, { color: colors.primary }]}>+ Note</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setIsCreateFridgeTaskModalVisible(true)} style={{ marginLeft: 12 }}>
+                    <Text style={[styles.addLink, { color: colors.primary }]}>+ Task</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              
+              {pinnedTasks.length === 0 && notes.length === 0 ? (
+                <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
+                  Your fridge is empty. Pin tasks or add sticky notes to keep important items visible.
+                </Text>
+              ) : (
+                <View style={fridgeStyles.fridgeContent}>
+                  {/* Sticky Notes */}
+                  {notes.length > 0 && (
+                    <View style={fridgeStyles.notesSection}>
+                      <Text style={[fridgeStyles.subsectionTitle, { color: colors.textMuted }]}>📝 Notes</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={fridgeStyles.notesScroll}>
+                        {notes.map(note => (
+                          <StickyNoteCard
+                            key={note.id}
+                            note={note}
+                            onEdit={handleEditNote}
+                            onDelete={handleDeleteNote}
+                            colors={colors}
+                          />
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                  
+                  {/* Pinned Tasks */}
+                  {pinnedTasks.length > 0 && (
+                    <View style={fridgeStyles.pinnedSection}>
+                      <Text style={[fridgeStyles.subsectionTitle, { color: colors.textMuted }]}>📌 Pinned Tasks</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={fridgeStyles.pinnedScroll}>
+                        {pinnedTasks.map(task => {
+                          const board = boards.find(b => b.id === task.boardId);
+                          const section = allSections.find(s => s.id === task.sectionId);
+                          return (
+                            <PinnedTaskCard
+                              key={task.id}
+                              task={task}
+                              board={board}
+                              section={section}
+                              onPress={handlePinnedTaskPress}
+                              onUnpin={handleUnpinTask}
+                              colors={colors}
+                            />
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+
             {/* Boards Section */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
@@ -838,6 +1480,48 @@ export function BoardListScreen(): React.JSX.Element {
           isLoading={isSavingEpic}
           isNew={isNewEpic}
         />
+
+        {/* Create Note Modal */}
+        <CreateNoteModal
+          visible={isCreateNoteModalVisible}
+          onClose={() => setIsCreateNoteModalVisible(false)}
+          onSubmit={handleCreateNote}
+          isLoading={isCreatingNote}
+          colors={colors}
+        />
+
+        {/* Create Fridge Task Modal */}
+        <CreateFridgeTaskModal
+          visible={isCreateFridgeTaskModalVisible}
+          onClose={() => setIsCreateFridgeTaskModalVisible(false)}
+          onSubmit={handleCreateFridgeTask}
+          isLoading={isCreatingFridgeTask}
+          boards={boards}
+          sections={allSections}
+          colors={colors}
+        />
+
+        {/* Edit Note Modal */}
+        {editingNote && (
+          <Modal
+            visible={!!editingNote}
+            animationType="slide"
+            transparent
+            onRequestClose={() => setEditingNote(null)}
+          >
+            <View style={modalStyles.overlay}>
+              <View style={[modalStyles.container, { backgroundColor: colors.surface }]}>
+                <Text style={[modalStyles.title, { color: colors.text }]}>Edit Note</Text>
+                <EditNoteContent
+                  note={editingNote}
+                  onSave={handleSaveEditedNote}
+                  onClose={() => setEditingNote(null)}
+                  colors={colors}
+                />
+              </View>
+            </View>
+          </Modal>
+        )}
 
         {/* Heatmap Modal */}
         <Modal
@@ -1462,6 +2146,124 @@ const modalStyles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 16,
     fontWeight: '600',
+  },
+});
+
+const noteModalStyles = StyleSheet.create({
+  charCount: {
+    fontSize: 11,
+    textAlign: 'right',
+    marginTop: 4,
+  },
+  colorPicker: {
+    flexDirection: 'row',
+    gap: 12,
+    flexWrap: 'wrap',
+  },
+  colorOption: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  colorSelected: {
+    borderColor: '#1f2937',
+  },
+});
+
+const fridgeTaskModalStyles = StyleSheet.create({
+  optionScroll: {
+    marginHorizontal: -8,
+    paddingHorizontal: 8,
+  },
+  optionButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginRight: 8,
+  },
+  optionText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+});
+
+const fridgeStyles = StyleSheet.create({
+  fridgeActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  fridgeContent: {
+    gap: 16,
+  },
+  notesSection: {
+    marginBottom: 8,
+  },
+  pinnedSection: {
+    marginBottom: 8,
+  },
+  subsectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  notesScroll: {
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
+  },
+  pinnedScroll: {
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
+  },
+  stickyNote: {
+    width: 140,
+    height: 140,
+    padding: 12,
+    borderRadius: 4,
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
+    transform: [{ rotate: '-1deg' }],
+  },
+  stickyNoteText: {
+    fontSize: 13,
+    color: '#1f2937',
+    lineHeight: 18,
+  },
+  pinnedTask: {
+    width: 160,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginRight: 12,
+  },
+  pinnedTaskHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  priorityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  unpinIcon: {
+    fontSize: 14,
+  },
+  pinnedTaskTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  pinnedTaskMeta: {
+    fontSize: 11,
   },
 });
 

@@ -19,7 +19,6 @@ import {
   fetchTask,
   fetchSections,
   fetchEpics,
-  fetchAllEpics,
   fetchTasks,
   updateTask,
   deleteTask,
@@ -33,7 +32,7 @@ import {
   addDependency,
   removeDependency,
 } from '@/store/slices';
-import { selectTaskById, selectAllEpics, selectSectionsByBoardId, selectTasksByBoardId } from '@/store/selectors';
+import { selectTaskById, selectEpicsByBoardId, selectSectionsByBoardId, selectTasksByBoardId } from '@/store/selectors';
 import { DatePicker } from '@/components';
 import { useTheme } from '@/theme/ThemeContext';
 import type { Priority, Epic, Task } from '@kanban/shared';
@@ -75,8 +74,8 @@ export function TaskDetailScreen({
   const { colors } = useTheme();
 
   const task = useAppSelector((state) => selectTaskById(state, taskId));
-  // Use all epics instead of just board-specific epics, since epics can be shared across boards
-  const epics = useAppSelector(selectAllEpics);
+  // Use board-specific epics since epics are scoped to boards in the backend
+  const epics = useAppSelector((state) => selectEpicsByBoardId(state, boardId));
   const sections = useAppSelector((state) => selectSectionsByBoardId(state, boardId));
   const allBoardTasks = useAppSelector((state) => selectTasksByBoardId(state, boardId));
   const isLoading = useAppSelector((state) => state.tasks.isLoading);
@@ -127,11 +126,10 @@ export function TaskDetailScreen({
 
   useEffect(() => {
     dispatch(fetchTask(taskId));
-    // Fetch all epics (not just board-specific) since epics can be shared across boards
-    dispatch(fetchAllEpics());
-    // Also fetch sections and tasks for the board (needed for move and dependencies)
+    // Fetch sections, epics, and tasks for the board (needed for move, epic assignment, and dependencies)
     if (boardId) {
       dispatch(fetchSections(boardId));
+      dispatch(fetchEpics(boardId));
       dispatch(fetchTasks(boardId));
     }
   }, [dispatch, taskId, boardId]);
@@ -404,10 +402,10 @@ export function TaskDetailScreen({
 
   if (!task) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6366f1" />
-          <Text style={styles.loadingText}>Loading task...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textMuted }]}>Loading task...</Text>
         </View>
       </SafeAreaView>
     );
@@ -416,11 +414,11 @@ export function TaskDetailScreen({
   const taskEpics = epics.filter((epic) => task.epicIds.includes(epic.id));
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← Back</Text>
+          <Text style={[styles.backButtonText, { color: colors.primary }]}>← Back</Text>
         </TouchableOpacity>
         <View style={styles.headerActions}>
           {isEditing ? (
@@ -461,23 +459,23 @@ export function TaskDetailScreen({
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Title */}
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
           {isEditing ? (
             <TextInput
-              style={styles.titleInput}
+              style={[styles.titleInput, { color: colors.text, borderBottomColor: colors.primary }]}
               value={editTitle}
               onChangeText={setEditTitle}
               placeholder="Task title"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={colors.textMuted}
             />
           ) : (
-            <Text style={styles.title}>{task.title}</Text>
+            <Text style={[styles.title, { color: colors.text }]}>{task.title}</Text>
           )}
         </View>
 
         {/* Priority */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Priority</Text>
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Priority</Text>
           {isEditing ? (
             <View style={styles.prioritySelector}>
               {PRIORITIES.map((p) => (
@@ -485,23 +483,25 @@ export function TaskDetailScreen({
                   key={p.value}
                   style={[
                     styles.priorityOption,
-                    editPriority === p.value && styles.prioritySelected,
+                    { borderColor: colors.border },
+                    editPriority === p.value && [styles.prioritySelected, { backgroundColor: colors.border }],
                     { borderColor: p.color },
                   ]}
                   onPress={() => setEditPriority(p.value)}
                 >
                   <View style={[styles.priorityDot, { backgroundColor: p.color }]} />
-                  <Text style={styles.priorityLabel}>{p.label}</Text>
+                  <Text style={[styles.priorityLabel, { color: colors.text }]}>{p.label}</Text>
                 </TouchableOpacity>
               ))}
               <TouchableOpacity
                 style={[
                   styles.priorityOption,
-                  editPriority === null && styles.prioritySelected,
+                  { borderColor: colors.border },
+                  editPriority === null && [styles.prioritySelected, { backgroundColor: colors.border }],
                 ]}
                 onPress={() => setEditPriority(null)}
               >
-                <Text style={styles.priorityLabel}>None</Text>
+                <Text style={[styles.priorityLabel, { color: colors.text }]}>None</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -513,63 +513,63 @@ export function TaskDetailScreen({
                       styles.priorityDot,
                       {
                         backgroundColor:
-                          PRIORITIES.find((p) => p.value === task.priority)?.color || '#9ca3af',
+                          PRIORITIES.find((p) => p.value === task.priority)?.color || colors.textMuted,
                       },
                     ]}
                   />
-                  <Text style={styles.priorityValue}>
+                  <Text style={[styles.priorityValue, { color: colors.text }]}>
                     {PRIORITIES.find((p) => p.value === task.priority)?.label || task.priority}
                   </Text>
                 </>
               ) : (
-                <Text style={styles.emptyValue}>Not set</Text>
+                <Text style={[styles.emptyValue, { color: colors.textMuted }]}>Not set</Text>
               )}
             </View>
           )}
         </View>
 
         {/* Description */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Description</Text>
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Description</Text>
           {isEditing ? (
             <TextInput
-              style={styles.descriptionInput}
+              style={[styles.descriptionInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
               value={editDescription}
               onChangeText={setEditDescription}
               placeholder="Add a description..."
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={colors.textMuted}
               multiline
               numberOfLines={4}
             />
           ) : (
-            <Text style={task.description ? styles.description : styles.emptyValue}>
+            <Text style={task.description ? [styles.description, { color: colors.text }] : [styles.emptyValue, { color: colors.textMuted }]}>
               {task.description || 'No description'}
             </Text>
           )}
         </View>
 
         {/* Story Points */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Story Points</Text>
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Story Points</Text>
           {isEditing ? (
             <TextInput
-              style={styles.storyPointsInput}
+              style={[styles.storyPointsInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
               value={editStoryPoints}
               onChangeText={setEditStoryPoints}
               placeholder="0"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={colors.textMuted}
               keyboardType="numeric"
             />
           ) : (
-            <Text style={task.storyPoints ? styles.storyPointsValue : styles.emptyValue}>
+            <Text style={task.storyPoints ? [styles.storyPointsValue, { color: colors.text }] : [styles.emptyValue, { color: colors.textMuted }]}>
               {task.storyPoints ?? 'Not set'}
             </Text>
           )}
         </View>
 
         {/* Due Date */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Due Date</Text>
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Due Date</Text>
           {isEditing ? (
             <DatePicker
               value={editEndDate}
@@ -577,18 +577,18 @@ export function TaskDetailScreen({
               placeholder="Select due date"
             />
           ) : (
-            <Text style={task.endDate ? styles.dateValue : styles.emptyValue}>
+            <Text style={task.endDate ? [styles.dateValue, { color: colors.text }] : [styles.emptyValue, { color: colors.textMuted }]}>
               {task.endDate ? new Date(task.endDate).toLocaleDateString() : 'Not set'}
             </Text>
           )}
         </View>
 
         {/* Move to Section */}
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionLabel}>Section</Text>
+            <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Section</Text>
             <TouchableOpacity onPress={() => setShowSectionSelector(!showSectionSelector)}>
-              <Text style={styles.addButton}>{showSectionSelector ? 'Done' : 'Move'}</Text>
+              <Text style={[styles.addButton, { color: colors.primary }]}>{showSectionSelector ? 'Done' : 'Move'}</Text>
             </TouchableOpacity>
           </View>
           {showSectionSelector ? (
@@ -598,28 +598,29 @@ export function TaskDetailScreen({
                   key={section.id}
                   style={[
                     styles.sectionOption,
-                    task.sectionId === section.id && styles.sectionSelected,
+                    { borderColor: colors.border },
+                    task.sectionId === section.id && [styles.sectionSelected, { backgroundColor: colors.primary + '20', borderColor: colors.primary }],
                   ]}
                   onPress={() => handleMoveToSection(section.id)}
                 >
-                  <Text style={styles.sectionOptionName}>{section.name}</Text>
-                  {task.sectionId === section.id && <Text style={styles.checkmark}>✓</Text>}
+                  <Text style={[styles.sectionOptionName, { color: colors.text }]}>{section.name}</Text>
+                  {task.sectionId === section.id && <Text style={[styles.checkmark, { color: colors.primary }]}>✓</Text>}
                 </TouchableOpacity>
               ))}
             </View>
           ) : (
-            <Text style={styles.sectionValue}>
+            <Text style={[styles.sectionValue, { color: colors.text }]}>
               {sections.find((s) => s.id === task.sectionId)?.name || 'Unknown'}
             </Text>
           )}
         </View>
 
         {/* Epics */}
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionLabel}>Epics</Text>
+            <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Epics</Text>
             <TouchableOpacity onPress={() => setShowEpicSelector(!showEpicSelector)}>
-              <Text style={styles.addButton}>{showEpicSelector ? 'Done' : '+ Add'}</Text>
+              <Text style={[styles.addButton, { color: colors.primary }]}>{showEpicSelector ? 'Done' : '+ Add'}</Text>
             </TouchableOpacity>
           </View>
           {showEpicSelector ? (
@@ -629,17 +630,18 @@ export function TaskDetailScreen({
                   key={epic.id}
                   style={[
                     styles.epicOption,
-                    task.epicIds.includes(epic.id) && styles.epicSelected,
+                    { borderColor: colors.border },
+                    task.epicIds.includes(epic.id) && [styles.epicSelected, { backgroundColor: '#22c55e20', borderColor: '#22c55e' }],
                   ]}
                   onPress={() => handleToggleEpic(epic.id)}
                 >
                   <View style={[styles.epicDot, { backgroundColor: epic.color }]} />
-                  <Text style={styles.epicName}>{epic.name}</Text>
+                  <Text style={[styles.epicName, { color: colors.text }]}>{epic.name}</Text>
                   {task.epicIds.includes(epic.id) && <Text style={styles.checkmark}>✓</Text>}
                 </TouchableOpacity>
               ))}
               {epics.length === 0 && (
-                <Text style={styles.emptyValue}>No epics available</Text>
+                <Text style={[styles.emptyValue, { color: colors.textMuted }]}>No epics available</Text>
               )}
             </View>
           ) : (
@@ -657,18 +659,18 @@ export function TaskDetailScreen({
                   </TouchableOpacity>
                 ))
               ) : (
-                <Text style={styles.emptyValue}>No epics assigned</Text>
+                <Text style={[styles.emptyValue, { color: colors.textMuted }]}>No epics assigned</Text>
               )}
             </View>
           )}
         </View>
 
         {/* Dependent Tasks */}
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionLabel}>Dependent Tasks ({dependentTasks.length})</Text>
+            <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Dependent Tasks ({dependentTasks.length})</Text>
             <TouchableOpacity onPress={() => setShowDependencySelector(!showDependencySelector)}>
-              <Text style={styles.addButton}>{showDependencySelector ? 'Done' : '+ Add'}</Text>
+              <Text style={[styles.addButton, { color: colors.primary }]}>{showDependencySelector ? 'Done' : '+ Add'}</Text>
             </TouchableOpacity>
           </View>
           {showDependencySelector ? (
@@ -680,28 +682,28 @@ export function TaskDetailScreen({
                   return (
                     <TouchableOpacity
                       key={depTask.id}
-                      style={styles.dependencyOption}
+                      style={[styles.dependencyOption, { backgroundColor: colors.background, borderColor: colors.border }]}
                       onPress={() => handleAddDependency(depTask.id)}
                       disabled={addingDependencyId !== null}
                     >
                       <View style={styles.dependencyOptionInfo}>
-                        <Text style={styles.dependencyOptionTitle} numberOfLines={1}>
+                        <Text style={[styles.dependencyOptionTitle, { color: colors.text }]} numberOfLines={1}>
                           {depTask.title}
                         </Text>
-                        <Text style={styles.dependencyOptionSection}>
+                        <Text style={[styles.dependencyOptionSection, { color: colors.textMuted }]}>
                           {depSection?.name || 'Unknown'}
                         </Text>
                       </View>
                       {isAdding ? (
-                        <ActivityIndicator size="small" color="#6366f1" />
+                        <ActivityIndicator size="small" color={colors.primary} />
                       ) : (
-                        <Text style={styles.addDependencyIcon}>+</Text>
+                        <Text style={[styles.addDependencyIcon, { color: colors.primary }]}>+</Text>
                       )}
                     </TouchableOpacity>
                   );
                 })
               ) : (
-                <Text style={styles.emptyValue}>No other tasks available</Text>
+                <Text style={[styles.emptyValue, { color: colors.textMuted }]}>No other tasks available</Text>
               )}
             </View>
           ) : (
@@ -710,15 +712,15 @@ export function TaskDetailScreen({
                 dependentTasks.map((depTask) => {
                   const depSection = sections.find(s => s.id === depTask.sectionId);
                   return (
-                    <View key={depTask.id} style={styles.dependencyItem}>
+                    <View key={depTask.id} style={[styles.dependencyItem, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' }]}>
                       <TouchableOpacity
                         style={styles.dependencyItemInfo}
                         onPress={() => handleDependentTaskPress(depTask.id)}
                       >
-                        <Text style={styles.dependencyItemTitle} numberOfLines={1}>
+                        <Text style={[styles.dependencyItemTitle, { color: colors.primary }]} numberOfLines={1}>
                           {depTask.title}
                         </Text>
-                        <Text style={styles.dependencyItemSection}>
+                        <Text style={[styles.dependencyItemSection, { color: colors.textMuted }]}>
                           {depSection?.name || 'Unknown'}
                         </Text>
                       </TouchableOpacity>
@@ -732,29 +734,29 @@ export function TaskDetailScreen({
                   );
                 })
               ) : (
-                <Text style={styles.emptyValue}>No dependent tasks</Text>
+                <Text style={[styles.emptyValue, { color: colors.textMuted }]}>No dependent tasks</Text>
               )}
             </View>
           )}
         </View>
 
         {/* Comments */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Comments ({task.comments.length})</Text>
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Comments ({task.comments.length})</Text>
           
           {/* Add comment input */}
           <View style={styles.addCommentContainer}>
             <TextInput
-              style={styles.commentInput}
+              style={[styles.commentInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
               value={newComment}
               onChangeText={setNewComment}
               placeholder="Add a comment..."
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={colors.textMuted}
               multiline
               editable={!isAddingComment}
             />
             <TouchableOpacity
-              style={[styles.addCommentButton, (!newComment.trim() || isAddingComment) && styles.buttonDisabled]}
+              style={[styles.addCommentButton, { backgroundColor: colors.primary }, (!newComment.trim() || isAddingComment) && styles.buttonDisabled]}
               onPress={handleAddComment}
               disabled={!newComment.trim() || isAddingComment}
             >
@@ -768,36 +770,36 @@ export function TaskDetailScreen({
 
           <View style={styles.commentsList}>
             {task.comments.map((comment) => (
-              <View key={comment.id} style={styles.comment}>
+              <View key={comment.id} style={[styles.comment, { backgroundColor: colors.background }]}>
                 <View style={styles.commentHeader}>
-                  <Text style={styles.commentDate}>
+                  <Text style={[styles.commentDate, { color: colors.textMuted }]}>
                     {new Date(comment.createdAt).toLocaleString()}
                   </Text>
                   <TouchableOpacity onPress={() => handleDeleteComment(comment.id)}>
                     <Text style={styles.deleteCommentText}>Delete</Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.commentContent}>{comment.content}</Text>
+                <Text style={[styles.commentContent, { color: colors.text }]}>{comment.content}</Text>
               </View>
             ))}
             {task.comments.length === 0 && (
-              <Text style={styles.emptyValue}>No comments yet</Text>
+              <Text style={[styles.emptyValue, { color: colors.textMuted }]}>No comments yet</Text>
             )}
           </View>
         </View>
 
         {/* Attachments */}
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionLabel}>Attachments ({task.attachments.length})</Text>
+            <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Attachments ({task.attachments.length})</Text>
             <TouchableOpacity 
               onPress={handleAddAttachment}
               disabled={isUploadingAttachment}
             >
               {isUploadingAttachment ? (
-                <ActivityIndicator size="small" color="#6366f1" />
+                <ActivityIndicator size="small" color={colors.primary} />
               ) : (
-                <Text style={styles.addButton}>+ Add</Text>
+                <Text style={[styles.addButton, { color: colors.primary }]}>+ Add</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -822,17 +824,17 @@ export function TaskDetailScreen({
 
           <View style={styles.attachmentsList}>
             {task.attachments.map((attachment) => (
-              <View key={attachment.id} style={styles.attachment}>
+              <View key={attachment.id} style={[styles.attachment, { backgroundColor: colors.background }]}>
                 <TouchableOpacity 
                   style={styles.attachmentInfo}
                   onPress={() => handleOpenAttachment(attachment.cloudinaryUrl)}
                 >
                   <Text style={styles.attachmentIcon}>📎</Text>
                   <View style={styles.attachmentDetails}>
-                    <Text style={styles.attachmentName} numberOfLines={1}>
+                    <Text style={[styles.attachmentName, { color: colors.text }]} numberOfLines={1}>
                       {attachment.filename}
                     </Text>
-                    <Text style={styles.attachmentSize}>
+                    <Text style={[styles.attachmentSize, { color: colors.textMuted }]}>
                       {(attachment.fileSize / 1024).toFixed(1)} KB
                     </Text>
                   </View>
@@ -846,19 +848,19 @@ export function TaskDetailScreen({
               </View>
             ))}
             {task.attachments.length === 0 && !uploadError && (
-              <Text style={styles.emptyValue}>No attachments</Text>
+              <Text style={[styles.emptyValue, { color: colors.textMuted }]}>No attachments</Text>
             )}
           </View>
         </View>
 
         {/* Metadata */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Details</Text>
+        <View style={[styles.section, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Details</Text>
           <View style={styles.metadata}>
-            <Text style={styles.metaItem}>
+            <Text style={[styles.metaItem, { color: colors.textMuted }]}>
               Created: {new Date(task.createdAt).toLocaleString()}
             </Text>
-            <Text style={styles.metaItem}>
+            <Text style={[styles.metaItem, { color: colors.textMuted }]}>
               Updated: {new Date(task.updatedAt).toLocaleString()}
             </Text>
           </View>

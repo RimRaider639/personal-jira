@@ -43,6 +43,7 @@ interface CreateBoardModalProps {
   onClose: () => void;
   onSubmit: (name: string, description: string) => void;
   isLoading: boolean;
+  colors: ReturnType<typeof useTheme>['colors'];
 }
 
 /**
@@ -53,6 +54,7 @@ function CreateBoardModal({
   onClose,
   onSubmit,
   isLoading,
+  colors,
 }: CreateBoardModalProps): React.JSX.Element {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -81,15 +83,15 @@ function CreateBoardModal({
       onRequestClose={handleClose}
     >
       <View style={modalStyles.overlay}>
-        <View style={modalStyles.container}>
-          <Text style={modalStyles.title}>Create New Board</Text>
+        <View style={[modalStyles.container, { backgroundColor: colors.surface }]}>
+          <Text style={[modalStyles.title, { color: colors.text }]}>Create New Board</Text>
 
           <View style={modalStyles.inputGroup}>
-            <Text style={modalStyles.label}>Board Name *</Text>
+            <Text style={[modalStyles.label, { color: colors.text }]}>Board Name *</Text>
             <TextInput
-              style={[modalStyles.input, error && modalStyles.inputError]}
+              style={[modalStyles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }, error && modalStyles.inputError]}
               placeholder="Enter board name"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={colors.textMuted}
               value={name}
               onChangeText={(text) => {
                 setName(text);
@@ -102,11 +104,11 @@ function CreateBoardModal({
           </View>
 
           <View style={modalStyles.inputGroup}>
-            <Text style={modalStyles.label}>Description (optional)</Text>
+            <Text style={[modalStyles.label, { color: colors.text }]}>Description (optional)</Text>
             <TextInput
-              style={[modalStyles.input, modalStyles.textArea]}
+              style={[modalStyles.input, modalStyles.textArea, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
               placeholder="Enter board description"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={colors.textMuted}
               value={description}
               onChangeText={setDescription}
               multiline
@@ -117,14 +119,14 @@ function CreateBoardModal({
 
           <View style={modalStyles.buttons}>
             <TouchableOpacity
-              style={modalStyles.cancelButton}
+              style={[modalStyles.cancelButton, { borderColor: colors.border }]}
               onPress={handleClose}
               disabled={isLoading}
             >
-              <Text style={modalStyles.cancelButtonText}>Cancel</Text>
+              <Text style={[modalStyles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[modalStyles.submitButton, isLoading && modalStyles.buttonDisabled]}
+              style={[modalStyles.submitButton, { backgroundColor: colors.primary }, isLoading && modalStyles.buttonDisabled]}
               onPress={handleSubmit}
               disabled={isLoading}
             >
@@ -637,6 +639,31 @@ export function BoardListScreen(): React.JSX.Element {
     return boards.find(b => b.id === selectedBoardForHeatmap) || null;
   }, [selectedBoardForHeatmap, boards]);
 
+  // Helper function to calculate time remaining
+  const getTimeRemaining = useCallback((endDate: string | null | undefined): { text: string; color: string } | null => {
+    if (!endDate) return null;
+    
+    const end = new Date(endDate);
+    const now = new Date();
+    const diffMs = end.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) {
+      return { text: `${Math.abs(diffDays)}d overdue`, color: '#ef4444' };
+    } else if (diffDays === 0) {
+      return { text: 'Due today', color: '#f97316' };
+    } else if (diffDays === 1) {
+      return { text: '1 day left', color: '#f97316' };
+    } else if (diffDays <= 7) {
+      return { text: `${diffDays} days left`, color: '#eab308' };
+    } else if (diffDays <= 30) {
+      return { text: `${diffDays} days left`, color: '#22c55e' };
+    } else {
+      const weeks = Math.floor(diffDays / 7);
+      return { text: `${weeks}w left`, color: '#22c55e' };
+    }
+  }, []);
+
   return (
     <ThemedBackground>
       <SafeAreaView style={styles.container}>
@@ -703,35 +730,40 @@ export function BoardListScreen(): React.JSX.Element {
                 </Text>
               ) : (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.epicsScroll}>
-                  {sortedEpics.map(epic => (
-                    <TouchableOpacity
-                      key={epic.id}
-                      style={[styles.epicCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}
-                      onPress={() => handleEpicPress(epic)}
-                    >
-                      <View style={styles.epicCardHeader}>
-                        <View style={[styles.epicColorBar, { backgroundColor: epic.color }]} />
-                        <TouchableOpacity 
-                          style={styles.epicEditButton}
-                          onPress={(e) => { e.stopPropagation(); handleEpicEdit(epic); }}
-                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                        >
-                          <Text style={[styles.epicEditIcon, { color: colors.textMuted }]}>✏️</Text>
-                        </TouchableOpacity>
-                      </View>
-                      <Text style={[styles.epicName, { color: colors.text }]} numberOfLines={1}>
-                        {epic.name}
-                      </Text>
-                      <Text style={[styles.epicTaskCount, { color: colors.textMuted }]}>
-                        {epicTaskCounts[epic.id] || 0} tasks
-                      </Text>
-                      {epic.endDate && (
-                        <Text style={[styles.epicEndDate, { color: colors.textMuted }]}>
-                          Due: {new Date(epic.endDate).toLocaleDateString()}
+                  {sortedEpics.map(epic => {
+                    const timeRemaining = getTimeRemaining(epic.endDate);
+                    return (
+                      <TouchableOpacity
+                        key={epic.id}
+                        style={[styles.epicCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}
+                        onPress={() => handleEpicPress(epic)}
+                      >
+                        <View style={styles.epicCardHeader}>
+                          <View style={[styles.epicColorBar, { backgroundColor: epic.color }]} />
+                          <TouchableOpacity 
+                            style={styles.epicEditButton}
+                            onPress={(e) => { e.stopPropagation(); handleEpicEdit(epic); }}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          >
+                            <Text style={[styles.epicEditIcon, { color: colors.textMuted }]}>✏️</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <Text style={[styles.epicName, { color: colors.text }]} numberOfLines={1}>
+                          {epic.name}
                         </Text>
-                      )}
-                    </TouchableOpacity>
-                  ))}
+                        <Text style={[styles.epicTaskCount, { color: colors.textMuted }]}>
+                          {epicTaskCounts[epic.id] || 0} tasks
+                        </Text>
+                        {timeRemaining && (
+                          <View style={[styles.timeRemainingTag, { backgroundColor: timeRemaining.color + '20' }]}>
+                            <Text style={[styles.timeRemainingText, { color: timeRemaining.color }]}>
+                              {timeRemaining.text}
+                            </Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
                 </ScrollView>
               )}
             </View>
@@ -780,6 +812,7 @@ export function BoardListScreen(): React.JSX.Element {
           onClose={() => setIsCreateModalVisible(false)}
           onSubmit={handleCreateBoard}
           isLoading={isCreating}
+          colors={colors}
         />
 
         {/* Epic Modal */}
@@ -1229,9 +1262,16 @@ const styles = StyleSheet.create({
   epicTaskCount: {
     fontSize: 12,
   },
-  epicEndDate: {
-    fontSize: 11,
-    marginTop: 4,
+  timeRemainingTag: {
+    marginTop: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  timeRemainingText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
   emptyState: {
     alignItems: 'center',

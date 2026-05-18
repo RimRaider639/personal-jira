@@ -628,9 +628,17 @@ export function BoardListScreen(): React.JSX.Element {
     return counts;
   }, [epics, allTasks]);
 
-  // Sort epics by name alphabetically
+  // Sort epics by due date (most urgent first, then no due date at the end)
   const sortedEpics = useMemo(() => {
-    return [...epics].sort((a, b) => a.name.localeCompare(b.name));
+    return [...epics].sort((a, b) => {
+      // Epics without due dates go to the end
+      if (!a.endDate && !b.endDate) return a.name.localeCompare(b.name);
+      if (!a.endDate) return 1;
+      if (!b.endDate) return -1;
+      
+      // Sort by due date (earliest first)
+      return new Date(a.endDate).getTime() - new Date(b.endDate).getTime();
+    });
   }, [epics]);
 
   // Get selected board for heatmap modal

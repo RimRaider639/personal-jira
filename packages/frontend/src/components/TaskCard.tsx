@@ -11,6 +11,7 @@ interface TaskCardProps {
   onPress: (taskId: string) => void;
   onMove?: (taskId: string, newSectionId: string) => void;
   onToggleEpic?: (taskId: string, epicId: string) => void;
+  onTogglePin?: (taskId: string) => void;
   onEpicPress?: (epicId: string) => void;
   isDragging?: boolean;
 }
@@ -34,6 +35,7 @@ function TaskCardComponent({
   onPress,
   onMove,
   onToggleEpic,
+  onTogglePin,
   onEpicPress,
   isDragging = false,
 }: TaskCardProps): React.JSX.Element {
@@ -55,6 +57,13 @@ function TaskCardComponent({
       onToggleEpic?.(taskId, epicId);
     },
     [onToggleEpic]
+  );
+
+  const handleTogglePin = useCallback(
+    (taskId: string) => {
+      onTogglePin?.(taskId);
+    },
+    [onTogglePin]
   );
 
   const handleEpicPress = useCallback(
@@ -125,15 +134,17 @@ function TaskCardComponent({
           <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
             {task.title}
           </Text>
-          {(onMove || onToggleEpic) && sections.length > 0 && (
+          {(onMove || onToggleEpic || onTogglePin) && sections.length > 0 && (
             <TaskCardMenu
               taskId={task.id}
               currentSectionId={task.sectionId}
               sections={sections}
               epics={epics}
               taskEpicIds={task.epicIds}
+              isPinned={task.isPinned}
               onMove={handleMove}
               onToggleEpic={handleToggleEpic}
+              onTogglePin={onTogglePin ? handleTogglePin : undefined}
             />
           )}
         </View>
@@ -340,6 +351,7 @@ function arePropsEqual(prevProps: TaskCardProps, nextProps: TaskCardProps): bool
   if (prevProps.task.endDate !== nextProps.task.endDate) return false;
   if (prevProps.task.storyPoints !== nextProps.task.storyPoints) return false;
   if (prevProps.task.sectionId !== nextProps.task.sectionId) return false;
+  if (prevProps.task.isPinned !== nextProps.task.isPinned) return false;
   if (prevProps.task.comments.length !== nextProps.task.comments.length) return false;
   if (prevProps.task.attachments.length !== nextProps.task.attachments.length) return false;
   if (prevProps.task.epicIds.length !== nextProps.task.epicIds.length) return false;
@@ -358,6 +370,7 @@ function arePropsEqual(prevProps: TaskCardProps, nextProps: TaskCardProps): bool
   if (prevProps.onPress !== nextProps.onPress) return false;
   if (prevProps.onMove !== nextProps.onMove) return false;
   if (prevProps.onToggleEpic !== nextProps.onToggleEpic) return false;
+  if (prevProps.onTogglePin !== nextProps.onTogglePin) return false;
   if (prevProps.onEpicPress !== nextProps.onEpicPress) return false;
 
   return true;

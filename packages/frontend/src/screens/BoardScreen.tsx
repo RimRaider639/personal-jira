@@ -36,6 +36,7 @@ import {
   fetchArchivedTasks,
   unarchiveTask,
   logout,
+  toggleTaskPin,
 } from '@/store/slices';
 import {
   selectBoardById,
@@ -1152,6 +1153,20 @@ export function BoardScreen({
     ]);
   }, [dispatch]);
 
+  /**
+   * Handle toggling pin status on a task
+   */
+  const handleTogglePin = useCallback(
+    async (taskId: string) => {
+      try {
+        await dispatch(toggleTaskPin(taskId)).unwrap();
+      } catch {
+        Alert.alert('Error', 'Failed to update pin status');
+      }
+    },
+    [dispatch]
+  );
+
   if (!boardId || !board) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: effectiveColors.background }]}>
@@ -1261,6 +1276,7 @@ export function BoardScreen({
               onTaskReorder={handleTaskReorder}
               onMoveTask={handleMoveTask}
               onToggleEpic={handleToggleEpic}
+              onTogglePin={handleTogglePin}
               onEpicPress={onEpicPress}
               onSectionReorder={handleSectionReorder}
               onAddTask={handleAddTask}

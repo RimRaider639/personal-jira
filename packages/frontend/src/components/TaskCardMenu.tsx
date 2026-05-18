@@ -18,8 +18,10 @@ interface TaskCardMenuProps {
   sections: Section[];
   epics: Epic[];
   taskEpicIds: string[];
+  isPinned?: boolean;
   onMove: (taskId: string, newSectionId: string) => void;
   onToggleEpic: (taskId: string, epicId: string) => void;
+  onTogglePin?: (taskId: string) => void;
 }
 
 type MenuView = 'main' | 'move' | 'epics';
@@ -34,8 +36,10 @@ export function TaskCardMenu({
   sections,
   epics,
   taskEpicIds,
+  isPinned = false,
   onMove,
   onToggleEpic,
+  onTogglePin,
 }: TaskCardMenuProps): React.JSX.Element {
   const { colors } = useTheme();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -86,6 +90,13 @@ export function TaskCardMenu({
     [taskId, onToggleEpic]
   );
 
+  const handleTogglePin = useCallback(() => {
+    if (onTogglePin) {
+      onTogglePin(taskId);
+    }
+    setMenuVisible(false);
+  }, [taskId, onTogglePin]);
+
   const closeMenu = useCallback(() => {
     setMenuVisible(false);
     setMenuView('main');
@@ -95,6 +106,17 @@ export function TaskCardMenu({
 
   const renderMainMenu = () => (
     <>
+      {onTogglePin && (
+        <TouchableOpacity
+          style={[styles.menuItem, { borderBottomColor: colors.borderLight }]}
+          onPress={handleTogglePin}
+        >
+          <Text style={[styles.menuItemIcon]}>{isPinned ? '📌' : '📍'}</Text>
+          <Text style={[styles.menuItemText, { color: colors.text }]}>
+            {isPinned ? 'Unpin from Board' : 'Pin to Board'}
+          </Text>
+        </TouchableOpacity>
+      )}
       <TouchableOpacity
         style={[styles.menuItem, { borderBottomColor: colors.borderLight }]}
         onPress={() => setMenuView('move')}

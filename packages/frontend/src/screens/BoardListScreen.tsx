@@ -484,11 +484,11 @@ function StickyNoteCard({ note, onEdit, onDelete, colors }: StickyNoteCardProps)
 
   return (
     <TouchableOpacity
-      style={[fridgeStyles.stickyNote, { backgroundColor: note.color }]}
+      style={[pinBoardStyles.stickyNote, { backgroundColor: note.color }]}
       onPress={() => onEdit(note)}
       onLongPress={handleLongPress}
     >
-      <Text style={fridgeStyles.stickyNoteText} numberOfLines={6}>
+      <Text style={pinBoardStyles.stickyNoteText} numberOfLines={6}>
         {note.content}
       </Text>
     </TouchableOpacity>
@@ -607,21 +607,21 @@ function PinnedTaskCard({ task, board, section, onPress, onUnpin, colors }: Pinn
 
   return (
     <TouchableOpacity
-      style={[fridgeStyles.pinnedTask, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}
+      style={[pinBoardStyles.pinnedTask, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}
       onPress={() => onPress(task.id, task.boardId)}
     >
-      <View style={fridgeStyles.pinnedTaskHeader}>
+      <View style={pinBoardStyles.pinnedTaskHeader}>
         {task.priority && (
-          <View style={[fridgeStyles.priorityDot, { backgroundColor: priorityColors[task.priority] }]} />
+          <View style={[pinBoardStyles.priorityDot, { backgroundColor: priorityColors[task.priority] }]} />
         )}
         <TouchableOpacity onPress={handleUnpin} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Text style={fridgeStyles.unpinIcon}>📌</Text>
+          <Text style={pinBoardStyles.unpinIcon}>📌</Text>
         </TouchableOpacity>
       </View>
-      <Text style={[fridgeStyles.pinnedTaskTitle, { color: colors.text }]} numberOfLines={2}>
+      <Text style={[pinBoardStyles.pinnedTaskTitle, { color: colors.text }]} numberOfLines={2}>
         {task.title}
       </Text>
-      <Text style={[fridgeStyles.pinnedTaskMeta, { color: colors.textMuted }]} numberOfLines={1}>
+      <Text style={[pinBoardStyles.pinnedTaskMeta, { color: colors.textMuted }]} numberOfLines={1}>
         {board?.name || 'Unknown'} • {section?.name || 'Unknown'}
       </Text>
     </TouchableOpacity>
@@ -1353,11 +1353,11 @@ export function BoardListScreen(): React.JSX.Element {
               )}
             </View>
 
-            {/* Fridge Section - Pinned Tasks & Sticky Notes */}
+            {/* Pin Board Section - Pinned Tasks & Sticky Notes */}
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>🧊 Fridge</Text>
-                <View style={fridgeStyles.fridgeActions}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>📌 Pin Board</Text>
+                <View style={pinBoardStyles.pinBoardActions}>
                   <TouchableOpacity onPress={() => setIsCreateNoteModalVisible(true)}>
                     <Text style={[styles.addLink, { color: colors.primary }]}>+ Note</Text>
                   </TouchableOpacity>
@@ -1369,15 +1369,15 @@ export function BoardListScreen(): React.JSX.Element {
               
               {pinnedTasks.length === 0 && notes.length === 0 ? (
                 <Text style={[styles.emptyHint, { color: colors.textMuted }]}>
-                  Your fridge is empty. Pin tasks or add sticky notes to keep important items visible.
+                  Your pin board is empty. Pin tasks or add sticky notes to keep important items visible.
                 </Text>
               ) : (
-                <View style={fridgeStyles.fridgeContent}>
+                <View style={pinBoardStyles.pinBoardContent}>
                   {/* Sticky Notes */}
                   {notes.length > 0 && (
-                    <View style={fridgeStyles.notesSection}>
-                      <Text style={[fridgeStyles.subsectionTitle, { color: colors.textMuted }]}>📝 Notes</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={fridgeStyles.notesScroll}>
+                    <View style={pinBoardStyles.notesSection}>
+                      <Text style={[pinBoardStyles.subsectionTitle, { color: colors.textMuted }]}>📝 Notes</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={pinBoardStyles.notesScroll}>
                         {notes.map(note => (
                           <StickyNoteCard
                             key={note.id}
@@ -1393,9 +1393,9 @@ export function BoardListScreen(): React.JSX.Element {
                   
                   {/* Pinned Tasks */}
                   {pinnedTasks.length > 0 && (
-                    <View style={fridgeStyles.pinnedSection}>
-                      <Text style={[fridgeStyles.subsectionTitle, { color: colors.textMuted }]}>📌 Pinned Tasks</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={fridgeStyles.pinnedScroll}>
+                    <View style={pinBoardStyles.pinnedSection}>
+                      <Text style={[pinBoardStyles.subsectionTitle, { color: colors.textMuted }]}>📌 Pinned Tasks</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={pinBoardStyles.pinnedScroll}>
                         {pinnedTasks.map(task => {
                           const board = boards.find(b => b.id === task.boardId);
                           const section = allSections.find(s => s.id === task.sectionId);
@@ -2190,12 +2190,12 @@ const fridgeTaskModalStyles = StyleSheet.create({
   },
 });
 
-const fridgeStyles = StyleSheet.create({
-  fridgeActions: {
+const pinBoardStyles = StyleSheet.create({
+  pinBoardActions: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  fridgeContent: {
+  pinBoardContent: {
     gap: 16,
   },
   notesSection: {

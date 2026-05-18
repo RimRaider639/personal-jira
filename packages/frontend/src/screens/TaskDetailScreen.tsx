@@ -31,6 +31,7 @@ import {
   moveTask,
   addDependency,
   removeDependency,
+  toggleTaskPin,
 } from '@/store/slices';
 import { selectTaskById, selectEpicsByBoardId, selectSectionsByBoardId, selectTasksByBoardId } from '@/store/selectors';
 import { DatePicker } from '@/components';
@@ -400,6 +401,16 @@ export function TaskDetailScreen({
     [onTaskPress, boardId]
   );
 
+  // Handle toggling pin status
+  const handleTogglePin = useCallback(async () => {
+    if (!task) return;
+    try {
+      await dispatch(toggleTaskPin(taskId)).unwrap();
+    } catch {
+      Alert.alert('Error', 'Failed to update pin status');
+    }
+  }, [dispatch, taskId, task]);
+
   if (!task) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -421,6 +432,16 @@ export function TaskDetailScreen({
           <Text style={[styles.backButtonText, { color: colors.primary }]}>← Back</Text>
         </TouchableOpacity>
         <View style={styles.headerActions}>
+          {/* Pin Button */}
+          <TouchableOpacity
+            onPress={handleTogglePin}
+            style={[styles.headerButton, styles.pinButton]}
+            accessibilityLabel={task.isPinned ? 'Unpin task' : 'Pin task'}
+          >
+            <Text style={[styles.pinButtonText, task.isPinned && styles.pinButtonTextActive]}>
+              {task.isPinned ? '📌' : '📍'}
+            </Text>
+          </TouchableOpacity>
           {isEditing ? (
             <>
               <TouchableOpacity
@@ -913,6 +934,17 @@ const styles = StyleSheet.create({
   saveButton: {
     backgroundColor: '#6366f1',
     borderRadius: 8,
+  },
+  pinButton: {
+    backgroundColor: 'transparent',
+    paddingHorizontal: 8,
+  },
+  pinButtonText: {
+    fontSize: 18,
+    opacity: 0.6,
+  },
+  pinButtonTextActive: {
+    opacity: 1,
   },
   editText: {
     color: '#6366f1',

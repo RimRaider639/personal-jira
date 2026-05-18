@@ -261,6 +261,57 @@ export const deleteComment = createAsyncThunk<
 });
 
 /**
+ * Async thunk for adding a dependency to a task
+ */
+export const addDependency = createAsyncThunk<
+  Task,
+  { taskId: string; dependentTaskId: string },
+  { rejectValue: string }
+>('tasks/addDependency', async ({ taskId, dependentTaskId }, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.post<{ data: Task }>(`/tasks/${taskId}/dependencies`, { dependentTaskId });
+    return response.data.data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to add dependency';
+    return rejectWithValue(message);
+  }
+});
+
+/**
+ * Async thunk for removing a dependency from a task
+ */
+export const removeDependency = createAsyncThunk<
+  Task,
+  { taskId: string; dependentTaskId: string },
+  { rejectValue: string }
+>('tasks/removeDependency', async ({ taskId, dependentTaskId }, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.delete<{ data: Task }>(`/tasks/${taskId}/dependencies/${dependentTaskId}`);
+    return response.data.data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to remove dependency';
+    return rejectWithValue(message);
+  }
+});
+
+/**
+ * Async thunk for quick section change (status change)
+ */
+export const changeTaskSection = createAsyncThunk<
+  Task,
+  { taskId: string; sectionId: string; oldSectionId: string },
+  { rejectValue: string }
+>('tasks/changeSection', async ({ taskId, sectionId }, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.put<{ data: Task }>(`/tasks/${taskId}/section`, { sectionId });
+    return response.data.data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to change task section';
+    return rejectWithValue(message);
+  }
+});
+
+/**
  * Helper to add task to indexes
  */
 const addTaskToIndexes = (state: TasksState, task: Task) => {
@@ -638,6 +689,55 @@ const tasksSlice = createSlice({
       .addCase(deleteComment.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload ?? 'Failed to delete comment';
+      });
+
+    // Add dependency
+    builder
+      .addCase(addDependency.fulfilled, (state, action) => {
+        const task = action.payload;
+        state.byId[task.id] = task;
+      })
+      .addCase(addDependency.rejected, (state, action) => {
+        state.error = action.payload ?? 'Failed to add dependency';
+      });
+
+    // Remove dependency
+    builder
+      .addCase(removeDependency.fulfilled, (state, action) => {
+        const task = action.payload;
+        state.byId[task.id] = task;
+      })
+      .addCase(removeDependency.rejected, (state, action) => {
+        state.error = action.payload ?? 'Failed to remove dependency';
+      });
+
+    // Change task section (quick status change)
+    builder
+      .addCase(changeTaskSection.fulfilled, (state, action) => {
+        const task = action.payload;
+        const existingTask = state.byId[task.id];
+        
+        // Remove from old section
+        if (existingTask && existingTask.sectionId !== task.sectionId) {
+          if (state.bySectionId[existingTask.sectionId]) {
+            state.bySectionId[existingTask.sectionId] = state.bySectionId[existingTask.sectionId].filter(
+              (id) => id !== task.id
+            );
+          }
+        }
+        
+        // Add to new section
+        if (!state.bySectionId[task.sectionId]) {
+          state.bySectionId[task.sectionId] = [];
+        }
+        if (!state.bySectionId[task.sectionId].includes(task.id)) {
+          state.bySectionId[task.sectionId].push(task.id);
+        }
+        
+        state.byId[task.id] = task;
+      })
+      .addCase(changeTaskSection.rejected, (state, action) => {
+        state.error = action.payload ?? 'Failed to change task section';
       });
   },
 });

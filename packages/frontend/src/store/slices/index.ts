@@ -32,6 +32,11 @@ export {
   createBoard,
   updateBoard,
   deleteBoard,
+  startSprint,
+  fetchArchivedTasks,
+  unarchiveTask,
+  fetchBoardStats,
+  fetchActivityHeatmap,
 } from './boardsSlice';
 export type { BoardsState } from './boardsSlice';
 
@@ -74,6 +79,9 @@ export {
   deleteAttachment,
   addComment,
   deleteComment,
+  addDependency,
+  removeDependency,
+  changeTaskSection,
 } from './tasksSlice';
 export type { TasksState } from './tasksSlice';
 

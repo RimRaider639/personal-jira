@@ -29,11 +29,13 @@ import {
   createEpic,
   updateEpic,
   deleteEpic,
+  fetchBoardStats,
+  fetchActivityHeatmap,
 } from '@/store/slices';
 import { selectAllBoards, selectCurrentUser, selectAllEpics, selectAllTasks, selectAllSections } from '@/store/selectors';
 import { ThemedBackground, DarkModeToggle, EpicModal } from '@/components';
 import { useTheme } from '@/theme/ThemeContext';
-import type { Board, Epic, Task } from '@kanban/shared';
+import type { Board, Epic, Task, BoardStats, ActivityHeatmapEntry } from '@kanban/shared';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 
 interface CreateBoardModalProps {
@@ -143,14 +145,74 @@ interface BoardCardProps {
   board: Board;
   onPress: (boardId: string) => void;
   onDelete: (boardId: string) => void;
+  onHeatmapPress: (boardId: string) => void;
   colors: ReturnType<typeof useTheme>['colors'];
   cardWidth: number;
+  stats?: BoardStats;
+  heatmap?: ActivityHeatmapEntry[];
 }
 
 /**
- * BoardCard - Individual board card component
+ * MiniHeatmap - Small activity heatmap for board cards
  */
-function BoardCard({ board, onPress, onDelete, colors, cardWidth }: BoardCardProps): React.JSX.Element {
+function MiniHeatmap({ data, colors }: { data: ActivityHeatmapEntry[]; colors: ReturnType<typeof useTheme>['colors'] }): React.JSX.Element {
+  // Show last 14 days in a 2x7 grid
+  const last14Days = useMemo(() => {
+    const days: { date: string; count: number }[] = [];
+    const now = new Date();
+    
+    for (let i = 13; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      const entry = data.find(d => d.date === dateStr);
+      days.push({ date: dateStr, count: entry?.count || 0 });
+    }
+    
+    return days;
+  }, [data]);
+
+  const getHeatColor = (count: number): string => {
+    if (count === 0) return colors.border;
+    if (count <= 2) return '#86efac';
+    if (count <= 5) return '#22c55e';
+    if (count <= 10) return '#16a34a';
+    return '#15803d';
+  };
+
+  return (
+    <View style={miniHeatmapStyles.container}>
+      {last14Days.map((day, index) => (
+        <View
+          key={day.date}
+          style={[
+            miniHeatmapStyles.cell,
+            { backgroundColor: getHeatColor(day.count) },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
+const miniHeatmapStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 2,
+    width: 58, // 7 cells * 6px + 6 gaps * 2px
+  },
+  cell: {
+    width: 6,
+    height: 6,
+    borderRadius: 1,
+  },
+});
+
+/**
+ * BoardCard - Individual board card component with stats and heatmap
+ */
+function BoardCard({ board, onPress, onDelete, onHeatmapPress, colors, cardWidth, stats, heatmap }: BoardCardProps): React.JSX.Element {
   const handlePress = useCallback(() => {
     onPress(board.id);
   }, [board.id, onPress]);
@@ -185,11 +247,38 @@ function BoardCard({ board, onPress, onDelete, colors, cardWidth }: BoardCardPro
         <Text style={[styles.boardName, { color: colors.text }]} numberOfLines={1}>
           {board.name}
         </Text>
-        {board.description && (
-          <Text style={[styles.boardDescription, { color: colors.textSecondary }]} numberOfLines={2}>
-            {board.description}
-          </Text>
+        
+        {/* Stats */}
+        {stats && (
+          <View style={styles.boardStats}>
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, { color: colors.primary }]}>{stats.openTasks}</Text>
+              <Text style={[styles.statLabel, { color: colors.textMuted }]}>open</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={[styles.statValue, { color: '#22c55e' }]}>{stats.completedTasks}</Text>
+              <Text style={[styles.statLabel, { color: colors.textMuted }]}>done</Text>
+            </View>
+            {stats.overdueTasks > 0 && (
+              <View style={styles.statItem}>
+                <Text style={[styles.statValue, { color: '#ef4444' }]}>{stats.overdueTasks}</Text>
+                <Text style={[styles.statLabel, { color: colors.textMuted }]}>overdue</Text>
+              </View>
+            )}
+          </View>
         )}
+        
+        {/* Mini Heatmap */}
+        {heatmap && heatmap.length > 0 && (
+          <TouchableOpacity 
+            style={styles.heatmapContainer}
+            onPress={() => onHeatmapPress(board.id)}
+          >
+            <MiniHeatmap data={heatmap} colors={colors} />
+            <Text style={[styles.heatmapLabel, { color: colors.textMuted }]}>Activity</Text>
+          </TouchableOpacity>
+        )}
+        
         <Text style={[styles.boardMeta, { color: colors.textMuted }]}>
           {board.sectionOrder.length} sections
         </Text>
@@ -252,6 +341,15 @@ export function BoardListScreen(): React.JSX.Element {
   const [isNewEpic, setIsNewEpic] = useState(false);
   const [isSavingEpic, setIsSavingEpic] = useState(false);
 
+  // Heatmap modal state
+  const [heatmapModalVisible, setHeatmapModalVisible] = useState(false);
+  const [selectedBoardForHeatmap, setSelectedBoardForHeatmap] = useState<string | null>(null);
+  const [heatmapDays, setHeatmapDays] = useState(30);
+
+  // Get stats and heatmaps from store
+  const boardStats = useAppSelector((state) => state.boards.stats);
+  const boardHeatmaps = useAppSelector((state) => state.boards.heatmaps);
+
   /**
    * Fetch boards, epics, tasks, and sections on mount
    */
@@ -261,6 +359,20 @@ export function BoardListScreen(): React.JSX.Element {
     dispatch(fetchAllTasks());
     dispatch(fetchAllSections());
   }, [dispatch]);
+
+  /**
+   * Fetch stats and heatmaps for all boards
+   */
+  useEffect(() => {
+    boards.forEach(board => {
+      if (!boardStats[board.id]) {
+        dispatch(fetchBoardStats(board.id));
+      }
+      if (!boardHeatmaps[board.id]) {
+        dispatch(fetchActivityHeatmap({ boardId: board.id, days: 30 }));
+      }
+    });
+  }, [dispatch, boards, boardStats, boardHeatmaps]);
 
   /**
    * Handle openEpicId route parameter - navigate to epic detail when coming from task card
@@ -298,11 +410,14 @@ export function BoardListScreen(): React.JSX.Element {
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
+      const boardsResult = await dispatch(fetchBoards()).unwrap();
       await Promise.all([
-        dispatch(fetchBoards()).unwrap(),
         dispatch(fetchAllEpics()).unwrap(),
         dispatch(fetchAllTasks()).unwrap(),
         dispatch(fetchAllSections()).unwrap(),
+        // Refresh stats and heatmaps for all boards
+        ...boardsResult.map(board => dispatch(fetchBoardStats(board.id))),
+        ...boardsResult.map(board => dispatch(fetchActivityHeatmap({ boardId: board.id, days: 30 }))),
       ]);
     } catch {
       // Error handled by slice
@@ -310,6 +425,27 @@ export function BoardListScreen(): React.JSX.Element {
       setIsRefreshing(false);
     }
   }, [dispatch]);
+
+  /**
+   * Handle heatmap press - open modal with enlarged heatmap
+   */
+  const handleHeatmapPress = useCallback((boardId: string) => {
+    setSelectedBoardForHeatmap(boardId);
+    setHeatmapDays(30);
+    setHeatmapModalVisible(true);
+    // Fetch fresh heatmap data
+    dispatch(fetchActivityHeatmap({ boardId, days: 30 }));
+  }, [dispatch]);
+
+  /**
+   * Handle heatmap timeframe change
+   */
+  const handleHeatmapTimeframeChange = useCallback((days: number) => {
+    setHeatmapDays(days);
+    if (selectedBoardForHeatmap) {
+      dispatch(fetchActivityHeatmap({ boardId: selectedBoardForHeatmap, days }));
+    }
+  }, [dispatch, selectedBoardForHeatmap]);
 
   /**
    * Handle board press - navigate to board
@@ -594,8 +730,11 @@ export function BoardListScreen(): React.JSX.Element {
                       board={board}
                       onPress={handleBoardPress}
                       onDelete={handleBoardDelete}
+                      onHeatmapPress={handleHeatmapPress}
                       colors={colors}
                       cardWidth={boardCardWidth}
+                      stats={boardStats[board.id]}
+                      heatmap={boardHeatmaps[board.id]?.data}
                     />
                   ))}
                 </View>
@@ -627,10 +766,206 @@ export function BoardListScreen(): React.JSX.Element {
           isLoading={isSavingEpic}
           isNew={isNewEpic}
         />
+
+        {/* Heatmap Modal */}
+        <Modal
+          visible={heatmapModalVisible}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setHeatmapModalVisible(false)}
+        >
+          <View style={heatmapModalStyles.overlay}>
+            <View style={[heatmapModalStyles.container, { backgroundColor: colors.surface }]}>
+              <View style={heatmapModalStyles.header}>
+                <Text style={[heatmapModalStyles.title, { color: colors.text }]}>
+                  Activity Heatmap
+                </Text>
+                <TouchableOpacity onPress={() => setHeatmapModalVisible(false)}>
+                  <Text style={[heatmapModalStyles.closeButton, { color: colors.textMuted }]}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              
+              {/* Timeframe selector */}
+              <View style={heatmapModalStyles.timeframeSelector}>
+                {[30, 60, 90].map(days => (
+                  <TouchableOpacity
+                    key={days}
+                    style={[
+                      heatmapModalStyles.timeframeButton,
+                      heatmapDays === days && { backgroundColor: colors.primary },
+                      heatmapDays !== days && { backgroundColor: colors.border },
+                    ]}
+                    onPress={() => handleHeatmapTimeframeChange(days)}
+                  >
+                    <Text style={[
+                      heatmapModalStyles.timeframeText,
+                      { color: heatmapDays === days ? '#fff' : colors.text },
+                    ]}>
+                      {days} days
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              
+              {/* Large Heatmap */}
+              {selectedBoardForHeatmap && boardHeatmaps[selectedBoardForHeatmap] && (
+                <View style={heatmapModalStyles.heatmapContainer}>
+                  <LargeHeatmap 
+                    data={boardHeatmaps[selectedBoardForHeatmap].data} 
+                    days={heatmapDays}
+                    colors={colors} 
+                  />
+                </View>
+              )}
+              
+              <Text style={[heatmapModalStyles.legend, { color: colors.textMuted }]}>
+                Activity includes: tasks created, status changes, comments, and attachments
+              </Text>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </ThemedBackground>
   );
 }
+
+/**
+ * LargeHeatmap - Full activity heatmap for modal
+ */
+function LargeHeatmap({ data, days, colors }: { data: ActivityHeatmapEntry[]; days: number; colors: ReturnType<typeof useTheme>['colors'] }): React.JSX.Element {
+  const heatmapData = useMemo(() => {
+    const result: { date: string; count: number }[] = [];
+    const now = new Date();
+    
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      const entry = data.find(d => d.date === dateStr);
+      result.push({ date: dateStr, count: entry?.count || 0 });
+    }
+    
+    return result;
+  }, [data, days]);
+
+  const getHeatColor = (count: number): string => {
+    if (count === 0) return colors.border;
+    if (count <= 2) return '#86efac';
+    if (count <= 5) return '#22c55e';
+    if (count <= 10) return '#16a34a';
+    return '#15803d';
+  };
+
+  // Calculate grid dimensions (7 columns for days of week)
+  const weeks = Math.ceil(heatmapData.length / 7);
+
+  return (
+    <View>
+      <View style={largeHeatmapStyles.grid}>
+        {heatmapData.map((day, index) => (
+          <View
+            key={day.date}
+            style={[
+              largeHeatmapStyles.cell,
+              { backgroundColor: getHeatColor(day.count) },
+            ]}
+          />
+        ))}
+      </View>
+      <View style={largeHeatmapStyles.legendRow}>
+        <Text style={[largeHeatmapStyles.legendText, { color: colors.textMuted }]}>Less</Text>
+        <View style={[largeHeatmapStyles.legendCell, { backgroundColor: colors.border }]} />
+        <View style={[largeHeatmapStyles.legendCell, { backgroundColor: '#86efac' }]} />
+        <View style={[largeHeatmapStyles.legendCell, { backgroundColor: '#22c55e' }]} />
+        <View style={[largeHeatmapStyles.legendCell, { backgroundColor: '#16a34a' }]} />
+        <View style={[largeHeatmapStyles.legendCell, { backgroundColor: '#15803d' }]} />
+        <Text style={[largeHeatmapStyles.legendText, { color: colors.textMuted }]}>More</Text>
+      </View>
+    </View>
+  );
+}
+
+const largeHeatmapStyles = StyleSheet.create({
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 3,
+    justifyContent: 'flex-start',
+  },
+  cell: {
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    gap: 4,
+  },
+  legendCell: {
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+  },
+  legendText: {
+    fontSize: 11,
+  },
+});
+
+const heatmapModalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  container: {
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 500,
+    maxHeight: '80%',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    fontSize: 24,
+    padding: 4,
+  },
+  timeframeSelector: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 20,
+  },
+  timeframeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  timeframeText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  heatmapContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  legend: {
+    fontSize: 12,
+    textAlign: 'center',
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -810,6 +1145,32 @@ const styles = StyleSheet.create({
   boardMeta: {
     fontSize: 11,
     marginTop: 'auto',
+  },
+  boardStats: {
+    flexDirection: 'row',
+    gap: 12,
+    marginVertical: 8,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  statLabel: {
+    fontSize: 9,
+    textTransform: 'uppercase',
+  },
+  heatmapContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  heatmapLabel: {
+    fontSize: 9,
+    textTransform: 'uppercase',
   },
   addButton: {
     borderRadius: 12,

@@ -8,6 +8,7 @@ import epicRoutes from './epics';
 import commentRoutes from './comments';
 import attachmentRoutes from './attachments';
 import exportRoutes from './export';
+import activityRoutes from './activity';
 
 const router = Router();
 
@@ -37,5 +38,8 @@ router.use('/', attachmentRoutes);
 
 // Export routes (includes /boards/:id/export and /export/all endpoints)
 router.use('/', exportRoutes);
+
+// Activity routes (includes /boards/:boardId/activity endpoints)
+router.use('/', activityRoutes);
 
 export default router;

@@ -82,6 +82,8 @@ export interface Task {
   endDate: string | null;
   position: number;
   epicIds: string[];
+  dependentTaskIds: string[];
+  isArchived: boolean;
   comments: Comment[];
   attachments: Attachment[];
   createdAt: string;
@@ -216,4 +218,51 @@ export interface RegisterRequest {
 export interface AuthResponse {
   user: User;
   token: string;
+}
+
+// Activity Types
+export type ActivityType =
+  | 'task_created'
+  | 'task_updated'
+  | 'task_moved'
+  | 'task_deleted'
+  | 'task_archived'
+  | 'comment_added'
+  | 'comment_deleted'
+  | 'attachment_added'
+  | 'attachment_deleted'
+  | 'epic_assigned'
+  | 'epic_removed'
+  | 'section_created'
+  | 'section_deleted'
+  | 'sprint_started';
+
+export interface Activity {
+  id: string;
+  boardId: string;
+  userId: string;
+  type: ActivityType;
+  entityId: string;
+  entityType: 'task' | 'section' | 'epic' | 'comment' | 'attachment' | 'board';
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface ActivityHeatmapEntry {
+  date: string;
+  count: number;
+}
+
+export interface BoardStats {
+  totalTasks: number;
+  openTasks: number;
+  completedTasks: number;
+  archivedTasks: number;
+  overdueTasks: number;
+}
+
+export interface SprintStartResponse {
+  success: boolean;
+  message: string;
+  archivedCount: number;
 }

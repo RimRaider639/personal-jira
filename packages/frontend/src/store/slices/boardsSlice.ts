@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import type { Board, CreateBoardRequest } from '@kanban/shared';
+import type { Board, CreateBoardRequest, Task, BoardStats, ActivityHeatmapEntry } from '@kanban/shared';
 import { apiClient } from '@/services/api';
 
 /**
@@ -9,6 +9,9 @@ export interface BoardsState {
   byId: Record<string, Board>;
   allIds: string[];
   currentBoardId: string | null;
+  stats: Record<string, BoardStats>;
+  heatmaps: Record<string, { data: ActivityHeatmapEntry[]; days: number }>;
+  archivedTasks: Record<string, Task[]>;
   isLoading: boolean;
   error: string | null;
 }
@@ -20,6 +23,9 @@ const initialState: BoardsState = {
   byId: {},
   allIds: [],
   currentBoardId: null,
+  stats: {},
+  heatmaps: {},
+  archivedTasks: {},
   isLoading: false,
   error: null,
 };
@@ -104,6 +110,93 @@ export const deleteBoard = createAsyncThunk<string, string, { rejectValue: strin
     }
   }
 );
+
+/**
+ * Async thunk for starting a sprint (archiving done tasks)
+ */
+export const startSprint = createAsyncThunk<
+  { boardId: string; archivedCount: number },
+  string,
+  { rejectValue: string }
+>('boards/startSprint', async (boardId, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.post<{ archivedCount: number }>(`/boards/${boardId}/sprint/start`);
+    return { boardId, archivedCount: response.data.archivedCount };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to start sprint';
+    return rejectWithValue(message);
+  }
+});
+
+/**
+ * Async thunk for fetching archived tasks
+ */
+export const fetchArchivedTasks = createAsyncThunk<
+  { boardId: string; tasks: Task[] },
+  string,
+  { rejectValue: string }
+>('boards/fetchArchivedTasks', async (boardId, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.get<{ data: Task[] }>(`/boards/${boardId}/archived`);
+    return { boardId, tasks: response.data.data };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch archived tasks';
+    return rejectWithValue(message);
+  }
+});
+
+/**
+ * Async thunk for unarchiving a task
+ */
+export const unarchiveTask = createAsyncThunk<
+  { boardId: string; task: Task },
+  { boardId: string; taskId: string },
+  { rejectValue: string }
+>('boards/unarchiveTask', async ({ boardId, taskId }, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.post<{ data: Task }>(`/boards/${boardId}/tasks/${taskId}/unarchive`);
+    return { boardId, task: response.data.data };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to unarchive task';
+    return rejectWithValue(message);
+  }
+});
+
+/**
+ * Async thunk for fetching board statistics
+ */
+export const fetchBoardStats = createAsyncThunk<
+  { boardId: string; stats: BoardStats },
+  string,
+  { rejectValue: string }
+>('boards/fetchStats', async (boardId, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.get<{ data: BoardStats }>(`/boards/${boardId}/stats`);
+    return { boardId, stats: response.data.data };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch board stats';
+    return rejectWithValue(message);
+  }
+});
+
+/**
+ * Async thunk for fetching activity heatmap
+ */
+export const fetchActivityHeatmap = createAsyncThunk<
+  { boardId: string; heatmap: ActivityHeatmapEntry[]; days: number },
+  { boardId: string; days?: number },
+  { rejectValue: string }
+>('boards/fetchActivityHeatmap', async ({ boardId, days = 30 }, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.get<{ heatmap: ActivityHeatmapEntry[]; days: number }>(
+      `/boards/${boardId}/activity/heatmap?days=${days}`
+    );
+    return { boardId, heatmap: response.data.heatmap, days: response.data.days };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to fetch activity heatmap';
+    return rejectWithValue(message);
+  }
+});
 
 /**
  * Boards slice
@@ -237,10 +330,71 @@ const boardsSlice = createSlice({
         if (state.currentBoardId === boardId) {
           state.currentBoardId = null;
         }
+        // Clean up related state
+        delete state.stats[boardId];
+        delete state.heatmaps[boardId];
+        delete state.archivedTasks[boardId];
       })
       .addCase(deleteBoard.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload ?? 'Failed to delete board';
+      });
+
+    // Start sprint
+    builder
+      .addCase(startSprint.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(startSprint.fulfilled, (state) => {
+        state.isLoading = false;
+      })
+      .addCase(startSprint.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload ?? 'Failed to start sprint';
+      });
+
+    // Fetch archived tasks
+    builder
+      .addCase(fetchArchivedTasks.fulfilled, (state, action) => {
+        const { boardId, tasks } = action.payload;
+        state.archivedTasks[boardId] = tasks;
+      })
+      .addCase(fetchArchivedTasks.rejected, (state, action) => {
+        state.error = action.payload ?? 'Failed to fetch archived tasks';
+      });
+
+    // Unarchive task
+    builder
+      .addCase(unarchiveTask.fulfilled, (state, action) => {
+        const { boardId, task } = action.payload;
+        // Remove from archived tasks
+        if (state.archivedTasks[boardId]) {
+          state.archivedTasks[boardId] = state.archivedTasks[boardId].filter(t => t.id !== task.id);
+        }
+      })
+      .addCase(unarchiveTask.rejected, (state, action) => {
+        state.error = action.payload ?? 'Failed to unarchive task';
+      });
+
+    // Fetch board stats
+    builder
+      .addCase(fetchBoardStats.fulfilled, (state, action) => {
+        const { boardId, stats } = action.payload;
+        state.stats[boardId] = stats;
+      })
+      .addCase(fetchBoardStats.rejected, (state, action) => {
+        state.error = action.payload ?? 'Failed to fetch board stats';
+      });
+
+    // Fetch activity heatmap
+    builder
+      .addCase(fetchActivityHeatmap.fulfilled, (state, action) => {
+        const { boardId, heatmap, days } = action.payload;
+        state.heatmaps[boardId] = { data: heatmap, days };
+      })
+      .addCase(fetchActivityHeatmap.rejected, (state, action) => {
+        state.error = action.payload ?? 'Failed to fetch activity heatmap';
       });
   },
 });

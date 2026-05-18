@@ -6,6 +6,7 @@ import Board from '../models/Board';
 import Section from '../models/Section';
 import Task from '../models/Task';
 import Epic from '../models/Epic';
+import { Activity } from '../models';
 
 const router = Router();
 
@@ -266,6 +267,272 @@ router.delete(
       next(error);
     } finally {
       session.endSession();
+    }
+  }
+);
+
+/**
+ * POST /api/boards/:id/sprint/start
+ * Start a new sprint - archives all tasks in "Done" sections
+ */
+router.post(
+  '/:id/sprint/start',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw createError('User not authenticated', 401);
+      }
+
+      const boardId = req.params.id as string;
+
+      if (!boardId || !mongoose.Types.ObjectId.isValid(boardId)) {
+        throw createError('Invalid board ID', 400);
+      }
+
+      const board = await Board.findById(boardId).session(session);
+
+      if (!board) {
+        throw createError('Board not found', 404);
+      }
+
+      // Check ownership
+      if (board.userId.toString() !== userId) {
+        throw createError('Access denied', 403);
+      }
+
+      // Find all "Done" sections (case-insensitive)
+      const doneSections = await Section.find({
+        boardId: new mongoose.Types.ObjectId(boardId),
+        name: { $regex: /^done$/i },
+      }).session(session);
+
+      const doneSectionIds = doneSections.map(s => s._id);
+
+      // Archive all tasks in done sections
+      const result = await Task.updateMany(
+        {
+          boardId: new mongoose.Types.ObjectId(boardId),
+          sectionId: { $in: doneSectionIds },
+          isArchived: false,
+        },
+        { $set: { isArchived: true } },
+        { session }
+      );
+
+      // Log activity
+      await Activity.create([{
+        boardId: new mongoose.Types.ObjectId(boardId),
+        userId: new mongoose.Types.ObjectId(userId),
+        type: 'sprint_started',
+        entityId: new mongoose.Types.ObjectId(boardId),
+        entityType: 'board',
+        metadata: {
+          archivedCount: result.modifiedCount,
+        },
+      }], { session });
+
+      await session.commitTransaction();
+
+      res.status(200).json({
+        success: true,
+        message: `Sprint started. ${result.modifiedCount} tasks archived.`,
+        archivedCount: result.modifiedCount,
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      next(error);
+    } finally {
+      session.endSession();
+    }
+  }
+);
+
+/**
+ * GET /api/boards/:id/archived
+ * Get all archived tasks for a board
+ */
+router.get(
+  '/:id/archived',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw createError('User not authenticated', 401);
+      }
+
+      const boardId = req.params.id as string;
+
+      if (!boardId || !mongoose.Types.ObjectId.isValid(boardId)) {
+        throw createError('Invalid board ID', 400);
+      }
+
+      const board = await Board.findById(boardId);
+
+      if (!board) {
+        throw createError('Board not found', 404);
+      }
+
+      // Check ownership
+      if (board.userId.toString() !== userId) {
+        throw createError('Access denied', 403);
+      }
+
+      const archivedTasks = await Task.find({
+        boardId: new mongoose.Types.ObjectId(boardId),
+        isArchived: true,
+      }).sort({ updatedAt: -1 });
+
+      res.status(200).json({
+        success: true,
+        data: archivedTasks,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /api/boards/:id/tasks/:taskId/unarchive
+ * Unarchive a task (restore from archive)
+ */
+router.post(
+  '/:id/tasks/:taskId/unarchive',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw createError('User not authenticated', 401);
+      }
+
+      const boardId = req.params.id as string;
+      const taskId = req.params.taskId as string;
+
+      if (!boardId || !mongoose.Types.ObjectId.isValid(boardId)) {
+        throw createError('Invalid board ID', 400);
+      }
+
+      if (!taskId || !mongoose.Types.ObjectId.isValid(taskId)) {
+        throw createError('Invalid task ID', 400);
+      }
+
+      const board = await Board.findById(boardId);
+
+      if (!board) {
+        throw createError('Board not found', 404);
+      }
+
+      // Check ownership
+      if (board.userId.toString() !== userId) {
+        throw createError('Access denied', 403);
+      }
+
+      const task = await Task.findOne({
+        _id: new mongoose.Types.ObjectId(taskId),
+        boardId: new mongoose.Types.ObjectId(boardId),
+      });
+
+      if (!task) {
+        throw createError('Task not found', 404);
+      }
+
+      task.isArchived = false;
+      await task.save();
+
+      res.status(200).json({
+        success: true,
+        data: task,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * GET /api/boards/:id/stats
+ * Get board statistics (open tasks, completed tasks, etc.)
+ */
+router.get(
+  '/:id/stats',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw createError('User not authenticated', 401);
+      }
+
+      const boardId = req.params.id as string;
+
+      if (!boardId || !mongoose.Types.ObjectId.isValid(boardId)) {
+        throw createError('Invalid board ID', 400);
+      }
+
+      const board = await Board.findById(boardId);
+
+      if (!board) {
+        throw createError('Board not found', 404);
+      }
+
+      // Check ownership
+      if (board.userId.toString() !== userId) {
+        throw createError('Access denied', 403);
+      }
+
+      // Get all sections
+      const sections = await Section.find({ boardId: new mongoose.Types.ObjectId(boardId) });
+      const doneSectionIds = sections
+        .filter(s => s.name.toLowerCase() === 'done')
+        .map(s => s._id);
+
+      // Count tasks
+      const totalTasks = await Task.countDocuments({
+        boardId: new mongoose.Types.ObjectId(boardId),
+        isArchived: false,
+      });
+
+      const completedTasks = await Task.countDocuments({
+        boardId: new mongoose.Types.ObjectId(boardId),
+        sectionId: { $in: doneSectionIds },
+        isArchived: false,
+      });
+
+      const openTasks = totalTasks - completedTasks;
+
+      const archivedTasks = await Task.countDocuments({
+        boardId: new mongoose.Types.ObjectId(boardId),
+        isArchived: true,
+      });
+
+      // Get overdue tasks
+      const now = new Date();
+      const overdueTasks = await Task.countDocuments({
+        boardId: new mongoose.Types.ObjectId(boardId),
+        isArchived: false,
+        sectionId: { $nin: doneSectionIds },
+        endDate: { $lt: now, $ne: null },
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          totalTasks,
+          openTasks,
+          completedTasks,
+          archivedTasks,
+          overdueTasks,
+        },
+      });
+    } catch (error) {
+      next(error);
     }
   }
 );

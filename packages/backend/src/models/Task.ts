@@ -35,12 +35,14 @@ export interface ITask {
   boardId: Types.ObjectId;
   sectionId: Types.ObjectId;
   epicIds: Types.ObjectId[];
+  dependentTaskIds: Types.ObjectId[];
   title: string;
   description?: string | null;
   priority?: Priority | null;
   storyPoints?: number | null;
   endDate?: Date | null;
   position: number;
+  isArchived: boolean;
   comments: IComment[];
   attachments: IAttachment[];
   createdAt: Date;
@@ -154,6 +156,12 @@ const taskSchema = new Schema<ITaskDocument, ITaskModel>(
         ref: 'Epic',
       },
     ],
+    dependentTaskIds: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'Task',
+      },
+    ],
     title: {
       type: String,
       required: [true, 'Task title is required'],
@@ -202,6 +210,11 @@ const taskSchema = new Schema<ITaskDocument, ITaskModel>(
         },
         message: 'Position must be a non-negative integer',
       },
+    },
+    isArchived: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
     comments: [commentSchema],
     attachments: [attachmentSchema],

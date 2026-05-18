@@ -999,4 +999,321 @@ router.delete(
   }
 );
 
+/**
+ * POST /api/tasks/:id/dependencies
+ * Add a dependent task
+ * Request body:
+ * - dependentTaskId: The ID of the task that depends on this task (required)
+ */
+router.post(
+  '/tasks/:id/dependencies',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw createError('User not authenticated', 401);
+      }
+
+      const taskId = req.params.id as string;
+      const { dependentTaskId } = req.body;
+
+      if (!taskId) {
+        throw createError('Task ID is required', 400);
+      }
+
+      if (!dependentTaskId) {
+        throw createError('Dependent task ID is required', 400);
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(dependentTaskId)) {
+        throw createError('Invalid dependent task ID', 400);
+      }
+
+      // Prevent self-dependency
+      if (taskId === dependentTaskId) {
+        throw createError('A task cannot depend on itself', 400);
+      }
+
+      // Verify task ownership
+      const { task } = await verifyTaskOwnership(taskId, userId, session);
+
+      const taskDoc = task as unknown as {
+        _id: mongoose.Types.ObjectId;
+        boardId: mongoose.Types.ObjectId;
+        dependentTaskIds: mongoose.Types.ObjectId[];
+        save: (options?: { session?: mongoose.ClientSession }) => Promise<void>;
+      };
+
+      // Verify dependent task exists and belongs to the same board
+      const dependentTask = await Task.findById(dependentTaskId).session(session);
+      if (!dependentTask) {
+        throw createError('Dependent task not found', 404);
+      }
+
+      if (dependentTask.boardId.toString() !== taskDoc.boardId.toString()) {
+        throw createError('Dependent task must belong to the same board', 400);
+      }
+
+      // Check if already a dependency
+      const dependentObjectId = new mongoose.Types.ObjectId(dependentTaskId);
+      const isAlreadyDependent = taskDoc.dependentTaskIds?.some(
+        (id) => id.toString() === dependentObjectId.toString()
+      );
+
+      if (isAlreadyDependent) {
+        throw createError('Task is already a dependency', 400);
+      }
+
+      // Add the dependency
+      if (!taskDoc.dependentTaskIds) {
+        taskDoc.dependentTaskIds = [];
+      }
+      taskDoc.dependentTaskIds.push(dependentObjectId);
+      await taskDoc.save({ session });
+
+      await session.commitTransaction();
+
+      const updatedTask = await Task.findById(taskId);
+
+      res.status(200).json({
+        success: true,
+        data: updatedTask,
+        message: 'Dependency added successfully',
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      next(error);
+    } finally {
+      session.endSession();
+    }
+  }
+);
+
+/**
+ * DELETE /api/tasks/:id/dependencies/:dependentTaskId
+ * Remove a dependent task
+ */
+router.delete(
+  '/tasks/:id/dependencies/:dependentTaskId',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw createError('User not authenticated', 401);
+      }
+
+      const taskId = req.params.id as string;
+      const dependentTaskId = req.params.dependentTaskId as string;
+
+      if (!taskId) {
+        throw createError('Task ID is required', 400);
+      }
+
+      if (!dependentTaskId) {
+        throw createError('Dependent task ID is required', 400);
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(dependentTaskId)) {
+        throw createError('Invalid dependent task ID', 400);
+      }
+
+      // Verify task ownership
+      const { task } = await verifyTaskOwnership(taskId, userId, session);
+
+      const taskDoc = task as unknown as {
+        _id: mongoose.Types.ObjectId;
+        dependentTaskIds: mongoose.Types.ObjectId[];
+        save: (options?: { session?: mongoose.ClientSession }) => Promise<void>;
+      };
+
+      // Check if dependency exists
+      const depIndex = taskDoc.dependentTaskIds?.findIndex(
+        (id) => id.toString() === dependentTaskId
+      );
+
+      if (depIndex === undefined || depIndex === -1) {
+        throw createError('Dependency not found', 404);
+      }
+
+      // Remove the dependency
+      taskDoc.dependentTaskIds.splice(depIndex, 1);
+      await taskDoc.save({ session });
+
+      await session.commitTransaction();
+
+      const updatedTask = await Task.findById(taskId);
+
+      res.status(200).json({
+        success: true,
+        data: updatedTask,
+        message: 'Dependency removed successfully',
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      next(error);
+    } finally {
+      session.endSession();
+    }
+  }
+);
+
+/**
+ * GET /api/tasks/:id/dependencies
+ * Get all dependent tasks for a task
+ */
+router.get(
+  '/tasks/:id/dependencies',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw createError('User not authenticated', 401);
+      }
+
+      const taskId = req.params.id as string;
+
+      if (!taskId) {
+        throw createError('Task ID is required', 400);
+      }
+
+      // Verify task ownership
+      const { task } = await verifyTaskOwnership(taskId, userId);
+
+      const taskDoc = task as unknown as {
+        dependentTaskIds: mongoose.Types.ObjectId[];
+      };
+
+      // Get all dependent tasks
+      const dependentTasks = await Task.find({
+        _id: { $in: taskDoc.dependentTaskIds || [] },
+      });
+
+      res.status(200).json({
+        success: true,
+        data: dependentTasks,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * PUT /api/tasks/:id/section
+ * Quick status change - move task to a different section
+ * Request body:
+ * - sectionId: Target section ID (required)
+ */
+router.put(
+  '/tasks/:id/section',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw createError('User not authenticated', 401);
+      }
+
+      const taskId = req.params.id as string;
+      const { sectionId: targetSectionId } = req.body;
+
+      if (!taskId) {
+        throw createError('Task ID is required', 400);
+      }
+
+      if (!targetSectionId) {
+        throw createError('Section ID is required', 400);
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(targetSectionId)) {
+        throw createError('Invalid section ID', 400);
+      }
+
+      // Verify task ownership
+      const { task } = await verifyTaskOwnership(taskId, userId, session);
+
+      const taskDoc = task as unknown as {
+        _id: mongoose.Types.ObjectId;
+        boardId: mongoose.Types.ObjectId;
+        sectionId: mongoose.Types.ObjectId;
+        position: number;
+        save: (options?: { session?: mongoose.ClientSession }) => Promise<void>;
+      };
+
+      // Verify target section exists and belongs to the same board
+      const targetSection = await Section.findById(targetSectionId).session(session);
+      if (!targetSection) {
+        throw createError('Section not found', 404);
+      }
+
+      if (targetSection.boardId.toString() !== taskDoc.boardId.toString()) {
+        throw createError('Section does not belong to the same board', 400);
+      }
+
+      // If already in the target section, no change needed
+      if (taskDoc.sectionId.toString() === targetSectionId) {
+        await session.commitTransaction();
+        const updatedTask = await Task.findById(taskId);
+        res.status(200).json({
+          success: true,
+          data: updatedTask,
+        });
+        return;
+      }
+
+      const sourceSectionId = taskDoc.sectionId;
+
+      // Reorder source section
+      const tasksInSourceSection = await Task.find({
+        sectionId: sourceSectionId,
+        _id: { $ne: taskDoc._id },
+      })
+        .sort({ position: 1 })
+        .session(session);
+
+      for (let i = 0; i < tasksInSourceSection.length; i++) {
+        const t = tasksInSourceSection[i];
+        if (t && t.position !== i) {
+          t.position = i;
+          await t.save({ session });
+        }
+      }
+
+      // Get next position in target section
+      const nextPosition = await Task.getNextPosition(targetSectionId);
+
+      // Update task
+      taskDoc.sectionId = new mongoose.Types.ObjectId(targetSectionId);
+      taskDoc.position = nextPosition;
+      await taskDoc.save({ session });
+
+      await session.commitTransaction();
+
+      const updatedTask = await Task.findById(taskId);
+
+      res.status(200).json({
+        success: true,
+        data: updatedTask,
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      next(error);
+    } finally {
+      session.endSession();
+    }
+  }
+);
+
 export default router;

@@ -32,5 +32,14 @@ export type {
   Priority,
 } from './Task';
 
+// Activity model for tracking board activity
+export { Activity, ACTIVITY_TYPES } from './Activity';
+export type {
+  IActivity,
+  IActivityDocument,
+  IActivityModel,
+  ActivityType,
+} from './Activity';
+
 // Re-export mongoose Types for convenience
 export { Types } from 'mongoose';

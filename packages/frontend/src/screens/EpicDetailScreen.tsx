@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   useWindowDimensions,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -20,6 +21,7 @@ import {
   fetchBoards,
   updateEpic,
   deleteEpic,
+  changeTaskSection,
 } from '@/store/slices';
 import { selectAllEpics, selectAllTasks, selectAllSections, selectAllBoards } from '@/store/selectors';
 import { DatePicker } from '@/components';
@@ -76,10 +78,17 @@ export function EpicDetailScreen({
   const [editEndDate, setEditEndDate] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  // Linked tasks
+  // Linked tasks - sorted by deadline
   const linkedTasks = useMemo(() => {
     if (!epic) return [];
-    return allTasks.filter(task => task.epicIds?.includes(epic.id));
+    const tasks = allTasks.filter(task => task.epicIds?.includes(epic.id));
+    // Sort by deadline (tasks with deadlines first, then by date)
+    return tasks.sort((a, b) => {
+      if (!a.endDate && !b.endDate) return 0;
+      if (!a.endDate) return 1;
+      if (!b.endDate) return -1;
+      return new Date(a.endDate).getTime() - new Date(b.endDate).getTime();
+    });
   }, [epic, allTasks]);
 
   // Progress calculation
@@ -95,6 +104,27 @@ export function EpicDetailScreen({
     return { completedCount: completed, progress: progressPercent };
   }, [linkedTasks, allSections]);
 
+  // Epic deadline info
+  const epicDeadlineInfo = useMemo(() => {
+    const epicEndDate = (epic as Epic & { endDate?: string })?.endDate;
+    if (!epicEndDate) return null;
+    
+    const deadline = new Date(epicEndDate);
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    deadline.setHours(0, 0, 0, 0);
+    
+    const diffTime = deadline.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return {
+      date: deadline,
+      daysRemaining: diffDays,
+      isOverdue: diffDays < 0,
+      isUrgent: diffDays >= 0 && diffDays <= 2,
+    };
+  }, [epic]);
+
   // Group tasks by board
   const tasksByBoard = useMemo(() => {
     const grouped: Record<string, Task[]> = {};
@@ -106,6 +136,10 @@ export function EpicDetailScreen({
     });
     return grouped;
   }, [linkedTasks]);
+
+  // Status change dropdown state
+  const [statusDropdownTask, setStatusDropdownTask] = useState<string | null>(null);
+  const [isChangingStatus, setIsChangingStatus] = useState(false);
 
   useEffect(() => {
     dispatch(fetchAllEpics());
@@ -217,6 +251,44 @@ export function EpicDetailScreen({
     }
     setEditingField(null);
   }, [epic]);
+
+  // Handle task status change
+  const handleStatusChange = useCallback(async (taskId: string, newSectionId: string, oldSectionId: string) => {
+    setIsChangingStatus(true);
+    try {
+      await dispatch(changeTaskSection({ taskId, sectionId: newSectionId, oldSectionId })).unwrap();
+      setStatusDropdownTask(null);
+    } catch {
+      Alert.alert('Error', 'Failed to change task status');
+    } finally {
+      setIsChangingStatus(false);
+    }
+  }, [dispatch]);
+
+  // Get sections for a board (for status dropdown)
+  const getSectionsForBoard = useCallback((boardId: string): Section[] => {
+    return allSections.filter(s => s.boardId === boardId);
+  }, [allSections]);
+
+  // Get deadline info for a task
+  const getTaskDeadlineInfo = useCallback((task: Task) => {
+    if (!task.endDate) return null;
+    
+    const deadline = new Date(task.endDate);
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    deadline.setHours(0, 0, 0, 0);
+    
+    const diffTime = deadline.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return {
+      date: deadline,
+      daysRemaining: diffDays,
+      isOverdue: diffDays < 0,
+      isUrgent: diffDays >= 0 && diffDays <= 2,
+    };
+  }, []);
 
   if (!epic) {
     return (
@@ -377,9 +449,31 @@ export function EpicDetailScreen({
             </View>
           ) : (
             <TouchableOpacity onPress={() => startEditing('endDate')}>
-              <Text style={editEndDate ? [styles.dateValue, { color: colors.text }] : [styles.emptyValue, { color: colors.textMuted }]}>
-                {editEndDate ? new Date(editEndDate + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'No date set - tap to add'}
-              </Text>
+              <View style={styles.deadlineContainer}>
+                <Text style={editEndDate ? [styles.dateValue, { color: colors.text }] : [styles.emptyValue, { color: colors.textMuted }]}>
+                  {editEndDate ? new Date(editEndDate + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'No date set - tap to add'}
+                </Text>
+                {epicDeadlineInfo && (
+                  <View style={[
+                    styles.deadlineBadge,
+                    epicDeadlineInfo.isOverdue && styles.deadlineOverdue,
+                    epicDeadlineInfo.isUrgent && !epicDeadlineInfo.isOverdue && styles.deadlineUrgent,
+                  ]}>
+                    <Text style={[
+                      styles.deadlineBadgeText,
+                      epicDeadlineInfo.isOverdue && styles.deadlineOverdueText,
+                      epicDeadlineInfo.isUrgent && !epicDeadlineInfo.isOverdue && styles.deadlineUrgentText,
+                    ]}>
+                      {epicDeadlineInfo.isOverdue 
+                        ? `${Math.abs(epicDeadlineInfo.daysRemaining)} days overdue`
+                        : epicDeadlineInfo.daysRemaining === 0
+                          ? 'Due today'
+                          : `${epicDeadlineInfo.daysRemaining} day${epicDeadlineInfo.daysRemaining === 1 ? '' : 's'} remaining`
+                      }
+                    </Text>
+                  </View>
+                )}
+              </View>
             </TouchableOpacity>
           )}
         </View>
@@ -411,6 +505,7 @@ export function EpicDetailScreen({
           ) : (
             Object.entries(tasksByBoard).map(([boardId, tasks]) => {
               const board = allBoards.find(b => b.id === boardId);
+              const boardSections = getSectionsForBoard(boardId);
               return (
                 <View key={boardId} style={styles.boardTaskGroup}>
                   <Text style={[styles.boardGroupTitle, { color: colors.textMuted }]}>
@@ -418,28 +513,101 @@ export function EpicDetailScreen({
                   </Text>
                   {tasks.map(task => {
                     const section = allSections.find(s => s.id === task.sectionId);
+                    const taskDeadline = getTaskDeadlineInfo(task);
+                    const isDropdownOpen = statusDropdownTask === task.id;
+                    
                     return (
-                      <TouchableOpacity
-                        key={task.id}
-                        style={[styles.taskItem, { borderColor: colors.borderLight, backgroundColor: colors.surfaceSecondary }]}
-                        onPress={() => onTaskPress?.(task.id, boardId)}
-                      >
-                        <View style={styles.taskInfo}>
-                          <Text style={[styles.taskTitle, { color: colors.text }]} numberOfLines={1}>
-                            {task.title}
-                          </Text>
-                          <Text style={[styles.taskSection, { color: colors.textMuted }]}>
-                            {section?.name || 'Unknown'}
-                          </Text>
-                        </View>
-                        {task.priority && (
-                          <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(task.priority) + '20' }]}>
-                            <Text style={[styles.priorityText, { color: getPriorityColor(task.priority) }]}>
-                              {task.priority}
+                      <View key={task.id}>
+                        <TouchableOpacity
+                          style={[styles.taskItem, { borderColor: colors.borderLight, backgroundColor: colors.surfaceSecondary }]}
+                          onPress={() => onTaskPress?.(task.id, boardId)}
+                        >
+                          <View style={styles.taskInfo}>
+                            <Text style={[styles.taskTitle, { color: colors.text }]} numberOfLines={1}>
+                              {task.title}
                             </Text>
+                            <View style={styles.taskMeta}>
+                              {/* Status dropdown button */}
+                              <TouchableOpacity
+                                style={[styles.statusButton, { backgroundColor: colors.border }]}
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  setStatusDropdownTask(isDropdownOpen ? null : task.id);
+                                }}
+                              >
+                                <Text style={[styles.statusButtonText, { color: colors.text }]}>
+                                  {section?.name || 'Unknown'}
+                                </Text>
+                                <Text style={[styles.dropdownArrow, { color: colors.textMuted }]}>▼</Text>
+                              </TouchableOpacity>
+                              
+                              {/* Task deadline */}
+                              {taskDeadline && (
+                                <View style={[
+                                  styles.taskDeadlineBadge,
+                                  taskDeadline.isOverdue && styles.deadlineOverdue,
+                                  taskDeadline.isUrgent && !taskDeadline.isOverdue && styles.deadlineUrgent,
+                                  !taskDeadline.isOverdue && !taskDeadline.isUrgent && { backgroundColor: colors.border },
+                                ]}>
+                                  <Text style={[
+                                    styles.taskDeadlineText,
+                                    taskDeadline.isOverdue && styles.deadlineOverdueText,
+                                    taskDeadline.isUrgent && !taskDeadline.isOverdue && styles.deadlineUrgentText,
+                                    !taskDeadline.isOverdue && !taskDeadline.isUrgent && { color: colors.textMuted },
+                                  ]}>
+                                    {taskDeadline.isOverdue 
+                                      ? `${Math.abs(taskDeadline.daysRemaining)}d overdue`
+                                      : taskDeadline.daysRemaining === 0
+                                        ? 'Today'
+                                        : `${taskDeadline.daysRemaining}d left`
+                                    }
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                          </View>
+                          {task.priority && (
+                            <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(task.priority) + '20' }]}>
+                              <Text style={[styles.priorityText, { color: getPriorityColor(task.priority) }]}>
+                                {task.priority}
+                              </Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                        
+                        {/* Status dropdown */}
+                        {isDropdownOpen && (
+                          <View style={[styles.statusDropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                            {boardSections.map(s => (
+                              <TouchableOpacity
+                                key={s.id}
+                                style={[
+                                  styles.statusOption,
+                                  s.id === task.sectionId && { backgroundColor: colors.primary + '20' },
+                                ]}
+                                onPress={() => {
+                                  if (s.id !== task.sectionId) {
+                                    handleStatusChange(task.id, s.id, task.sectionId);
+                                  } else {
+                                    setStatusDropdownTask(null);
+                                  }
+                                }}
+                                disabled={isChangingStatus}
+                              >
+                                <Text style={[
+                                  styles.statusOptionText,
+                                  { color: s.id === task.sectionId ? colors.primary : colors.text },
+                                ]}>
+                                  {s.name}
+                                </Text>
+                                {s.id === task.sectionId && (
+                                  <Text style={{ color: colors.primary }}>✓</Text>
+                                )}
+                              </TouchableOpacity>
+                            ))}
                           </View>
                         )}
-                      </TouchableOpacity>
+                      </View>
                     );
                   })}
                 </View>
@@ -653,6 +821,84 @@ const styles = StyleSheet.create({
   taskSection: {
     fontSize: 12,
     marginTop: 2,
+  },
+  taskMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 8,
+  },
+  statusButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    gap: 4,
+  },
+  statusButtonText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  dropdownArrow: {
+    fontSize: 8,
+  },
+  statusDropdown: {
+    marginTop: -4,
+    marginBottom: 8,
+    marginLeft: 12,
+    marginRight: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  statusOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  statusOptionText: {
+    fontSize: 14,
+  },
+  deadlineContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  deadlineBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: '#e5e7eb',
+  },
+  deadlineBadgeText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#6b7280',
+  },
+  deadlineOverdue: {
+    backgroundColor: '#fee2e2',
+  },
+  deadlineOverdueText: {
+    color: '#dc2626',
+  },
+  deadlineUrgent: {
+    backgroundColor: '#fef3c7',
+  },
+  deadlineUrgentText: {
+    color: '#d97706',
+  },
+  taskDeadlineBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  taskDeadlineText: {
+    fontSize: 10,
+    fontWeight: '500',
   },
   priorityBadge: {
     paddingHorizontal: 8,

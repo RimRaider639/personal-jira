@@ -68,7 +68,22 @@ export function EpicModal({
       setName(epic.name);
       setDescription(epic.description || '');
       setColor(epic.color);
-      setEndDate((epic as Epic & { endDate?: string }).endDate || '');
+      // Properly handle endDate - ensure it's in YYYY-MM-DD format
+      const epicEndDate = (epic as Epic & { endDate?: string }).endDate;
+      if (epicEndDate) {
+        // Parse the date and format it correctly
+        const date = new Date(epicEndDate);
+        if (!isNaN(date.getTime())) {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          setEndDate(`${year}-${month}-${day}`);
+        } else {
+          setEndDate('');
+        }
+      } else {
+        setEndDate('');
+      }
       setSelectedBoardIds(linkedBoardIds);
     } else {
       setName('');

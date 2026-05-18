@@ -914,7 +914,7 @@ export function BoardScreen({
   }
 
   return (
-    <ThemedBackground>
+    <ThemedBackground boardId={boardId}>
       <SafeAreaView style={styles.container}>
         {/* Header */}
         <View style={[styles.header, { backgroundColor: board.color || effectiveColors.primary }]}>

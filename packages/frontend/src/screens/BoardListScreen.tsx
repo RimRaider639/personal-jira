@@ -10,6 +10,7 @@ import {
   Modal,
   TextInput,
   Alert,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -143,12 +144,13 @@ interface BoardCardProps {
   onPress: (boardId: string) => void;
   onDelete: (boardId: string) => void;
   colors: ReturnType<typeof useTheme>['colors'];
+  cardWidth: number;
 }
 
 /**
  * BoardCard - Individual board card component
  */
-function BoardCard({ board, onPress, onDelete, colors }: BoardCardProps): React.JSX.Element {
+function BoardCard({ board, onPress, onDelete, colors, cardWidth }: BoardCardProps): React.JSX.Element {
   const handlePress = useCallback(() => {
     onPress(board.id);
   }, [board.id, onPress]);
@@ -170,7 +172,7 @@ function BoardCard({ board, onPress, onDelete, colors }: BoardCardProps): React.
 
   return (
     <TouchableOpacity
-      style={[styles.boardCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}
+      style={[styles.boardCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder, width: cardWidth }]}
       onPress={handlePress}
       onLongPress={handleLongPress}
       activeOpacity={0.7}
@@ -209,6 +211,7 @@ export function BoardListScreen(): React.JSX.Element {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, 'BoardList'>>();
   const { colors } = useTheme();
+  const { width: screenWidth } = useWindowDimensions();
   const boards = useAppSelector(selectAllBoards);
   const user = useAppSelector(selectCurrentUser);
   const epics = useAppSelector(selectAllEpics);
@@ -216,6 +219,28 @@ export function BoardListScreen(): React.JSX.Element {
   const allSections = useAppSelector(selectAllSections);
   const isLoading = useAppSelector((state) => state.boards.isLoading);
   const error = useAppSelector((state) => state.boards.error);
+
+  // Calculate responsive card width
+  // Desktop: 5 cards per row, Tablet: 3-4 cards, Mobile: 2 cards
+  const boardCardWidth = useMemo(() => {
+    const padding = 32; // Total horizontal padding
+    const gap = 16; // Gap between cards
+    const availableWidth = screenWidth - padding;
+    
+    let cardsPerRow: number;
+    if (screenWidth >= 1200) {
+      cardsPerRow = 5;
+    } else if (screenWidth >= 900) {
+      cardsPerRow = 4;
+    } else if (screenWidth >= 600) {
+      cardsPerRow = 3;
+    } else {
+      cardsPerRow = 2;
+    }
+    
+    const cardWidth = (availableWidth - (gap * (cardsPerRow - 1))) / cardsPerRow;
+    return Math.floor(cardWidth);
+  }, [screenWidth]);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
@@ -238,18 +263,17 @@ export function BoardListScreen(): React.JSX.Element {
   }, [dispatch]);
 
   /**
-   * Handle openEpicId route parameter - open epic modal when navigating from task card
+   * Handle openEpicId route parameter - navigate to epic detail when coming from task card
    */
   useEffect(() => {
     const openEpicId = route.params?.openEpicId;
     if (openEpicId && epics.length > 0) {
       const epicToOpen = epics.find(e => e.id === openEpicId);
       if (epicToOpen) {
-        setSelectedEpic(epicToOpen);
-        setIsNewEpic(false);
-        setEpicModalVisible(true);
-        // Clear the param to prevent re-opening on subsequent renders
+        // Clear the param first
         navigation.setParams({ openEpicId: undefined });
+        // Navigate to epic detail
+        navigation.navigate('EpicDetail', { epicId: openEpicId });
       }
     }
   }, [route.params?.openEpicId, epics, navigation]);
@@ -327,9 +351,16 @@ export function BoardListScreen(): React.JSX.Element {
   );
 
   /**
-   * Handle epic press - open modal
+   * Handle epic press - navigate to epic detail page
    */
   const handleEpicPress = useCallback((epic: Epic) => {
+    navigation.navigate('EpicDetail', { epicId: epic.id });
+  }, [navigation]);
+
+  /**
+   * Handle epic edit - open modal for editing
+   */
+  const handleEpicEdit = useCallback((epic: Epic) => {
     setSelectedEpic(epic);
     setIsNewEpic(false);
     setEpicModalVisible(true);
@@ -516,7 +547,16 @@ export function BoardListScreen(): React.JSX.Element {
                       style={[styles.epicCard, { backgroundColor: colors.cardBackground, borderColor: colors.cardBorder }]}
                       onPress={() => handleEpicPress(epic)}
                     >
-                      <View style={[styles.epicColorBar, { backgroundColor: epic.color }]} />
+                      <View style={styles.epicCardHeader}>
+                        <View style={[styles.epicColorBar, { backgroundColor: epic.color }]} />
+                        <TouchableOpacity 
+                          style={styles.epicEditButton}
+                          onPress={(e) => { e.stopPropagation(); handleEpicEdit(epic); }}
+                          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                          <Text style={[styles.epicEditIcon, { color: colors.textMuted }]}>✏️</Text>
+                        </TouchableOpacity>
+                      </View>
                       <Text style={[styles.epicName, { color: colors.text }]} numberOfLines={1}>
                         {epic.name}
                       </Text>
@@ -555,6 +595,7 @@ export function BoardListScreen(): React.JSX.Element {
                       onPress={handleBoardPress}
                       onDelete={handleBoardDelete}
                       colors={colors}
+                      cardWidth={boardCardWidth}
                     />
                   ))}
                 </View>
@@ -688,11 +729,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginRight: 12,
   },
+  epicCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   epicColorBar: {
     width: 24,
     height: 4,
     borderRadius: 2,
-    marginBottom: 8,
+  },
+  epicEditButton: {
+    padding: 2,
+  },
+  epicEditIcon: {
+    fontSize: 12,
   },
   epicName: {
     fontSize: 14,
@@ -723,40 +775,41 @@ const styles = StyleSheet.create({
   boardGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -8,
+    gap: 16,
   },
   boardCard: {
     borderRadius: 12,
-    marginHorizontal: 8,
-    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
     overflow: 'hidden',
-    width: '100%',
-    maxWidth: 400,
     borderWidth: 1,
+    aspectRatio: 1, // Make it square
   },
   boardColorBar: {
-    height: 4,
+    height: 6,
   },
   boardContent: {
-    padding: 16,
+    flex: 1,
+    padding: 12,
+    justifyContent: 'space-between',
   },
   boardName: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '600',
     marginBottom: 4,
   },
   boardDescription: {
-    fontSize: 14,
+    fontSize: 11,
     marginBottom: 8,
-    lineHeight: 20,
+    lineHeight: 16,
+    flex: 1,
   },
   boardMeta: {
-    fontSize: 12,
+    fontSize: 11,
+    marginTop: 'auto',
   },
   addButton: {
     borderRadius: 12,

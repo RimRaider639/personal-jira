@@ -38,6 +38,7 @@ interface TaskDetailScreenProps {
   boardId: string;
   onBack?: () => void;
   onDelete?: () => void;
+  onEpicPress?: (epicId: string) => void;
 }
 
 const PRIORITIES: { value: Priority; label: string; color: string }[] = [
@@ -61,6 +62,7 @@ export function TaskDetailScreen({
   boardId,
   onBack,
   onDelete,
+  onEpicPress,
 }: TaskDetailScreenProps): React.JSX.Element {
   const dispatch = useAppDispatch();
 
@@ -554,14 +556,15 @@ export function TaskDetailScreen({
             <View style={styles.epicsList}>
               {taskEpics.length > 0 ? (
                 taskEpics.map((epic) => (
-                  <View
+                  <TouchableOpacity
                     key={epic.id}
                     style={[styles.epicBadge, { backgroundColor: epic.color + '20' }]}
+                    onPress={() => onEpicPress?.(epic.id)}
                   >
                     <Text style={[styles.epicBadgeText, { color: epic.color }]}>
                       {epic.name}
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 ))
               ) : (
                 <Text style={styles.emptyValue}>No epics assigned</Text>

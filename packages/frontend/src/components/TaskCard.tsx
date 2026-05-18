@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import type { Task, Epic, Section } from '@kanban/shared';
 import { useTheme } from '@/theme/ThemeContext';
 import { TaskCardMenu } from './TaskCardMenu';
@@ -161,6 +161,33 @@ function TaskCardComponent({
           </View>
         )}
 
+        {/* Attachment previews */}
+        {task.attachments.length > 0 && (
+          <View style={styles.attachmentPreview}>
+            {task.attachments.slice(0, 3).map((attachment) => {
+              const isImage = attachment.mimeType.startsWith('image/');
+              const previewUrl = attachment.thumbnailUrl || (isImage ? attachment.cloudinaryUrl : null);
+              return previewUrl ? (
+                <Image
+                  key={attachment.id}
+                  source={{ uri: previewUrl }}
+                  style={styles.attachmentThumb}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View key={attachment.id} style={[styles.attachmentThumb, styles.attachmentFile, { backgroundColor: colors.surfaceSecondary }]}>
+                  <Text style={[styles.attachmentFileIcon, { color: colors.textMuted }]}>📄</Text>
+                </View>
+              );
+            })}
+            {task.attachments.length > 3 && (
+              <View style={[styles.attachmentThumb, styles.attachmentMore, { backgroundColor: colors.surfaceSecondary }]}>
+                <Text style={[styles.attachmentMoreText, { color: colors.textMuted }]}>+{task.attachments.length - 3}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Meta info */}
         <View style={styles.meta}>
           {formattedDate && (
@@ -273,6 +300,32 @@ const styles = StyleSheet.create({
   storyPointsText: {
     fontSize: 10,
     fontWeight: '700',
+  },
+  attachmentPreview: {
+    flexDirection: 'row',
+    marginBottom: 8,
+    gap: 4,
+  },
+  attachmentThumb: {
+    width: 40,
+    height: 40,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  attachmentFile: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attachmentFileIcon: {
+    fontSize: 16,
+  },
+  attachmentMore: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attachmentMoreText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
 });
 

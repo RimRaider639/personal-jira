@@ -4,14 +4,19 @@ import { useTheme } from '@/theme/ThemeContext';
 
 interface ThemedBackgroundProps {
   children: React.ReactNode;
+  boardId?: string;
 }
 
 /**
  * ThemedBackground - Renders the appropriate background based on current theme
  * Supports solid colors, gradients, and images with overlays
+ * If boardId is provided, uses the board-specific theme
  */
-export function ThemedBackground({ children }: ThemedBackgroundProps): React.JSX.Element {
-  const { theme, colors } = useTheme();
+export function ThemedBackground({ children, boardId }: ThemedBackgroundProps): React.JSX.Element {
+  const { colors, getEffectiveTheme } = useTheme();
+  
+  // Get board-specific theme if boardId is provided
+  const theme = boardId ? getEffectiveTheme(boardId) : getEffectiveTheme();
   const { background } = theme;
 
   // For solid backgrounds

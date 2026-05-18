@@ -12,6 +12,7 @@ import { RegisterScreen } from '@/screens/RegisterScreen';
 import { BoardListScreen } from '@/screens/BoardListScreen';
 import { BoardScreen } from '@/screens/BoardScreen';
 import { TaskDetailScreen } from '@/screens/TaskDetailScreen';
+import { EpicDetailScreen } from '@/screens/EpicDetailScreen';
 
 /**
  * Navigation param list types
@@ -22,6 +23,7 @@ export type RootStackParamList = {
   BoardList: { openEpicId?: string } | undefined;
   Board: { boardId: string };
   TaskDetail: { taskId: string; boardId: string };
+  EpicDetail: { epicId: string };
 };
 
 /**
@@ -42,6 +44,7 @@ const linking: LinkingOptions<RootStackParamList> = {
       BoardList: 'boards',
       Board: 'boards/:boardId',
       TaskDetail: 'boards/:boardId/tasks/:taskId',
+      EpicDetail: 'epics/:epicId',
     },
   },
 };
@@ -70,8 +73,8 @@ function BoardScreenWrapper({
   }, [navigation, boardId]);
 
   const handleEpicPress = useCallback((epicId: string) => {
-    // Navigate to BoardList with the epic ID to open the epic modal
-    navigation.navigate('BoardList', { openEpicId: epicId });
+    // Navigate to EpicDetail screen
+    navigation.navigate('EpicDetail', { epicId });
   }, [navigation]);
 
   return (
@@ -109,12 +112,52 @@ function TaskDetailScreenWrapper({
     }
   }, [navigation, boardId]);
 
+  const handleEpicPress = useCallback((epicId: string) => {
+    navigation.navigate('EpicDetail', { epicId });
+  }, [navigation]);
+
   return (
     <TaskDetailScreen 
       taskId={taskId}
       boardId={boardId}
       onBack={handleBack}
       onDelete={handleDelete}
+      onEpicPress={handleEpicPress}
+    />
+  );
+}
+
+/**
+ * Wrapper for EpicDetailScreen to extract route params
+ */
+function EpicDetailScreenWrapper({ 
+  route, 
+  navigation 
+}: NativeStackScreenProps<RootStackParamList, 'EpicDetail'>): React.JSX.Element {
+  const { epicId } = route.params;
+
+  const handleBack = useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      navigation.navigate('BoardList');
+    }
+  }, [navigation]);
+
+  const handleDelete = useCallback(() => {
+    navigation.navigate('BoardList');
+  }, [navigation]);
+
+  const handleTaskPress = useCallback((taskId: string, boardId: string) => {
+    navigation.navigate('TaskDetail', { taskId, boardId });
+  }, [navigation]);
+
+  return (
+    <EpicDetailScreen 
+      epicId={epicId}
+      onBack={handleBack}
+      onDelete={handleDelete}
+      onTaskPress={handleTaskPress}
     />
   );
 }
@@ -155,6 +198,7 @@ function MainNavigator(): React.JSX.Element {
       <Stack.Screen name="BoardList" component={BoardListScreen} />
       <Stack.Screen name="Board" component={BoardScreenWrapper} />
       <Stack.Screen name="TaskDetail" component={TaskDetailScreenWrapper} />
+      <Stack.Screen name="EpicDetail" component={EpicDetailScreenWrapper} />
     </Stack.Navigator>
   );
 }

@@ -4,10 +4,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { ChakraProvider } from '@chakra-ui/react';
 
 import { store, persistor } from '@/store';
 import { RootNavigator } from '@/navigation/RootNavigator';
 import { ThemeProvider } from '@/theme/ThemeContext';
+import { system } from '@/theme/chakraTheme';
 
 /**
  * Main App component - Entry point for the Personal Kanban Board application.
@@ -19,12 +21,14 @@ export default function App(): React.JSX.Element {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Provider store={store}>
         <PersistGate loading={null} persistor={persistor}>
-          <ThemeProvider>
-            <SafeAreaProvider>
-              <StatusBar style="auto" />
-              <RootNavigator />
-            </SafeAreaProvider>
-          </ThemeProvider>
+          <ChakraProvider value={system}>
+            <ThemeProvider>
+              <SafeAreaProvider>
+                <StatusBar style="auto" />
+                <RootNavigator />
+              </SafeAreaProvider>
+            </ThemeProvider>
+          </ChakraProvider>
         </PersistGate>
       </Provider>
     </GestureHandlerRootView>

@@ -28,4 +28,7 @@ config.resolver.alias = {
 // 5. Add support for additional file extensions
 config.resolver.sourceExts = [...config.resolver.sourceExts, 'mjs', 'cjs'];
 
+// 6. Enable package exports support for @ark-ui/react subpath imports
+config.resolver.unstable_enablePackageExports = true;
+
 module.exports = config;

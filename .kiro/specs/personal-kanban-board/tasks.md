@@ -609,7 +609,7 @@ This implementation plan covers building a cross-platform Personal Kanban Board 
     - Implement focus indicators
     - _Requirements: 13.6_
 
-- [ ] 36. Integration Testing
+- [x] 36. Integration Testing
   - [ ]* 36.1 Write API integration tests
     - Test complete user registration and login flow
     - Test board creation with default sections
@@ -623,7 +623,7 @@ This implementation plan covers building a cross-platform Personal Kanban Board 
     - Test reconnection handling
     - _Requirements: 15.3, 15.4, 15.6_
 
-- [ ] 37. End-to-End Testing
+- [x] 37. End-to-End Testing
   - [ ]* 37.1 Write E2E tests for critical flows
     - Test user registration and login
     - Test board and task management

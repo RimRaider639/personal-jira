@@ -1,15 +1,30 @@
+/**
+ * BoardScreen - Displays a single board with sections and tasks.
+ *
+ * Migrated to Chakra UI with:
+ * - Flex with horizontal scroll for section columns (Req 7.1)
+ * - Card components for section headers with task count Badge (Req 7.2)
+ * - IconButton for section actions with tooltips (Req 7.3, 7.6)
+ * - InputGroup with search icon for search bar (Req 7.4)
+ * - Badge for active filter count (Req 7.5)
+ *
+ * Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6
+ */
+
 import React, { useEffect, useCallback, useState, useMemo } from 'react';
 import {
-  View,
+  Box,
+  Flex,
   Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  Modal,
-  ActivityIndicator,
-  Alert,
-  ScrollView,
-} from 'react-native';
+  HStack,
+  VStack,
+  Badge,
+  Input,
+  Textarea,
+  Icon,
+  Spinner,
+} from '@chakra-ui/react';
+import { Modal, Alert, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDispatch, useAppSelector } from '@/store';
@@ -53,6 +68,25 @@ import {
 } from '@/store/selectors';
 import { DraggableSectionList, ThemedBackground, BoardThemeSelector, DarkModeToggle, DatePicker, FilterPanel, TaskPreviewModal, ProfileAvatar } from '@/components';
 import { useTheme } from '@/theme/ThemeContext';
+import {
+  AppCard,
+  AppCardBody,
+  AppButton,
+  AppIconButton,
+  AppModal,
+  AppTooltip,
+  AppInput,
+} from '@/components/chakra';
+import { useAppToast } from '@/hooks/useToast';
+import {
+  AddIcon,
+  EditIcon,
+  DeleteIcon,
+  SearchIcon,
+  FilterIcon,
+  HomeIcon,
+  CloseIcon,
+} from '@/theme/icons';
 import type { Task, Priority, DueDateFilter } from '@kanban/shared';
 
 interface BoardScreenProps {
@@ -86,8 +120,21 @@ interface CreateSectionModalProps {
   isLoading: boolean;
 }
 
+const BOARD_COLORS = [
+  '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316',
+  '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6',
+];
+
+const PRIORITIES = [
+  { value: 'critical' as const, label: 'Critical', color: '#dc2626' },
+  { value: 'high' as const, label: 'High', color: '#f97316' },
+  { value: 'medium' as const, label: 'Medium', color: '#eab308' },
+  { value: 'low' as const, label: 'Low', color: '#22c55e' },
+];
+
+
 /**
- * CreateSectionModal - Modal for creating a new section
+ * CreateSectionModal - Modal for creating a new section using Chakra UI
  */
 function CreateSectionModal({
   visible,
@@ -114,52 +161,48 @@ function CreateSectionModal({
     onClose();
   }, [onClose]);
 
+  // Reset form when modal opens
+  useEffect(() => {
+    if (visible) {
+      setName('');
+      setError('');
+    }
+  }, [visible]);
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <View style={modalStyles.overlay}>
-        <View style={modalStyles.container}>
-          <Text style={modalStyles.title}>Add Section</Text>
-
-          <View style={modalStyles.inputGroup}>
-            <Text style={modalStyles.label}>Section Name *</Text>
-            <TextInput
-              style={[modalStyles.input, error && modalStyles.inputError]}
-              placeholder="Enter section name"
-              placeholderTextColor="#9ca3af"
-              value={name}
-              onChangeText={(text) => {
-                setName(text);
-                setError('');
-              }}
-              autoFocus
-              editable={!isLoading}
-            />
-            {error && <Text style={modalStyles.errorText}>{error}</Text>}
-          </View>
-
-          <View style={modalStyles.buttons}>
-            <TouchableOpacity
-              style={modalStyles.cancelButton}
-              onPress={handleClose}
-              disabled={isLoading}
-            >
-              <Text style={modalStyles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[modalStyles.submitButton, isLoading && modalStyles.buttonDisabled]}
-              onPress={handleSubmit}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#ffffff" size="small" />
-              ) : (
-                <Text style={modalStyles.submitButtonText}>Add Section</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
+    <AppModal
+      open={visible}
+      onClose={handleClose}
+      title="Add Section"
+      primaryActionText="Add Section"
+      onPrimaryAction={handleSubmit}
+      secondaryActionText="Cancel"
+      onSecondaryAction={handleClose}
+      isLoading={isLoading}
+    >
+      <VStack gap={4} align="stretch">
+        <Box>
+          <Text fontWeight="semibold" mb={2} fontSize="sm">
+            Section Name <Text as="span" color="red.500">*</Text>
+          </Text>
+          <Input
+            placeholder="Enter section name"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              setError('');
+            }}
+            disabled={isLoading}
+            autoFocus
+          />
+          {error && (
+            <Text color="red.500" fontSize="sm" mt={1}>
+              {error}
+            </Text>
+          )}
+        </Box>
+      </VStack>
+    </AppModal>
   );
 }
 
@@ -173,13 +216,8 @@ interface EditBoardModalProps {
   isLoading: boolean;
 }
 
-const BOARD_COLORS = [
-  '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316',
-  '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6',
-];
-
 /**
- * EditBoardModal - Modal for editing board details
+ * EditBoardModal - Modal for editing board details using Chakra UI
  */
 function EditBoardModal({
   visible,
@@ -211,79 +249,81 @@ function EditBoardModal({
   }, [name, description, color, onSubmit]);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={modalStyles.overlay}>
-        <View style={modalStyles.container}>
-          <Text style={modalStyles.title}>Edit Board</Text>
+    <AppModal
+      open={visible}
+      onClose={onClose}
+      title="Edit Board"
+      primaryActionText="Save"
+      onPrimaryAction={handleSubmit}
+      secondaryActionText="Cancel"
+      onSecondaryAction={onClose}
+      isLoading={isLoading}
+    >
+      <VStack gap={4} align="stretch">
+        <Box>
+          <Text fontWeight="semibold" mb={2} fontSize="sm">
+            Board Name <Text as="span" color="red.500">*</Text>
+          </Text>
+          <Input
+            placeholder="Enter board name"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              setError('');
+            }}
+            disabled={isLoading}
+          />
+          {error && (
+            <Text color="red.500" fontSize="sm" mt={1}>
+              {error}
+            </Text>
+          )}
+        </Box>
 
-          <View style={modalStyles.inputGroup}>
-            <Text style={modalStyles.label}>Board Name *</Text>
-            <TextInput
-              style={[modalStyles.input, error && modalStyles.inputError]}
-              placeholder="Enter board name"
-              placeholderTextColor="#9ca3af"
-              value={name}
-              onChangeText={(text) => { setName(text); setError(''); }}
-              editable={!isLoading}
-            />
-            {error && <Text style={modalStyles.errorText}>{error}</Text>}
-          </View>
+        <Box>
+          <Text fontWeight="semibold" mb={2} fontSize="sm">
+            Description (optional)
+          </Text>
+          <Textarea
+            placeholder="Enter description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={isLoading}
+            rows={3}
+          />
+        </Box>
 
-          <View style={modalStyles.inputGroup}>
-            <Text style={modalStyles.label}>Description</Text>
-            <TextInput
-              style={[modalStyles.input, { minHeight: 80, textAlignVertical: 'top' }]}
-              placeholder="Enter description (optional)"
-              placeholderTextColor="#9ca3af"
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={3}
-              editable={!isLoading}
-            />
-          </View>
-
-          <View style={modalStyles.inputGroup}>
-            <Text style={modalStyles.label}>Color</Text>
-            <View style={modalStyles.colorPicker}>
-              {BOARD_COLORS.map((c) => (
-                <TouchableOpacity
-                  key={c}
-                  style={[
-                    modalStyles.colorOption,
-                    { backgroundColor: c },
-                    color === c && modalStyles.colorSelected,
-                  ]}
-                  onPress={() => setColor(c)}
-                />
-              ))}
-            </View>
-          </View>
-
-          <View style={modalStyles.buttons}>
-            <TouchableOpacity style={modalStyles.cancelButton} onPress={onClose} disabled={isLoading}>
-              <Text style={modalStyles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[modalStyles.submitButton, { backgroundColor: color }, isLoading && modalStyles.buttonDisabled]}
-              onPress={handleSubmit}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#ffffff" size="small" />
-              ) : (
-                <Text style={modalStyles.submitButtonText}>Save</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
+        <Box>
+          <Text fontWeight="semibold" mb={2} fontSize="sm">
+            Color
+          </Text>
+          <HStack gap={2} wrap="wrap">
+            {BOARD_COLORS.map((c) => (
+              <Box
+                key={c}
+                w="32px"
+                h="32px"
+                borderRadius="full"
+                bg={c}
+                cursor="pointer"
+                borderWidth={color === c ? '3px' : '0'}
+                borderColor="white"
+                boxShadow={color === c ? 'md' : 'none'}
+                onClick={() => setColor(c)}
+                _hover={{ transform: 'scale(1.1)' }}
+                transition="transform 0.2s"
+              />
+            ))}
+          </HStack>
+        </Box>
+      </VStack>
+    </AppModal>
   );
 }
 
+
 /**
- * CreateTaskModal - Modal for creating a new task with all fields
+ * CreateTaskModal - Modal for creating a new task with all fields using Chakra UI
  */
 function CreateTaskModal({
   visible,
@@ -299,13 +339,6 @@ function CreateTaskModal({
   const [storyPoints, setStoryPoints] = useState('');
   const [endDate, setEndDate] = useState('');
   const [error, setError] = useState('');
-
-  const PRIORITIES = [
-    { value: 'critical' as const, label: 'Critical', color: '#dc2626' },
-    { value: 'high' as const, label: 'High', color: '#f97316' },
-    { value: 'medium' as const, label: 'Medium', color: '#eab308' },
-    { value: 'low' as const, label: 'Low', color: '#22c55e' },
-  ];
 
   const handleSubmit = useCallback(() => {
     if (!title.trim()) {
@@ -342,251 +375,130 @@ function CreateTaskModal({
     onClose();
   }, [onClose]);
 
+  // Reset form when modal opens
+  useEffect(() => {
+    if (visible) {
+      setTitle('');
+      setDescription('');
+      setPriority(null);
+      setStoryPoints('');
+      setEndDate('');
+      setError('');
+    }
+  }, [visible]);
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <View style={modalStyles.overlay}>
-        <View style={[modalStyles.container, { maxHeight: '90%' }]}>
-          <Text style={modalStyles.title}>Add Task to {sectionName}</Text>
+    <AppModal
+      open={visible}
+      onClose={handleClose}
+      title={`Add Task to ${sectionName}`}
+      primaryActionText="Add Task"
+      onPrimaryAction={handleSubmit}
+      secondaryActionText="Cancel"
+      onSecondaryAction={handleClose}
+      isLoading={isLoading}
+      size="lg"
+    >
+      <VStack gap={4} align="stretch">
+        {/* Title */}
+        <Box>
+          <Text fontWeight="semibold" mb={2} fontSize="sm">
+            Task Title <Text as="span" color="red.500">*</Text>
+          </Text>
+          <Input
+            placeholder="Enter task title"
+            value={title}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              setError('');
+            }}
+            disabled={isLoading}
+            autoFocus
+          />
+          {error && (
+            <Text color="red.500" fontSize="sm" mt={1}>
+              {error}
+            </Text>
+          )}
+        </Box>
 
-          {/* Title */}
-          <View style={modalStyles.inputGroup}>
-            <Text style={modalStyles.label}>Task Title *</Text>
-            <TextInput
-              style={[modalStyles.input, error && modalStyles.inputError]}
-              placeholder="Enter task title"
-              placeholderTextColor="#9ca3af"
-              value={title}
-              onChangeText={(text) => {
-                setTitle(text);
-                setError('');
-              }}
-              autoFocus
-              editable={!isLoading}
-            />
-            {error && <Text style={modalStyles.errorText}>{error}</Text>}
-          </View>
+        {/* Description */}
+        <Box>
+          <Text fontWeight="semibold" mb={2} fontSize="sm">
+            Description (optional)
+          </Text>
+          <Textarea
+            placeholder="Enter description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={isLoading}
+            rows={3}
+          />
+        </Box>
 
-          {/* Description */}
-          <View style={modalStyles.inputGroup}>
-            <Text style={modalStyles.label}>Description</Text>
-            <TextInput
-              style={[modalStyles.input, { minHeight: 80, textAlignVertical: 'top' }]}
-              placeholder="Enter description (optional)"
-              placeholderTextColor="#9ca3af"
-              value={description}
-              onChangeText={setDescription}
-              multiline
-              numberOfLines={3}
-              editable={!isLoading}
-            />
-          </View>
-
-          {/* Priority */}
-          <View style={modalStyles.inputGroup}>
-            <Text style={modalStyles.label}>Priority</Text>
-            <View style={modalStyles.priorityRow}>
-              {PRIORITIES.map((p) => (
-                <TouchableOpacity
-                  key={p.value}
-                  style={[
-                    modalStyles.priorityButton,
-                    priority === p.value && { backgroundColor: p.color + '20', borderColor: p.color },
-                  ]}
-                  onPress={() => setPriority(priority === p.value ? null : p.value)}
-                  disabled={isLoading}
-                >
-                  <View style={[modalStyles.priorityDot, { backgroundColor: p.color }]} />
-                  <Text style={[modalStyles.priorityText, priority === p.value && { color: p.color }]}>
+        {/* Priority */}
+        <Box>
+          <Text fontWeight="semibold" mb={2} fontSize="sm">
+            Priority
+          </Text>
+          <HStack gap={2} wrap="wrap">
+            {PRIORITIES.map((p) => (
+              <Badge
+                key={p.value}
+                px={3}
+                py={2}
+                borderRadius="md"
+                cursor="pointer"
+                variant={priority === p.value ? 'solid' : 'outline'}
+                bg={priority === p.value ? `${p.color}20` : 'transparent'}
+                borderColor={priority === p.value ? p.color : 'gray.300'}
+                borderWidth="1px"
+                onClick={() => setPriority(priority === p.value ? null : p.value)}
+              >
+                <HStack gap={1}>
+                  <Box w="8px" h="8px" borderRadius="full" bg={p.color} />
+                  <Text fontSize="sm" color={priority === p.value ? p.color : 'fg'}>
                     {p.label}
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+                </HStack>
+              </Badge>
+            ))}
+          </HStack>
+        </Box>
 
-          {/* Story Points and Due Date Row */}
-          <View style={modalStyles.rowGroup}>
-            <View style={[modalStyles.inputGroup, { flex: 1, marginRight: 8 }]}>
-              <Text style={modalStyles.label}>Story Points</Text>
-              <TextInput
-                style={modalStyles.input}
-                placeholder="0"
-                placeholderTextColor="#9ca3af"
-                value={storyPoints}
-                onChangeText={setStoryPoints}
-                keyboardType="numeric"
-                editable={!isLoading}
-              />
-            </View>
-            <View style={[modalStyles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-              <Text style={modalStyles.label}>Due Date</Text>
-              <DatePicker
-                value={endDate}
-                onChange={setEndDate}
-                placeholder="Select date"
-              />
-            </View>
-          </View>
-
-          <View style={modalStyles.buttons}>
-            <TouchableOpacity
-              style={modalStyles.cancelButton}
-              onPress={handleClose}
+        {/* Story Points and Due Date Row */}
+        <Flex gap={4}>
+          <Box flex={1}>
+            <Text fontWeight="semibold" mb={2} fontSize="sm">
+              Story Points
+            </Text>
+            <Input
+              placeholder="0"
+              value={storyPoints}
+              onChange={(e) => setStoryPoints(e.target.value)}
+              type="number"
               disabled={isLoading}
-            >
-              <Text style={modalStyles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[modalStyles.submitButton, isLoading && modalStyles.buttonDisabled]}
-              onPress={handleSubmit}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#ffffff" size="small" />
-              ) : (
-                <Text style={modalStyles.submitButtonText}>Add Task</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
+            />
+          </Box>
+          <Box flex={1}>
+            <Text fontWeight="semibold" mb={2} fontSize="sm">
+              Due Date
+            </Text>
+            <DatePicker
+              value={endDate}
+              onChange={setEndDate}
+              placeholder="Select date"
+            />
+          </Box>
+        </Flex>
+      </VStack>
+    </AppModal>
   );
 }
 
-const modalStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  container: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 24,
-    width: '100%',
-    maxWidth: 500,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 20,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  rowGroup: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#f9fafb',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#1f2937',
-  },
-  inputError: {
-    borderColor: '#ef4444',
-  },
-  errorText: {
-    color: '#ef4444',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  priorityRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  priorityButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  priorityDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  priorityText: {
-    fontSize: 13,
-    color: '#374151',
-  },
-  buttons: {
-    flexDirection: 'row',
-    marginTop: 8,
-  },
-  cancelButton: {
-    flex: 1,
-    padding: 16,
-    alignItems: 'center',
-    marginRight: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  cancelButtonText: {
-    color: '#6b7280',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  submitButton: {
-    flex: 1,
-    padding: 16,
-    alignItems: 'center',
-    marginLeft: 8,
-    borderRadius: 12,
-    backgroundColor: '#6366f1',
-  },
-  buttonDisabled: {
-    backgroundColor: '#a5b4fc',
-  },
-  submitButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  colorPicker: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  colorOption: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-  },
-  colorSelected: {
-    borderWidth: 3,
-    borderColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-});
 
 /**
- * ArchivedTasksModal - Modal for viewing and restoring archived tasks
+ * ArchivedTasksModal - Modal for viewing and restoring archived tasks using Chakra UI
  */
 interface ArchivedTasksModalProps {
   visible: boolean;
@@ -602,168 +514,318 @@ function ArchivedTasksModal({
   onUnarchive,
 }: ArchivedTasksModalProps): React.JSX.Element {
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={archivedModalStyles.overlay}>
-        <View style={archivedModalStyles.container}>
-          <View style={archivedModalStyles.header}>
-            <Text style={archivedModalStyles.title}>Archived Tasks ({tasks.length})</Text>
-            <TouchableOpacity onPress={onClose} style={archivedModalStyles.closeButton}>
-              <Text style={archivedModalStyles.closeButtonText}>×</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <ScrollView style={archivedModalStyles.taskList} showsVerticalScrollIndicator={false}>
-            {tasks.length === 0 ? (
-              <View style={archivedModalStyles.emptyState}>
-                <Text style={archivedModalStyles.emptyIcon}>📦</Text>
-                <Text style={archivedModalStyles.emptyText}>No archived tasks</Text>
-                <Text style={archivedModalStyles.emptySubtext}>
-                  Tasks in "Done" sections will be archived when you start a new sprint
-                </Text>
-              </View>
-            ) : (
-              tasks.map((task) => (
-                <View key={task.id} style={archivedModalStyles.taskItem}>
-                  <View style={archivedModalStyles.taskInfo}>
-                    <Text style={archivedModalStyles.taskTitle} numberOfLines={2}>
+    <AppModal
+      open={visible}
+      onClose={onClose}
+      title={`Archived Tasks (${tasks.length})`}
+      size="lg"
+    >
+      <Box maxH="60vh" overflowY="auto">
+        {tasks.length === 0 ? (
+          <VStack py={10} gap={4}>
+            <Text fontSize="4xl">📦</Text>
+            <Text fontWeight="semibold" color="fg">
+              No archived tasks
+            </Text>
+            <Text fontSize="sm" color="fg.muted" textAlign="center">
+              Tasks in "Done" sections will be archived when you start a new sprint
+            </Text>
+          </VStack>
+        ) : (
+          <VStack gap={3} align="stretch">
+            {tasks.map((task) => (
+              <AppCard key={task.id} variant="outline" p={4}>
+                <Flex justify="space-between" align="center" gap={3}>
+                  <Box flex={1}>
+                    <Text fontWeight="semibold" fontSize="sm" lineClamp={2} color="fg">
                       {task.title}
                     </Text>
                     {task.description && (
-                      <Text style={archivedModalStyles.taskDescription} numberOfLines={1}>
+                      <Text fontSize="xs" color="fg.muted" lineClamp={1} mt={1}>
                         {task.description}
                       </Text>
                     )}
-                    <Text style={archivedModalStyles.taskDate}>
+                    <Text fontSize="xs" color="fg.muted" mt={1}>
                       Archived: {new Date(task.updatedAt).toLocaleDateString()}
                     </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={archivedModalStyles.restoreButton}
-                    onPress={() => onUnarchive(task.id)}
+                  </Box>
+                  <AppButton
+                    intent="primary"
+                    size="sm"
+                    onClick={() => onUnarchive(task.id)}
                   >
-                    <Text style={archivedModalStyles.restoreButtonText}>Restore</Text>
-                  </TouchableOpacity>
-                </View>
-              ))
-            )}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
+                    Restore
+                  </AppButton>
+                </Flex>
+              </AppCard>
+            ))}
+          </VStack>
+        )}
+      </Box>
+    </AppModal>
   );
 }
 
-const archivedModalStyles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  container: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    width: '100%',
-    maxWidth: 500,
-    maxHeight: '80%',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#f3f4f6',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    fontSize: 24,
-    color: '#6b7280',
-    lineHeight: 28,
-  },
-  taskList: {
-    padding: 16,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 16,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#9ca3af',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-  taskItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  taskInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  taskTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  taskDescription: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginBottom: 4,
-  },
-  taskDate: {
-    fontSize: 12,
-    color: '#9ca3af',
-  },
-  restoreButton: {
-    backgroundColor: '#6366f1',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  restoreButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});
+/**
+ * SearchBar - Search input with Chakra UI InputGroup and search icon
+ * Requirements: 7.4
+ */
+interface SearchBarProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}
+
+function SearchBar({ value, onChange, placeholder = 'Search tasks...' }: SearchBarProps): React.JSX.Element {
+  return (
+    <Box position="relative" w="full" maxW="300px">
+      <Box
+        position="absolute"
+        left={3}
+        top="50%"
+        transform="translateY(-50%)"
+        zIndex={1}
+        color="fg.muted"
+      >
+        <Icon boxSize={4}>
+          <SearchIcon />
+        </Icon>
+      </Box>
+      <Input
+        pl={10}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        bg="bg"
+        borderRadius="md"
+        size="sm"
+      />
+    </Box>
+  );
+}
+
+/**
+ * FilterCountBadge - Badge showing active filter count
+ * Requirements: 7.5
+ */
+interface FilterCountBadgeProps {
+  filteredCount: number;
+  totalCount: number;
+  onClear: () => void;
+}
+
+function FilterCountBadge({ filteredCount, totalCount, onClear }: FilterCountBadgeProps): React.JSX.Element {
+  return (
+    <Flex
+      align="center"
+      justify="space-between"
+      px={4}
+      py={2}
+      bg="brand.50"
+      borderRadius="md"
+    >
+      <HStack gap={2}>
+        <Badge colorPalette="brand" variant="solid">
+          {filteredCount} of {totalCount}
+        </Badge>
+        <Text fontSize="sm" color="brand.700">
+          tasks shown
+        </Text>
+      </HStack>
+      <AppButton
+        intent="ghost"
+        size="sm"
+        onClick={onClear}
+        tooltip="Clear all filters"
+      >
+        Clear
+      </AppButton>
+    </Flex>
+  );
+}
+
+
+/**
+ * BoardHeader - Header component with Chakra UI styling
+ * Requirements: 7.3, 7.5, 7.6
+ */
+interface BoardHeaderProps {
+  board: { name: string; color?: string | null };
+  user: { displayName?: string } | null;
+  hasActiveFilters: boolean;
+  filteredCount: number;
+  totalCount: number;
+  archivedTasksCount: number;
+  isStartingSprint: boolean;
+  onBack?: () => void;
+  onEditBoard: () => void;
+  onShowArchived: () => void;
+  onStartSprint: () => void;
+  onOpenFilters: () => void;
+  onLogout: () => void;
+  boardId: string;
+}
+
+function BoardHeader({
+  board,
+  user,
+  hasActiveFilters,
+  filteredCount,
+  totalCount,
+  archivedTasksCount,
+  isStartingSprint,
+  onBack,
+  onEditBoard,
+  onShowArchived,
+  onStartSprint,
+  onOpenFilters,
+  onLogout,
+  boardId,
+}: BoardHeaderProps): React.JSX.Element {
+  return (
+    <Flex
+      align="center"
+      justify="space-between"
+      p={4}
+      bg={board.color || 'brand.500'}
+    >
+      {/* Left side - Back button and board name */}
+      <HStack gap={3} flex={1}>
+        {onBack && (
+          <AppTooltip label="Go to home" placement="bottom">
+            <AppIconButton
+              intent="ghost"
+              aria-label="Go to home"
+              onClick={onBack}
+              bg="whiteAlpha.200"
+              color="white"
+              _hover={{ bg: 'whiteAlpha.300' }}
+            >
+              <HomeIcon />
+            </AppIconButton>
+          </AppTooltip>
+        )}
+        <Box cursor="pointer" onClick={onEditBoard}>
+          <Text fontSize="xl" fontWeight="bold" color="white" lineClamp={1}>
+            {board.name}
+          </Text>
+          <Text fontSize="xs" color="whiteAlpha.700">
+            Tap to edit
+          </Text>
+        </Box>
+      </HStack>
+
+      {/* Right side - Actions */}
+      <HStack gap={2}>
+        {/* Archived tasks button - Requirement 7.3 */}
+        <AppTooltip label="View archived tasks" placement="bottom">
+          <Box position="relative">
+            <AppIconButton
+              intent="ghost"
+              aria-label="View archived tasks"
+              onClick={onShowArchived}
+              bg="whiteAlpha.200"
+              color="white"
+              _hover={{ bg: 'whiteAlpha.300' }}
+            >
+              <Text fontSize="lg">📦</Text>
+            </AppIconButton>
+            {archivedTasksCount > 0 && (
+              <Badge
+                position="absolute"
+                top={-1}
+                right={-1}
+                colorPalette="orange"
+                variant="solid"
+                borderRadius="full"
+                fontSize="xs"
+                minW="18px"
+                h="18px"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+              >
+                {archivedTasksCount > 99 ? '99+' : archivedTasksCount}
+              </Badge>
+            )}
+          </Box>
+        </AppTooltip>
+
+        {/* Start Sprint button - Requirement 7.3 */}
+        <AppTooltip label="Start new sprint" placement="bottom">
+          <AppButton
+            intent="ghost"
+            size="sm"
+            onClick={onStartSprint}
+            loading={isStartingSprint}
+            bg="whiteAlpha.200"
+            color="white"
+            _hover={{ bg: 'whiteAlpha.300' }}
+          >
+            🚀 Sprint
+          </AppButton>
+        </AppTooltip>
+
+        {/* Filter button with active indicator - Requirements 7.3, 7.5, 7.6 */}
+        <AppTooltip
+          label={hasActiveFilters ? `Filters active: ${filteredCount} of ${totalCount} tasks` : 'Open filters'}
+          placement="bottom"
+        >
+          <Box position="relative">
+            <AppIconButton
+              intent="ghost"
+              aria-label={hasActiveFilters ? `Filters active, ${filteredCount} of ${totalCount} tasks` : 'Open filters'}
+              onClick={onOpenFilters}
+              bg={hasActiveFilters ? 'whiteAlpha.400' : 'whiteAlpha.200'}
+              color="white"
+              _hover={{ bg: 'whiteAlpha.300' }}
+            >
+              <FilterIcon />
+            </AppIconButton>
+            {hasActiveFilters && (
+              <Box
+                position="absolute"
+                top={1}
+                right={1}
+                w="8px"
+                h="8px"
+                borderRadius="full"
+                bg="red.500"
+              />
+            )}
+          </Box>
+        </AppTooltip>
+
+        <DarkModeToggle />
+        <BoardThemeSelector boardId={boardId} />
+        <ProfileAvatar
+          displayName={user?.displayName || 'User'}
+          onLogout={onLogout}
+        />
+      </HStack>
+    </Flex>
+  );
+}
+
 
 /**
  * BoardScreen - Displays a single board with sections and tasks.
  * Supports drag-and-drop for task reordering and section reordering.
  *
+ * Migrated to Chakra UI with:
+ * - Flex with horizontal scroll for section columns (Req 7.1)
+ * - Card components for section headers with task count Badge (Req 7.2)
+ * - IconButton for section actions with tooltips (Req 7.3, 7.6)
+ * - InputGroup with search icon for search bar (Req 7.4)
+ * - Badge for active filter count (Req 7.5)
+ *
  * Requirements:
+ * - 7.1: Flex with horizontal scroll for section columns
+ * - 7.2: Card components for section headers with task count badge
+ * - 7.3: IconButton for section actions
+ * - 7.4: InputGroup with search icon for search bar
+ * - 7.5: Badge for active filter count
+ * - 7.6: Tooltips on section action buttons
  * - 2.6: Enable section reordering via drag
  * - 2.7: Display sections as columns in the board view
  * - 4.3: Handle task reordering within section
@@ -779,6 +841,7 @@ export function BoardScreen({
 }: BoardScreenProps): React.JSX.Element {
   const dispatch = useAppDispatch();
   const { colors, getEffectiveTheme, getBoardTheme } = useTheme();
+  const toast = useAppToast();
 
   // Get board-specific theme if set
   const boardTheme = boardId ? getEffectiveTheme(boardId) : null;
@@ -931,9 +994,10 @@ export function BoardScreen({
             data: { sectionId: newSectionId, position: 0 },
           })
         );
+        toast.showInfo('Task moved', 'Task has been moved to the new section');
       }
     },
-    [dispatch, tasksBySectionId]
+    [dispatch, tasksBySectionId, toast]
   );
 
   /**
@@ -957,10 +1021,10 @@ export function BoardScreen({
           await dispatch(assignEpicToTask({ taskId, epicId })).unwrap();
         }
       } catch {
-        Alert.alert('Error', 'Failed to update epic assignment');
+        toast.showError('Error', 'Failed to update epic assignment');
       }
     },
-    [dispatch, tasksBySectionId]
+    [dispatch, tasksBySectionId, toast]
   );
 
   /**
@@ -1008,13 +1072,14 @@ export function BoardScreen({
           } 
         })).unwrap();
         setCreateTaskModal({ visible: false, sectionId: null, sectionName: '' });
+        toast.showSuccess('Task created', 'Your new task has been added');
       } catch {
-        Alert.alert('Error', 'Failed to create task. Please try again.');
+        toast.showError('Error', 'Failed to create task. Please try again.');
       } finally {
         setIsCreatingTask(false);
       }
     },
-    [dispatch, boardId]
+    [dispatch, boardId, toast]
   );
 
   /**
@@ -1033,13 +1098,14 @@ export function BoardScreen({
       try {
         await dispatch(createSection({ boardId, name })).unwrap();
         setCreateSectionModalVisible(false);
+        toast.showSuccess('Section created', 'Your new section has been added');
       } catch {
-        Alert.alert('Error', 'Failed to create section. Please try again.');
+        toast.showError('Error', 'Failed to create section. Please try again.');
       } finally {
         setIsCreatingSection(false);
       }
     },
-    [dispatch, boardId]
+    [dispatch, boardId, toast]
   );
 
   /**
@@ -1051,14 +1117,16 @@ export function BoardScreen({
       try {
         await dispatch(updateBoard({ id: boardId, data: { name, description: description || undefined, color } })).unwrap();
         setEditBoardModalVisible(false);
+        toast.showSuccess('Board updated', 'Your board has been updated');
       } catch {
-        Alert.alert('Error', 'Failed to update board. Please try again.');
+        toast.showError('Error', 'Failed to update board. Please try again.');
       } finally {
         setIsUpdatingBoard(false);
       }
     },
-    [dispatch, boardId]
+    [dispatch, boardId, toast]
   );
+
 
   /**
    * Filter handlers
@@ -1114,24 +1182,16 @@ export function BoardScreen({
     setIsStartingSprint(true);
     try {
       const result = await dispatch(startSprint(boardId)).unwrap();
-      if (typeof window !== 'undefined' && window.alert) {
-        window.alert(`Sprint Started! ${result.archivedCount} tasks have been archived.`);
-      } else {
-        Alert.alert('Sprint Started', `${result.archivedCount} tasks have been archived.`);
-      }
+      toast.showSuccess('Sprint Started', `${result.archivedCount} tasks have been archived.`);
       // Refresh tasks to reflect changes
       dispatch(fetchTasks(boardId));
     } catch (error) {
       console.error('Sprint start error:', error);
-      if (typeof window !== 'undefined' && window.alert) {
-        window.alert('Failed to start sprint. Please try again.');
-      } else {
-        Alert.alert('Error', 'Failed to start sprint. Please try again.');
-      }
+      toast.showError('Error', 'Failed to start sprint. Please try again.');
     } finally {
       setIsStartingSprint(false);
     }
-  }, [dispatch, boardId]);
+  }, [dispatch, boardId, toast]);
 
   /**
    * Handle opening archived tasks modal
@@ -1149,10 +1209,11 @@ export function BoardScreen({
       await dispatch(unarchiveTask({ boardId, taskId })).unwrap();
       // Refresh tasks to show the restored task
       dispatch(fetchTasks(boardId));
+      toast.showSuccess('Task restored', 'The task has been restored');
     } catch {
-      Alert.alert('Error', 'Failed to restore task. Please try again.');
+      toast.showError('Error', 'Failed to restore task. Please try again.');
     }
-  }, [dispatch, boardId]);
+  }, [dispatch, boardId, toast]);
 
   /**
    * Handle logout
@@ -1176,113 +1237,63 @@ export function BoardScreen({
       try {
         await dispatch(toggleTaskPin(taskId)).unwrap();
       } catch {
-        Alert.alert('Error', 'Failed to update pin status');
+        toast.showError('Error', 'Failed to update pin status');
       }
     },
-    [dispatch]
+    [dispatch, toast]
   );
 
+  // Loading state
   if (!boardId || !board) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: effectiveColors.background }]}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={effectiveColors.primary} />
-          <Text style={[styles.loadingText, { color: effectiveColors.textSecondary }]}>Loading board...</Text>
-        </View>
+      <SafeAreaView style={{ flex: 1, backgroundColor: effectiveColors.background }}>
+        <Flex flex={1} align="center" justify="center" direction="column" gap={4}>
+          <Spinner size="lg" color="brand.500" />
+          <Text color="fg.muted">Loading board...</Text>
+        </Flex>
       </SafeAreaView>
     );
   }
 
   return (
     <ThemedBackground boardId={boardId}>
-      <SafeAreaView style={styles.container}>
-        {/* Header */}
-        <View style={[styles.header, { backgroundColor: board.color || effectiveColors.primary }]}>
-          <View style={styles.headerLeft}>
-            {onBack && (
-              <TouchableOpacity
-                style={styles.homeButton}
-                onPress={onBack}
-                accessibilityRole="button"
-                accessibilityLabel="Go to home"
-              >
-                <Text style={styles.homeButtonText}>🏠</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity 
-              style={styles.headerContent}
-              onPress={() => setEditBoardModalVisible(true)}
-            >
-              <Text style={styles.title} numberOfLines={1}>
-                {board.name}
-              </Text>
-              <Text style={styles.editHint}>Tap to edit</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.headerRight}>
-            {/* Sprint Management Buttons */}
-            <TouchableOpacity 
-              style={styles.headerIconButton}
-              onPress={handleShowArchived}
-              accessibilityLabel="View archived tasks"
-            >
-              <Text style={styles.headerIconText}>📦</Text>
-              {archivedTasks.length > 0 && (
-                <View style={styles.archiveBadge}>
-                  <Text style={styles.archiveBadgeText}>{archivedTasks.length > 99 ? '99+' : archivedTasks.length}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={[styles.headerButton, isStartingSprint && styles.headerButtonDisabled]}
-              onPress={handleStartSprint}
-              disabled={isStartingSprint}
-              accessibilityLabel="Start new sprint"
-            >
-              {isStartingSprint ? (
-                <ActivityIndicator size="small" color="#ffffff" />
-              ) : (
-                <Text style={styles.headerButtonText}>🚀 Sprint</Text>
-              )}
-            </TouchableOpacity>
-            {/* Filter Button */}
-            <TouchableOpacity 
-              style={[styles.headerIconButton, hasActiveFilters && styles.headerIconButtonActive]} 
-              onPress={() => setFilterPanelVisible(true)}
-              accessibilityLabel={hasActiveFilters ? `Filters active, ${filteredCount} of ${totalCount} tasks` : 'Open filters'}
-            >
-              <Text style={styles.headerIconText}>⚙️</Text>
-              {hasActiveFilters && <View style={styles.filterActiveDot} />}
-            </TouchableOpacity>
-            <DarkModeToggle />
-            <BoardThemeSelector boardId={boardId} />
-            <ProfileAvatar
-              displayName={user?.displayName || 'User'}
-              onLogout={handleLogout}
-            />
-          </View>
-        </View>
+      <SafeAreaView style={{ flex: 1 }}>
+        {/* Header - Requirements 7.3, 7.5, 7.6 */}
+        <BoardHeader
+          board={board}
+          user={user}
+          hasActiveFilters={hasActiveFilters}
+          filteredCount={filteredCount}
+          totalCount={totalCount}
+          archivedTasksCount={archivedTasks.length}
+          isStartingSprint={isStartingSprint}
+          onBack={onBack}
+          onEditBoard={() => setEditBoardModalVisible(true)}
+          onShowArchived={handleShowArchived}
+          onStartSprint={handleStartSprint}
+          onOpenFilters={() => setFilterPanelVisible(true)}
+          onLogout={handleLogout}
+          boardId={boardId}
+        />
 
-        {/* Filter count indicator (only when filters active) */}
+        {/* Filter count indicator - Requirement 7.5 */}
         {hasActiveFilters && (
-          <View style={[styles.filterIndicator, { backgroundColor: effectiveColors.primaryLight }]}>
-            <Text style={[styles.filterIndicatorText, { color: effectiveColors.primary }]}>
-              Showing {filteredCount} of {totalCount} tasks
-            </Text>
-            <TouchableOpacity onPress={handleClearFilters}>
-              <Text style={[styles.clearFiltersText, { color: effectiveColors.error }]}>Clear</Text>
-            </TouchableOpacity>
-          </View>
+          <FilterCountBadge
+            filteredCount={filteredCount}
+            totalCount={totalCount}
+            onClear={handleClearFilters}
+          />
         )}
 
-        {/* Board content */}
+        {/* Board content - Requirement 7.1: Flex with horizontal scroll */}
         {isLoading && sections.length === 0 ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={effectiveColors.primary} />
-            <Text style={[styles.loadingText, { color: effectiveColors.textSecondary }]}>Loading sections...</Text>
-          </View>
+          <Flex flex={1} align="center" justify="center" direction="column" gap={4}>
+            <Spinner size="lg" color="brand.500" />
+            <Text color="fg.muted">Loading sections...</Text>
+          </Flex>
         ) : (
-          <View style={styles.boardContent}>
+          <Box flex={1}>
+            {/* DraggableSectionList provides horizontal scroll for sections - Requirement 7.1 */}
             <DraggableSectionList
               sections={sections}
               tasksBySectionId={tasksBySectionId}
@@ -1297,7 +1308,7 @@ export function BoardScreen({
               onAddTask={handleAddTask}
               onAddSection={handleAddSection}
             />
-          </View>
+          </Box>
         )}
 
         {/* Task Preview Modal */}
@@ -1364,147 +1375,5 @@ export function BoardScreen({
     </ThemedBackground>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-  },
-  headerLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  headerButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 8,
-    marginRight: 8,
-  },
-  headerButtonText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  headerIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-  },
-  headerIconButtonActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.35)',
-  },
-  headerIconText: {
-    fontSize: 18,
-  },
-  filterActiveDot: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#ef4444',
-  },
-  archiveBadge: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#f97316',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  archiveBadgeText: {
-    color: '#ffffff',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  headerButtonDisabled: {
-    opacity: 0.6,
-  },
-  themeSelectorWrapper: {
-    marginLeft: 8,
-  },
-  homeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  homeButtonText: {
-    fontSize: 20,
-  },
-  backButton: {
-    marginRight: 12,
-    padding: 4,
-  },
-  backButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  headerContent: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  editHint: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginTop: 2,
-  },
-  filterIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  filterIndicatorText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  clearFiltersText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-  },
-  boardContent: {
-    flex: 1,
-  },
-});
 
 export default BoardScreen;

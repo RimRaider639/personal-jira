@@ -1,8 +1,29 @@
 import React, { useCallback, useMemo, memo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import {
+  Box,
+  Card,
+  Text,
+  HStack,
+  Badge,
+  Tag,
+  Menu,
+  Portal,
+  Image,
+  Flex,
+  IconButton,
+} from '@chakra-ui/react';
+import {
+  FiCalendar,
+  FiMessageCircle,
+  FiPaperclip,
+  FiFlag,
+  FiMoreVertical,
+  FiArrowRight,
+  FiMapPin,
+  FiTag,
+} from 'react-icons/fi';
 import type { Task, Epic, Section } from '@kanban/shared';
-import { useTheme } from '@/theme/ThemeContext';
-import { TaskCardMenu } from './TaskCardMenu';
+import { AppTooltip } from './chakra';
 
 interface TaskCardProps {
   task: Task;
@@ -17,16 +38,19 @@ interface TaskCardProps {
 }
 
 /**
- * TaskCard - Individual task card component with drag support
+ * TaskCard - Individual task card component with Chakra UI
  * Memoized for performance optimization.
- * Now includes theme support and quick move menu.
  *
  * Requirements:
- * - 4.1: Display task title, priority indicator, due date
- * - 5.9: Show epic badges for associated epics
- * - 10.4: Visual feedback for overdue tasks
- * - 11.3: Show task count indicators
- * - 13.2: Optimize re-renders with React.memo
+ * - 8.1: Use Chakra UI Card component with configurable border-left color based on priority
+ * - 8.2: Use Chakra UI Text component with proper typography for task title
+ * - 8.3: Use Chakra UI Tag components for epic badges with epic colors
+ * - 8.4: Use Chakra UI HStack for metadata row containing due date, comments count, and attachments count with icons
+ * - 8.5: Display overdue dates in red color scheme
+ * - 8.6: Use Chakra UI Badge for story points display
+ * - 8.7: Display a subtle shadow increase on hover
+ * - 8.8: Use Chakra UI Menu triggered by IconButton for quick actions (move, pin, assign epic)
+ * - 2.3: Show icons for due date (calendar), comments (chat), attachments (paperclip), priority (flag)
  */
 function TaskCardComponent({
   task,
@@ -39,32 +63,29 @@ function TaskCardComponent({
   onEpicPress,
   isDragging = false,
 }: TaskCardProps): React.JSX.Element {
-  const { colors } = useTheme();
-
   const handlePress = useCallback(() => {
     onPress(task.id);
   }, [task.id, onPress]);
 
   const handleMove = useCallback(
-    (taskId: string, newSectionId: string) => {
-      onMove?.(taskId, newSectionId);
+    (sectionId: string) => {
+      if (sectionId !== task.sectionId) {
+        onMove?.(task.id, sectionId);
+      }
     },
-    [onMove]
+    [task.id, task.sectionId, onMove]
   );
 
   const handleToggleEpic = useCallback(
-    (taskId: string, epicId: string) => {
-      onToggleEpic?.(taskId, epicId);
+    (epicId: string) => {
+      onToggleEpic?.(task.id, epicId);
     },
-    [onToggleEpic]
+    [task.id, onToggleEpic]
   );
 
-  const handleTogglePin = useCallback(
-    (taskId: string) => {
-      onTogglePin?.(taskId);
-    },
-    [onTogglePin]
-  );
+  const handleTogglePin = useCallback(() => {
+    onTogglePin?.(task.id);
+  }, [task.id, onTogglePin]);
 
   const handleEpicPress = useCallback(
     (epicId: string) => {
@@ -78,21 +99,39 @@ function TaskCardComponent({
     [epics, task.epicIds]
   );
 
+  // Priority color mapping for border-left (Requirement 8.1)
   const priorityColor = useMemo(() => {
     switch (task.priority) {
       case 'critical':
-        return colors.priorityCritical;
+        return 'red.500';
       case 'high':
-        return colors.priorityHigh;
+        return 'orange.500';
       case 'medium':
-        return colors.priorityMedium;
+        return 'yellow.500';
       case 'low':
-        return colors.priorityLow;
+        return 'green.500';
       default:
         return 'transparent';
     }
-  }, [task.priority, colors]);
+  }, [task.priority]);
 
+  // Priority label for tooltip (Requirement 12.3)
+  const priorityLabel = useMemo(() => {
+    switch (task.priority) {
+      case 'critical':
+        return 'Critical Priority';
+      case 'high':
+        return 'High Priority';
+      case 'medium':
+        return 'Medium Priority';
+      case 'low':
+        return 'Low Priority';
+      default:
+        return null;
+    }
+  }, [task.priority]);
+
+  // Check if task is overdue (Requirement 8.5)
   const isOverdue = useMemo(() => {
     if (!task.endDate) return false;
     return new Date(task.endDate) < new Date();
@@ -106,239 +145,315 @@ function TaskCardComponent({
     });
   }, [task.endDate]);
 
-  return (
-    <TouchableOpacity
-      style={[
-        styles.card,
-        {
-          backgroundColor: colors.cardBackground,
-          borderColor: colors.cardBorder,
-          shadowColor: colors.cardShadow,
-        },
-        isDragging && styles.cardDragging,
-      ]}
-      onPress={handlePress}
-      activeOpacity={0.7}
-      accessibilityRole="button"
-      accessibilityLabel={`Task: ${task.title}`}
-      disabled={isDragging}
-    >
-      {/* Priority indicator */}
-      {task.priority && (
-        <View style={[styles.priorityBar, { backgroundColor: priorityColor }]} />
-      )}
+  const otherSections = useMemo(
+    () => sections.filter((s) => s.id !== task.sectionId),
+    [sections, task.sectionId]
+  );
 
-      <View style={styles.content}>
+  const hasMenuActions = onMove || onToggleEpic || onTogglePin;
+
+  return (
+    <Card.Root
+      variant="elevated"
+      borderRadius="lg"
+      overflow="hidden"
+      mb={2}
+      borderLeftWidth={task.priority ? '4px' : '0'}
+      borderLeftColor={priorityColor}
+      borderLeftStyle="solid"
+      cursor="pointer"
+      transition="all 0.2s ease-in-out"
+      // Hover shadow effect (Requirement 8.7)
+      _hover={{
+        shadow: 'lg',
+        transform: isDragging ? 'scale(1.02)' : 'translateY(-2px)',
+      }}
+      // Dragging state
+      shadow={isDragging ? 'xl' : 'sm'}
+      transform={isDragging ? 'scale(1.02)' : 'none'}
+      onClick={handlePress}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handlePress();
+        }
+      }}
+      aria-label={`Task: ${task.title}`}
+    >
+      <Card.Body p={3}>
         {/* Header with title and menu */}
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]} numberOfLines={2}>
+        <Flex justify="space-between" align="flex-start" mb={2}>
+          {/* Task title (Requirement 8.2) */}
+          <Text
+            fontSize="sm"
+            fontWeight="medium"
+            lineHeight="tall"
+            lineClamp={2}
+            flex={1}
+            mr={2}
+          >
             {task.title}
           </Text>
-          {(onMove || onToggleEpic || onTogglePin) && sections.length > 0 && (
-            <TaskCardMenu
-              taskId={task.id}
-              currentSectionId={task.sectionId}
-              sections={sections}
-              epics={epics}
-              taskEpicIds={task.epicIds}
-              isPinned={task.isPinned}
-              onMove={handleMove}
-              onToggleEpic={handleToggleEpic}
-              onTogglePin={onTogglePin ? handleTogglePin : undefined}
-            />
-          )}
-        </View>
 
-        {/* Epic badges */}
+          {/* Quick actions menu (Requirement 8.8) */}
+          {hasMenuActions && sections.length > 0 && (
+            <Menu.Root>
+              <Menu.Trigger asChild>
+                <IconButton
+                  aria-label="Task menu"
+                  variant="ghost"
+                  size="xs"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <FiMoreVertical />
+                </IconButton>
+              </Menu.Trigger>
+              <Portal>
+                <Menu.Positioner>
+                  <Menu.Content minW="200px">
+                    {/* Pin/Unpin action */}
+                    {onTogglePin && (
+                      <Menu.Item
+                        value="pin"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTogglePin();
+                        }}
+                      >
+                        <FiMapPin />
+                        <Box ml={2}>
+                          {task.isPinned ? 'Unpin from Board' : 'Pin to Board'}
+                        </Box>
+                      </Menu.Item>
+                    )}
+
+                    {/* Move to section submenu */}
+                    {onMove && otherSections.length > 0 && (
+                      <Menu.Root>
+                        <Menu.TriggerItem>
+                          <FiArrowRight />
+                          <Box ml={2}>Move to Section</Box>
+                        </Menu.TriggerItem>
+                        <Portal>
+                          <Menu.Positioner>
+                            <Menu.Content>
+                              {otherSections.map((section) => (
+                                <Menu.Item
+                                  key={section.id}
+                                  value={section.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMove(section.id);
+                                  }}
+                                >
+                                  {section.name}
+                                </Menu.Item>
+                              ))}
+                            </Menu.Content>
+                          </Menu.Positioner>
+                        </Portal>
+                      </Menu.Root>
+                    )}
+
+                    {/* Assign epic submenu */}
+                    {onToggleEpic && epics.length > 0 && (
+                      <Menu.Root>
+                        <Menu.TriggerItem>
+                          <FiTag />
+                          <Box ml={2}>Assign Epic</Box>
+                        </Menu.TriggerItem>
+                        <Portal>
+                          <Menu.Positioner>
+                            <Menu.Content>
+                              {epics.map((epic) => {
+                                const isAssigned = task.epicIds.includes(epic.id);
+                                return (
+                                  <Menu.Item
+                                    key={epic.id}
+                                    value={epic.id}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleToggleEpic(epic.id);
+                                    }}
+                                  >
+                                    <Box
+                                      w={3}
+                                      h={3}
+                                      borderRadius="full"
+                                      bg={epic.color}
+                                      mr={2}
+                                    />
+                                    <Box flex={1}>{epic.name}</Box>
+                                    {isAssigned && (
+                                      <Text color="green.500" fontWeight="bold">
+                                        ✓
+                                      </Text>
+                                    )}
+                                  </Menu.Item>
+                                );
+                              })}
+                            </Menu.Content>
+                          </Menu.Positioner>
+                        </Portal>
+                      </Menu.Root>
+                    )}
+                  </Menu.Content>
+                </Menu.Positioner>
+              </Portal>
+            </Menu.Root>
+          )}
+        </Flex>
+
+        {/* Epic badges (Requirement 8.3) */}
         {taskEpics.length > 0 && (
-          <View style={styles.epicsContainer}>
+          <HStack gap={1} flexWrap="wrap" mb={2}>
             {taskEpics.slice(0, 2).map((epic) => (
-              <TouchableOpacity
-                key={epic.id}
-                style={[styles.epicBadge, { backgroundColor: epic.color + '20' }]}
-                onPress={() => handleEpicPress(epic.id)}
-                activeOpacity={0.7}
-              >
-                <Text style={[styles.epicText, { color: epic.color }]} numberOfLines={1}>
-                  {epic.name}
-                </Text>
-              </TouchableOpacity>
+              <AppTooltip key={epic.id} label={epic.name} placement="top">
+                <Tag.Root
+                  size="sm"
+                  variant="subtle"
+                  bg={`${epic.color}20`}
+                  color={epic.color}
+                  cursor="pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleEpicPress(epic.id);
+                  }}
+                >
+                  <Tag.Label
+                    fontSize="xs"
+                    fontWeight="semibold"
+                    maxW="100px"
+                    overflow="hidden"
+                    textOverflow="ellipsis"
+                    whiteSpace="nowrap"
+                  >
+                    {epic.name}
+                  </Tag.Label>
+                </Tag.Root>
+              </AppTooltip>
             ))}
             {taskEpics.length > 2 && (
-              <Text style={[styles.moreEpics, { color: colors.textMuted }]}>
+              <Text fontSize="xs" color="gray.500">
                 +{taskEpics.length - 2}
               </Text>
             )}
-          </View>
+          </HStack>
         )}
 
         {/* Attachment previews */}
         {task.attachments.length > 0 && (
-          <View style={styles.attachmentPreview}>
+          <HStack gap={1} mb={2}>
             {task.attachments.slice(0, 3).map((attachment) => {
               const isImage = attachment.mimeType.startsWith('image/');
-              const previewUrl = attachment.thumbnailUrl || (isImage ? attachment.cloudinaryUrl : null);
+              const previewUrl =
+                attachment.thumbnailUrl || (isImage ? attachment.cloudinaryUrl : null);
               return previewUrl ? (
                 <Image
                   key={attachment.id}
-                  source={{ uri: previewUrl }}
-                  style={styles.attachmentThumb}
-                  resizeMode="cover"
+                  src={previewUrl}
+                  alt={attachment.filename}
+                  boxSize="40px"
+                  borderRadius="md"
+                  objectFit="cover"
                 />
               ) : (
-                <View key={attachment.id} style={[styles.attachmentThumb, styles.attachmentFile, { backgroundColor: colors.surfaceSecondary }]}>
-                  <Text style={[styles.attachmentFileIcon, { color: colors.textMuted }]}>📄</Text>
-                </View>
+                <Flex
+                  key={attachment.id}
+                  boxSize="40px"
+                  borderRadius="md"
+                  bg="gray.100"
+                  align="center"
+                  justify="center"
+                >
+                  <Text fontSize="md">📄</Text>
+                </Flex>
               );
             })}
             {task.attachments.length > 3 && (
-              <View style={[styles.attachmentThumb, styles.attachmentMore, { backgroundColor: colors.surfaceSecondary }]}>
-                <Text style={[styles.attachmentMoreText, { color: colors.textMuted }]}>+{task.attachments.length - 3}</Text>
-              </View>
+              <Flex
+                boxSize="40px"
+                borderRadius="md"
+                bg="gray.100"
+                align="center"
+                justify="center"
+              >
+                <Text fontSize="xs" fontWeight="semibold" color="gray.500">
+                  +{task.attachments.length - 3}
+                </Text>
+              </Flex>
             )}
-          </View>
+          </HStack>
         )}
 
-        {/* Meta info */}
-        <View style={styles.meta}>
+        {/* Metadata row with icons (Requirement 8.4, 2.3) */}
+        <HStack gap={3} flexWrap="wrap" mt="auto">
+          {/* Priority indicator with icon (Requirement 2.3) */}
+          {task.priority && priorityLabel && (
+            <AppTooltip label={priorityLabel} placement="top">
+              <HStack gap={1}>
+                <Box as={FiFlag} color={priorityColor} boxSize={3} />
+              </HStack>
+            </AppTooltip>
+          )}
+
+          {/* Due date with calendar icon (Requirement 8.4, 8.5, 2.3) */}
           {formattedDate && (
-            <Text
-              style={[
-                styles.metaItem,
-                { color: isOverdue ? colors.error : colors.textSecondary },
-              ]}
-            >
-              📅 {formattedDate}
-            </Text>
-          )}
-          {task.storyPoints !== null && task.storyPoints !== undefined && (
-            <View style={[styles.storyPointsBadge, { backgroundColor: colors.primaryLight }]}>
-              <Text style={[styles.storyPointsText, { color: colors.primary }]}>
-                {task.storyPoints}
+            <HStack gap={1}>
+              <Box
+                as={FiCalendar}
+                color={isOverdue ? 'red.500' : 'gray.500'}
+                boxSize={3}
+              />
+              <Text
+                fontSize="xs"
+                color={isOverdue ? 'red.500' : 'gray.500'}
+                fontWeight={isOverdue ? 'semibold' : 'normal'}
+              >
+                {formattedDate}
               </Text>
-            </View>
+            </HStack>
           )}
+
+          {/* Story points badge (Requirement 8.6) */}
+          {task.storyPoints !== null && task.storyPoints !== undefined && (
+            <Badge
+              colorPalette="blue"
+              variant="subtle"
+              borderRadius="full"
+              px={2}
+              fontSize="xs"
+            >
+              {task.storyPoints}
+            </Badge>
+          )}
+
+          {/* Comments count with chat icon (Requirement 8.4, 2.3) */}
           {task.comments.length > 0 && (
-            <Text style={[styles.metaItem, { color: colors.textSecondary }]}>
-              💬 {task.comments.length}
-            </Text>
+            <HStack gap={1}>
+              <Box as={FiMessageCircle} color="gray.500" boxSize={3} />
+              <Text fontSize="xs" color="gray.500">
+                {task.comments.length}
+              </Text>
+            </HStack>
           )}
+
+          {/* Attachments count with paperclip icon (Requirement 8.4, 2.3) */}
           {task.attachments.length > 0 && (
-            <Text style={[styles.metaItem, { color: colors.textSecondary }]}>
-              📎 {task.attachments.length}
-            </Text>
+            <HStack gap={1}>
+              <Box as={FiPaperclip} color="gray.500" boxSize={3} />
+              <Text fontSize="xs" color="gray.500">
+                {task.attachments.length}
+              </Text>
+            </HStack>
           )}
-        </View>
-      </View>
-    </TouchableOpacity>
+        </HStack>
+      </Card.Body>
+    </Card.Root>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    minHeight: 90,
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
-    overflow: 'hidden',
-  },
-  cardDragging: {
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
-    transform: [{ scale: 1.02 }],
-  },
-  priorityBar: {
-    height: 3,
-  },
-  content: {
-    flex: 1,
-    padding: 12,
-    justifyContent: 'space-between',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  title: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '500',
-    lineHeight: 20,
-  },
-  epicsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 8,
-  },
-  epicBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-    marginRight: 4,
-    marginBottom: 4,
-  },
-  epicText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  moreEpics: {
-    fontSize: 10,
-    alignSelf: 'center',
-  },
-  meta: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    marginTop: 'auto',
-  },
-  metaItem: {
-    fontSize: 11,
-    marginRight: 10,
-  },
-  storyPointsBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginRight: 10,
-  },
-  storyPointsText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  attachmentPreview: {
-    flexDirection: 'row',
-    marginBottom: 8,
-    gap: 4,
-  },
-  attachmentThumb: {
-    width: 40,
-    height: 40,
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  attachmentFile: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  attachmentFileIcon: {
-    fontSize: 16,
-  },
-  attachmentMore: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  attachmentMoreText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-});
 
 /**
  * Custom comparison function for React.memo
@@ -353,17 +468,22 @@ function arePropsEqual(prevProps: TaskCardProps, nextProps: TaskCardProps): bool
   if (prevProps.task.sectionId !== nextProps.task.sectionId) return false;
   if (prevProps.task.isPinned !== nextProps.task.isPinned) return false;
   if (prevProps.task.comments.length !== nextProps.task.comments.length) return false;
-  if (prevProps.task.attachments.length !== nextProps.task.attachments.length) return false;
+  if (prevProps.task.attachments.length !== nextProps.task.attachments.length)
+    return false;
   if (prevProps.task.epicIds.length !== nextProps.task.epicIds.length) return false;
-  
+
   for (let i = 0; i < prevProps.task.epicIds.length; i++) {
     if (prevProps.task.epicIds[i] !== nextProps.task.epicIds[i]) return false;
   }
 
   if (prevProps.sections.length !== nextProps.sections.length) return false;
   if (prevProps.epics !== nextProps.epics) {
-    const prevRelevantEpics = prevProps.epics.filter((e) => prevProps.task.epicIds.includes(e.id));
-    const nextRelevantEpics = nextProps.epics.filter((e) => nextProps.task.epicIds.includes(e.id));
+    const prevRelevantEpics = prevProps.epics.filter((e) =>
+      prevProps.task.epicIds.includes(e.id)
+    );
+    const nextRelevantEpics = nextProps.epics.filter((e) =>
+      nextProps.task.epicIds.includes(e.id)
+    );
     if (prevRelevantEpics.length !== nextRelevantEpics.length) return false;
   }
 

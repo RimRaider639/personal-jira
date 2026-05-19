@@ -1,16 +1,34 @@
+/**
+ * FilterPanel - Side panel with epic, priority, and due date filters
+ *
+ * Migrated to Chakra UI with:
+ * - Drawer component for responsive filter panel (Req 7.7, 17.7)
+ * - VStack/HStack for layout
+ * - Box for filter options with hover effects
+ *
+ * Requirements:
+ * - 7.7: Use Chakra UI Drawer component for filter panel on mobile
+ * - 17.7: Display as Drawer from the right side
+ * - 9.2, 9.4, 9.5: Epic filter with multi-select
+ * - 10.2: Priority filter with priority level options
+ * - 11.2: Due date filter with preset options
+ */
+
 import React, { useCallback, memo, useMemo } from 'react';
 import {
-  View,
+  Box,
+  Drawer,
+  Portal,
   Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Modal,
-  Pressable,
-  Dimensions,
-} from 'react-native';
-import { useTheme } from '@/theme/ThemeContext';
+  VStack,
+  HStack,
+  Flex,
+} from '@chakra-ui/react';
+import { FiCheck } from 'react-icons/fi';
 import type { Epic, Priority, DueDateFilter } from '@kanban/shared';
+import { AppButton, AppIconButton } from './chakra';
+import { CloseIcon } from '@/theme/icons';
+import { useColorModeValue } from '@/hooks/useColorMode';
 
 interface FilterPanelProps {
   visible: boolean;
@@ -44,18 +62,61 @@ const DUE_DATE_OPTIONS: { value: DueDateFilter | null; label: string }[] = [
   { value: 'overdue', label: 'Overdue' },
 ];
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const PANEL_WIDTH = Math.min(320, SCREEN_WIDTH * 0.85);
+/**
+ * FilterOption - Reusable filter option component
+ */
+interface FilterOptionProps {
+  isSelected: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  accessibilityRole?: 'checkbox' | 'radio';
+}
+
+function FilterOption({
+  isSelected,
+  onClick,
+  children,
+  accessibilityRole = 'checkbox',
+}: FilterOptionProps): React.JSX.Element {
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const selectedBg = useColorModeValue('brand.50', 'brand.900');
+  const selectedBorder = useColorModeValue('brand.500', 'brand.400');
+  const hoverBg = useColorModeValue('gray.50', 'gray.700');
+
+  return (
+    <Box
+      as="button"
+      w="full"
+      p={3}
+      borderRadius="md"
+      borderWidth="1px"
+      borderColor={isSelected ? selectedBorder : borderColor}
+      bg={isSelected ? selectedBg : bgColor}
+      cursor="pointer"
+      onClick={onClick}
+      _hover={{ bg: isSelected ? selectedBg : hoverBg }}
+      transition="all 0.2s"
+      role={accessibilityRole}
+      aria-checked={isSelected}
+    >
+      <Flex align="center" justify="space-between">
+        {children}
+        {isSelected && (
+          <Box as={FiCheck} color="brand.500" boxSize={4} />
+        )}
+      </Flex>
+    </Box>
+  );
+}
 
 /**
  * FilterPanel - Side panel with epic, priority, and due date filters
  * Memoized for performance optimization.
  *
  * Requirements:
- * - 9.2, 9.4, 9.5: Epic filter with multi-select
- * - 10.2: Priority filter with priority level options
- * - 11.2: Due date filter with preset options
- * - 13.2: Optimize re-renders with React.memo
+ * - 7.7: Use Chakra UI Drawer component for filter panel on mobile
+ * - 17.7: Display as Drawer from the right side
  */
 function FilterPanelComponent({
   visible,
@@ -69,8 +130,9 @@ function FilterPanelComponent({
   onSetDueDateFilter,
   onClearAll,
 }: FilterPanelProps): React.JSX.Element {
-  const { colors } = useTheme();
-  
+  const bgColor = useColorModeValue('white', 'gray.800');
+  const borderColor = useColorModeValue('gray.200', 'gray.700');
+
   const hasActiveFilters = useMemo(
     () =>
       selectedEpicIds.length > 0 ||
@@ -84,271 +146,188 @@ function FilterPanelComponent({
   }, [onClearAll]);
 
   return (
-    <Modal
-      visible={visible}
-      animationType="fade"
-      transparent
-      onRequestClose={onClose}
+    <Drawer.Root
+      open={visible}
+      onOpenChange={(details) => {
+        if (!details.open) onClose();
+      }}
+      placement="end"
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={[styles.panel, { backgroundColor: colors.surface }]} onPress={e => e.stopPropagation()}>
-          {/* Header */}
-          <View style={[styles.header, { borderBottomColor: colors.border }]}>
-            <Text style={[styles.title, { color: colors.text }]}>Filters</Text>
-            <TouchableOpacity onPress={onClose} style={[styles.closeButton, { backgroundColor: colors.surfaceSecondary }]}>
-              <Text style={[styles.closeText, { color: colors.textMuted }]}>✕</Text>
-            </TouchableOpacity>
-          </View>
+      <Portal>
+        <Drawer.Backdrop />
+        <Drawer.Positioner>
+          <Drawer.Content bg={bgColor} maxW="320px" w="85vw">
+            {/* Header */}
+            <Drawer.Header
+              borderBottomWidth="1px"
+              borderBottomColor={borderColor}
+            >
+              <Flex align="center" justify="space-between" w="full">
+                <Drawer.Title fontSize="lg" fontWeight="bold">
+                  Filters
+                </Drawer.Title>
+                <Drawer.CloseTrigger asChild>
+                  <AppIconButton
+                    intent="ghost"
+                    aria-label="Close filters"
+                    size="sm"
+                  >
+                    <CloseIcon />
+                  </AppIconButton>
+                </Drawer.CloseTrigger>
+              </Flex>
+            </Drawer.Header>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            {/* Epic Filter */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Epics</Text>
-                {selectedEpicIds.length > 0 && (
-                  <Text style={[styles.selectedCount, { color: colors.primary }]}>
-                    {selectedEpicIds.length} selected
-                  </Text>
-                )}
-              </View>
-              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
-                Tasks must have ALL selected epics
-              </Text>
-              <View style={styles.optionsList}>
-                {epics.length > 0 ? (
-                  epics.map((epic) => (
-                    <TouchableOpacity
-                      key={epic.id}
-                      style={[
-                        styles.option,
-                        { borderColor: colors.border },
-                        selectedEpicIds.includes(epic.id) && { backgroundColor: colors.primaryLight, borderColor: colors.primary },
-                      ]}
-                      onPress={() => onToggleEpic(epic.id)}
-                      accessibilityRole="checkbox"
-                      accessibilityState={{ checked: selectedEpicIds.includes(epic.id) }}
+            {/* Content */}
+            <Drawer.Body py={4} overflowY="auto">
+              <VStack gap={6} align="stretch">
+                {/* Epic Filter */}
+                <Box>
+                  <Flex align="center" justify="space-between" mb={1}>
+                    <Text
+                      fontSize="xs"
+                      fontWeight="semibold"
+                      color="fg.muted"
+                      textTransform="uppercase"
                     >
-                      <View style={[styles.epicDot, { backgroundColor: epic.color }]} />
-                      <Text style={[styles.optionText, { color: colors.text }]}>{epic.name}</Text>
-                      {selectedEpicIds.includes(epic.id) && (
-                        <Text style={[styles.checkmark, { color: colors.primary }]}>✓</Text>
-                      )}
-                    </TouchableOpacity>
-                  ))
-                ) : (
-                  <Text style={[styles.emptyText, { color: colors.textMuted }]}>No epics available</Text>
-                )}
-              </View>
-            </View>
-
-            {/* Priority Filter */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Priority</Text>
-                {selectedPriorities.length > 0 && (
-                  <Text style={[styles.selectedCount, { color: colors.primary }]}>
-                    {selectedPriorities.length} selected
+                      Epics
+                    </Text>
+                    {selectedEpicIds.length > 0 && (
+                      <Text fontSize="xs" color="brand.500" fontWeight="medium">
+                        {selectedEpicIds.length} selected
+                      </Text>
+                    )}
+                  </Flex>
+                  <Text fontSize="xs" color="fg.muted" mb={3}>
+                    Tasks must have ALL selected epics
                   </Text>
+                  <VStack gap={2} align="stretch">
+                    {epics.length > 0 ? (
+                      epics.map((epic) => (
+                        <FilterOption
+                          key={epic.id}
+                          isSelected={selectedEpicIds.includes(epic.id)}
+                          onClick={() => onToggleEpic(epic.id)}
+                        >
+                          <HStack gap={2}>
+                            <Box
+                              w="10px"
+                              h="10px"
+                              borderRadius="full"
+                              bg={epic.color}
+                            />
+                            <Text fontSize="sm">{epic.name}</Text>
+                          </HStack>
+                        </FilterOption>
+                      ))
+                    ) : (
+                      <Text
+                        fontSize="sm"
+                        color="fg.muted"
+                        fontStyle="italic"
+                        textAlign="center"
+                        py={4}
+                      >
+                        No epics available
+                      </Text>
+                    )}
+                  </VStack>
+                </Box>
+
+                {/* Priority Filter */}
+                <Box>
+                  <Flex align="center" justify="space-between" mb={1}>
+                    <Text
+                      fontSize="xs"
+                      fontWeight="semibold"
+                      color="fg.muted"
+                      textTransform="uppercase"
+                    >
+                      Priority
+                    </Text>
+                    {selectedPriorities.length > 0 && (
+                      <Text fontSize="xs" color="brand.500" fontWeight="medium">
+                        {selectedPriorities.length} selected
+                      </Text>
+                    )}
+                  </Flex>
+                  <Text fontSize="xs" color="fg.muted" mb={3}>
+                    Tasks with ANY selected priority
+                  </Text>
+                  <VStack gap={2} align="stretch">
+                    {PRIORITIES.map((priority) => (
+                      <FilterOption
+                        key={priority.value}
+                        isSelected={selectedPriorities.includes(priority.value)}
+                        onClick={() => onTogglePriority(priority.value)}
+                      >
+                        <HStack gap={2}>
+                          <Box
+                            w="10px"
+                            h="10px"
+                            borderRadius="full"
+                            bg={priority.color}
+                          />
+                          <Text fontSize="sm">{priority.label}</Text>
+                        </HStack>
+                      </FilterOption>
+                    ))}
+                  </VStack>
+                </Box>
+
+                {/* Due Date Filter */}
+                <Box>
+                  <Text
+                    fontSize="xs"
+                    fontWeight="semibold"
+                    color="fg.muted"
+                    textTransform="uppercase"
+                    mb={3}
+                  >
+                    Due Date
+                  </Text>
+                  <VStack gap={2} align="stretch">
+                    {DUE_DATE_OPTIONS.map((option) => (
+                      <FilterOption
+                        key={option.value || 'all'}
+                        isSelected={selectedDueDateFilter === option.value}
+                        onClick={() => onSetDueDateFilter(option.value)}
+                        accessibilityRole="radio"
+                      >
+                        <Text fontSize="sm">{option.label}</Text>
+                      </FilterOption>
+                    ))}
+                  </VStack>
+                </Box>
+              </VStack>
+            </Drawer.Body>
+
+            {/* Footer */}
+            <Drawer.Footer
+              borderTopWidth="1px"
+              borderTopColor={borderColor}
+            >
+              <VStack gap={2} w="full">
+                {hasActiveFilters && (
+                  <AppButton
+                    intent="danger"
+                    w="full"
+                    onClick={handleClearAll}
+                  >
+                    Clear All Filters
+                  </AppButton>
                 )}
-              </View>
-              <Text style={[styles.sectionHint, { color: colors.textMuted }]}>
-                Tasks with ANY selected priority
-              </Text>
-              <View style={styles.optionsList}>
-                {PRIORITIES.map((priority) => (
-                  <TouchableOpacity
-                    key={priority.value}
-                    style={[
-                      styles.option,
-                      { borderColor: colors.border },
-                      selectedPriorities.includes(priority.value) && { backgroundColor: colors.primaryLight, borderColor: colors.primary },
-                    ]}
-                    onPress={() => onTogglePriority(priority.value)}
-                    accessibilityRole="checkbox"
-                    accessibilityState={{ checked: selectedPriorities.includes(priority.value) }}
-                  >
-                    <View
-                      style={[styles.priorityDot, { backgroundColor: priority.color }]}
-                    />
-                    <Text style={[styles.optionText, { color: colors.text }]}>{priority.label}</Text>
-                    {selectedPriorities.includes(priority.value) && (
-                      <Text style={[styles.checkmark, { color: colors.primary }]}>✓</Text>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Due Date Filter */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Due Date</Text>
-              </View>
-              <View style={styles.optionsList}>
-                {DUE_DATE_OPTIONS.map((option) => (
-                  <TouchableOpacity
-                    key={option.value || 'all'}
-                    style={[
-                      styles.option,
-                      { borderColor: colors.border },
-                      selectedDueDateFilter === option.value && { backgroundColor: colors.primaryLight, borderColor: colors.primary },
-                    ]}
-                    onPress={() => onSetDueDateFilter(option.value)}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: selectedDueDateFilter === option.value }}
-                  >
-                    <Text style={[styles.optionText, { color: colors.text }]}>{option.label}</Text>
-                    {selectedDueDateFilter === option.value && (
-                      <Text style={[styles.checkmark, { color: colors.primary }]}>✓</Text>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          </ScrollView>
-
-          {/* Footer */}
-          <View style={[styles.footer, { borderTopColor: colors.border }]}>
-            {hasActiveFilters && (
-              <TouchableOpacity style={[styles.clearButton, { borderColor: colors.error }]} onPress={handleClearAll}>
-                <Text style={[styles.clearButtonText, { color: colors.error }]}>Clear All Filters</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity style={[styles.doneButton, { backgroundColor: colors.primary }]} onPress={onClose}>
-              <Text style={styles.doneButtonText}>Done</Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Pressable>
-    </Modal>
+                <AppButton intent="primary" w="full" onClick={onClose}>
+                  Done
+                </AppButton>
+              </VStack>
+            </Drawer.Footer>
+          </Drawer.Content>
+        </Drawer.Positioner>
+      </Portal>
+    </Drawer.Root>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  panel: {
-    width: PANEL_WIDTH,
-    height: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: -4, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  closeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  closeText: {
-    fontSize: 16,
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  selectedCount: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  sectionHint: {
-    fontSize: 12,
-    marginBottom: 12,
-  },
-  optionsList: {
-    gap: 6,
-  },
-  option: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  epicDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 10,
-  },
-  priorityDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 10,
-  },
-  optionText: {
-    flex: 1,
-    fontSize: 14,
-  },
-  checkmark: {
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  emptyText: {
-    fontSize: 14,
-    fontStyle: 'italic',
-    textAlign: 'center',
-    padding: 16,
-  },
-  footer: {
-    padding: 16,
-    borderTopWidth: 1,
-    gap: 8,
-  },
-  clearButton: {
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  clearButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  doneButton: {
-    padding: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  doneButtonText: {
-    fontSize: 16,
-    color: '#ffffff',
-    fontWeight: '600',
-  },
-});
 
 export const FilterPanel = memo(FilterPanelComponent);
 

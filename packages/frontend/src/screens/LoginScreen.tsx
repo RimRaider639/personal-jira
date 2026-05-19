@@ -1,20 +1,40 @@
+/**
+ * LoginScreen - User authentication screen
+ *
+ * Migrated to Chakra UI v3 with:
+ * - Card component for form container
+ * - FormControl, FormLabel, Input for form fields
+ * - Button with loading state
+ * - Alert for API errors
+ * - Link for registration navigation
+ * - Tooltip on sign-in button
+ * - VStack and Center for layout
+ *
+ * @see Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8
+ */
+
 import React, { useState, useCallback } from 'react';
 import {
-  View,
+  Alert,
+  Box,
+  Center,
+  Heading,
+  Link,
   Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+  VStack,
+} from '@chakra-ui/react';
+import { useColorModeValue } from '@/hooks/useColorMode';
 
 import { useAppDispatch, useAppSelector } from '@/store';
 import { login, clearAuthError } from '@/store/slices';
 import { selectAuthLoading, selectAuthError } from '@/store/selectors';
+import {
+  AppCard,
+  AppCardBody,
+  AppButton,
+  AppInput,
+  AppTooltip,
+} from '@/components/chakra';
 
 interface LoginScreenProps {
   onNavigateToRegister: () => void;
@@ -24,9 +44,14 @@ interface LoginScreenProps {
  * LoginScreen - User authentication screen
  *
  * Requirements:
- * - 18.1: Implement user authentication with JWT tokens
- * - 18.3: Implement login functionality with email and password
- * - 18.4: Display appropriate error messages for invalid credentials
+ * - 3.1: Use Chakra UI Card component for the login form container
+ * - 3.2: Use Chakra UI FormControl, FormLabel, and Input components
+ * - 3.3: Use Chakra UI Button component with loading state
+ * - 3.4: Display FormErrorMessage for validation errors
+ * - 3.5: Display Alert component for API errors
+ * - 3.6: Include Link component for navigation to registration
+ * - 3.7: Use VStack and Center components for layout
+ * - 3.8: Tooltip on sign-in button hover
  */
 export function LoginScreen({ onNavigateToRegister }: LoginScreenProps): React.JSX.Element {
   const dispatch = useAppDispatch();
@@ -39,6 +64,10 @@ export function LoginScreen({ onNavigateToRegister }: LoginScreenProps): React.J
     email?: string;
     password?: string;
   }>({});
+
+  // Color mode values for light/dark support
+  const bgColor = useColorModeValue('gray.50', 'gray.900');
+  const cardBg = useColorModeValue('white', 'gray.800');
 
   /**
    * Validate form inputs
@@ -88,7 +117,8 @@ export function LoginScreen({ onNavigateToRegister }: LoginScreenProps): React.J
    * Handle input change and clear related errors
    */
   const handleEmailChange = useCallback(
-    (text: string) => {
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const text = e.target.value;
       setEmail(text);
       if (validationErrors.email) {
         setValidationErrors((prev) => ({ ...prev, email: undefined }));
@@ -101,7 +131,8 @@ export function LoginScreen({ onNavigateToRegister }: LoginScreenProps): React.J
   );
 
   const handlePasswordChange = useCallback(
-    (text: string) => {
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const text = e.target.value;
       setPassword(text);
       if (validationErrors.password) {
         setValidationErrors((prev) => ({ ...prev, password: undefined }));
@@ -113,220 +144,136 @@ export function LoginScreen({ onNavigateToRegister }: LoginScreenProps): React.J
     [dispatch, error, validationErrors.password]
   );
 
+  /**
+   * Handle form submission on Enter key
+   */
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' && !isLoading) {
+        handleLogin();
+      }
+    },
+    [handleLogin, isLoading]
+  );
+
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
+    <Box
+      minH="100vh"
+      bg={bgColor}
+      display="flex"
+      alignItems="center"
+      justifyContent="center"
+      p={4}
+    >
+      {/* Requirement 3.7: Use Center for centering */}
+      <Center w="full" maxW="md">
+        {/* Requirement 3.7: Use VStack for vertical layout */}
+        <VStack gap={8} w="full">
           {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.logo}>📋</Text>
-            <Text style={styles.title}>Personal Kanban</Text>
-            <Text style={styles.subtitle}>Sign in to continue</Text>
-          </View>
+          <VStack gap={2} textAlign="center">
+            <Text fontSize="6xl" aria-hidden="true">
+              📋
+            </Text>
+            <Heading as="h1" size="2xl" color="fg">
+              Personal Kanban
+            </Heading>
+            <Text color="fg.muted" fontSize="lg">
+              Sign in to continue
+            </Text>
+          </VStack>
 
-          {/* Form */}
-          <View style={styles.form}>
-            {/* API Error */}
-            {error && (
-              <View style={styles.errorBanner}>
-                <Text style={styles.errorBannerText}>{error}</Text>
-              </View>
-            )}
+          {/* Requirement 3.1: Use Chakra UI Card component */}
+          <AppCard
+            w="full"
+            bg={cardBg}
+            variant="elevated"
+            p={0}
+          >
+            <AppCardBody p={6}>
+              <VStack gap={5} as="form" onKeyDown={handleKeyDown}>
+                {/* Requirement 3.5: Display Alert for API errors */}
+                {error && (
+                  <Alert.Root status="error" borderRadius="md">
+                    <Alert.Indicator />
+                    <Alert.Content>
+                      <Alert.Title>{error}</Alert.Title>
+                    </Alert.Content>
+                  </Alert.Root>
+                )}
 
-            {/* Email Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={[styles.input, validationErrors.email && styles.inputError]}
-                placeholder="Enter your email"
-                placeholderTextColor="#9ca3af"
-                value={email}
-                onChangeText={handleEmailChange}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="email"
-                editable={!isLoading}
-                testID="email-input"
-              />
-              {validationErrors.email && (
-                <Text style={styles.errorText}>{validationErrors.email}</Text>
-              )}
-            </View>
+                {/* Requirement 3.2: Use FormControl, FormLabel, Input */}
+                {/* Requirement 3.4: Display FormErrorMessage for validation errors */}
+                <AppInput
+                  id="email"
+                  name="email"
+                  label="Email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={handleEmailChange}
+                  error={validationErrors.email}
+                  disabled={isLoading}
+                  autoComplete="email"
+                  data-testid="email-input"
+                />
 
-            {/* Password Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
-              <TextInput
-                style={[styles.input, validationErrors.password && styles.inputError]}
-                placeholder="Enter your password"
-                placeholderTextColor="#9ca3af"
-                value={password}
-                onChangeText={handlePasswordChange}
-                secureTextEntry
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoComplete="password"
-                editable={!isLoading}
-                testID="password-input"
-              />
-              {validationErrors.password && (
-                <Text style={styles.errorText}>{validationErrors.password}</Text>
-              )}
-            </View>
+                <AppInput
+                  id="password"
+                  name="password"
+                  label="Password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={handlePasswordChange}
+                  error={validationErrors.password}
+                  disabled={isLoading}
+                  autoComplete="current-password"
+                  data-testid="password-input"
+                />
 
-            {/* Login Button */}
-            <TouchableOpacity
-              style={[styles.button, isLoading && styles.buttonDisabled]}
-              onPress={handleLogin}
-              disabled={isLoading}
-              testID="login-button"
-              accessibilityRole="button"
-              accessibilityLabel="Sign in"
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <Text style={styles.buttonText}>Sign In</Text>
-              )}
-            </TouchableOpacity>
+                {/* Requirement 3.3: Button with loading state */}
+                {/* Requirement 3.8: Tooltip on sign-in button hover */}
+                <AppTooltip label="Sign in to your account" placement="top">
+                  <AppButton
+                    intent="primary"
+                    w="full"
+                    size="lg"
+                    onClick={handleLogin}
+                    loading={isLoading}
+                    loadingText="Signing in..."
+                    disabled={isLoading}
+                    data-testid="login-button"
+                    aria-label="Sign in"
+                  >
+                    Sign In
+                  </AppButton>
+                </AppTooltip>
 
-            {/* Register Link */}
-            <View style={styles.registerContainer}>
-              <Text style={styles.registerText}>Don't have an account? </Text>
-              <TouchableOpacity
-                onPress={onNavigateToRegister}
-                disabled={isLoading}
-                testID="register-link"
-                accessibilityRole="link"
-                accessibilityLabel="Create an account"
-              >
-                <Text style={styles.registerLink}>Create one</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+                {/* Requirement 3.6: Link for registration navigation */}
+                <Box textAlign="center" pt={2}>
+                  <Text as="span" color="fg.muted" fontSize="sm">
+                    Don't have an account?{' '}
+                  </Text>
+                  <Link
+                    color="brand.500"
+                    fontWeight="semibold"
+                    fontSize="sm"
+                    onClick={onNavigateToRegister}
+                    cursor="pointer"
+                    _hover={{ textDecoration: 'underline' }}
+                    data-testid="register-link"
+                    aria-label="Create an account"
+                  >
+                    Create one
+                  </Link>
+                </Box>
+              </VStack>
+            </AppCardBody>
+          </AppCard>
+        </VStack>
+      </Center>
+    </Box>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 24,
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  logo: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  form: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  errorBanner: {
-    backgroundColor: '#fef2f2',
-    borderColor: '#fecaca',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 16,
-  },
-  errorBannerText: {
-    color: '#dc2626',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#f9fafb',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#1f2937',
-  },
-  inputError: {
-    borderColor: '#ef4444',
-    backgroundColor: '#fef2f2',
-  },
-  errorText: {
-    color: '#ef4444',
-    fontSize: 12,
-    marginTop: 4,
-  },
-  button: {
-    backgroundColor: '#6366f1',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    backgroundColor: '#a5b4fc',
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  registerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 24,
-  },
-  registerText: {
-    color: '#6b7280',
-    fontSize: 14,
-  },
-  registerLink: {
-    color: '#6366f1',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});
 
 export default LoginScreen;

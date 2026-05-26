@@ -19,9 +19,10 @@ import {
   FiFlag,
   FiMoreVertical,
   FiArrowRight,
-  FiMapPin,
   FiTag,
+  FiFile,
 } from 'react-icons/fi';
+import { HiOutlineBookmark } from 'react-icons/hi';
 import type { Task, Epic, Section } from '@kanban/shared';
 import { AppTooltip } from './chakra';
 
@@ -222,7 +223,7 @@ function TaskCardComponent({
                           handleTogglePin();
                         }}
                       >
-                        <FiMapPin />
+                        <HiOutlineBookmark />
                         <Box ml={2}>
                           {task.isPinned ? 'Unpin from Board' : 'Pin to Board'}
                         </Box>
@@ -368,7 +369,7 @@ function TaskCardComponent({
                   align="center"
                   justify="center"
                 >
-                  <Text fontSize="md">📄</Text>
+                  <Box as={FiFile} color="gray.500" boxSize={5} />
                 </Flex>
               );
             })}

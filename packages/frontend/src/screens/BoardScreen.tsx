@@ -86,7 +86,9 @@ import {
   FilterIcon,
   HomeIcon,
   CloseIcon,
+  RefreshIcon,
 } from '@/theme/icons';
+import { HiOutlineArchive } from 'react-icons/hi';
 import type { Task, Priority, DueDateFilter } from '@kanban/shared';
 
 interface BoardScreenProps {
@@ -523,7 +525,9 @@ function ArchivedTasksModal({
       <Box maxH="60vh" overflowY="auto">
         {tasks.length === 0 ? (
           <VStack py={10} gap={4}>
-            <Text fontSize="4xl">📦</Text>
+            <Icon boxSize={12} color="fg.muted">
+              <HiOutlineArchive />
+            </Icon>
             <Text fontWeight="semibold" color="fg">
               No archived tasks
             </Text>
@@ -728,7 +732,7 @@ function BoardHeader({
               color="white"
               _hover={{ bg: 'whiteAlpha.300' }}
             >
-              <Text fontSize="lg">📦</Text>
+              <HiOutlineArchive />
             </AppIconButton>
             {archivedTasksCount > 0 && (
               <Badge
@@ -761,8 +765,9 @@ function BoardHeader({
             bg="whiteAlpha.200"
             color="white"
             _hover={{ bg: 'whiteAlpha.300' }}
+            leftIcon={<RefreshIcon />}
           >
-            🚀 Sprint
+            Sprint
           </AppButton>
         </AppTooltip>
 

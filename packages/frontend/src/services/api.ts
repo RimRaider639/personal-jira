@@ -1,9 +1,24 @@
 import { store } from '@/store';
+import { logout } from '@/store/slices';
+import type { Store, UnknownAction } from '@reduxjs/toolkit';
 
 /**
  * API configuration
  */
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000/api';
+
+/**
+ * Store reference for API interceptors
+ */
+let storeRef: Store | null = null;
+
+/**
+ * Setup API interceptors with store reference
+ * This allows the API client to dispatch actions like logout on 401 errors
+ */
+export function setupApiInterceptors(reduxStore: Store): void {
+  storeRef = reduxStore;
+}
 
 /**
  * API error class
@@ -56,6 +71,15 @@ const handleResponse = async <T>(response: Response): Promise<ApiResponse<T>> =>
   const isJson = contentType?.includes('application/json');
 
   if (!response.ok) {
+    // Handle 401 Unauthorized - token expired or invalid
+    if (response.status === 401) {
+      // Dispatch logout action to clear auth state and redirect to login
+      if (storeRef) {
+        storeRef.dispatch(logout() as unknown as UnknownAction);
+      }
+      throw new ApiError('Session expired. Please log in again.', response.status, 'UNAUTHORIZED');
+    }
+
     if (isJson) {
       const errorData = await response.json();
       throw new ApiError(

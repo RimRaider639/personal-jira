@@ -7,6 +7,9 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Image,
+  Linking,
+  Platform,
 } from 'react-native';
 import { useTheme } from '@/theme/ThemeContext';
 import type { Task, Epic } from '@kanban/shared';
@@ -30,6 +33,7 @@ const PRIORITIES: Record<string, { label: string; color: string }> = {
 /**
  * TaskPreviewModal - Quick preview modal for task details
  * Shows important info with option to view full details
+ * Now includes attachments and comments display
  */
 export function TaskPreviewModal({
   visible,
@@ -62,6 +66,14 @@ export function TaskPreviewModal({
       year: 'numeric',
     });
   }, [task?.endDate]);
+
+  const handleOpenAttachment = (url: string) => {
+    if (Platform.OS === 'web') {
+      window.open(url, '_blank');
+    } else {
+      Linking.openURL(url);
+    }
+  };
 
   if (!task) return <></>;
 
@@ -153,6 +165,85 @@ export function TaskPreviewModal({
               </View>
             )}
 
+            {/* Attachments */}
+            {task.attachments.length > 0 && (
+              <View style={styles.row}>
+                <Text style={[styles.label, { color: colors.textMuted }]}>
+                  Attachments ({task.attachments.length})
+                </Text>
+                <View style={styles.attachmentsList}>
+                  {task.attachments.slice(0, 4).map((attachment) => {
+                    const isImage = attachment.mimeType.startsWith('image/');
+                    const previewUrl = attachment.thumbnailUrl || (isImage ? attachment.cloudinaryUrl : null);
+                    return (
+                      <TouchableOpacity
+                        key={attachment.id}
+                        style={styles.attachmentItem}
+                        onPress={() => handleOpenAttachment(attachment.cloudinaryUrl)}
+                      >
+                        {previewUrl ? (
+                          <Image
+                            source={{ uri: previewUrl }}
+                            style={styles.attachmentImage}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={[styles.attachmentPlaceholder, { backgroundColor: colors.border }]}>
+                            <Text style={styles.attachmentIcon}>📎</Text>
+                          </View>
+                        )}
+                        <Text
+                          style={[styles.attachmentName, { color: colors.textSecondary }]}
+                          numberOfLines={1}
+                        >
+                          {attachment.filename}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                  {task.attachments.length > 4 && (
+                    <View style={[styles.moreAttachments, { backgroundColor: colors.border }]}>
+                      <Text style={[styles.moreText, { color: colors.textMuted }]}>
+                        +{task.attachments.length - 4} more
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            )}
+
+            {/* Comments */}
+            {task.comments.length > 0 && (
+              <View style={styles.row}>
+                <Text style={[styles.label, { color: colors.textMuted }]}>
+                  Recent Comments ({task.comments.length})
+                </Text>
+                <View style={styles.commentsList}>
+                  {task.comments.slice(-3).map((comment) => (
+                    <View
+                      key={comment.id}
+                      style={[styles.commentItem, { backgroundColor: colors.background, borderColor: colors.border }]}
+                    >
+                      <View style={styles.commentHeader}>
+                        <Text style={[styles.commentAuthor, { color: colors.text }]}>
+                          User
+                        </Text>
+                        <Text style={[styles.commentDate, { color: colors.textMuted }]}>
+                          {new Date(comment.createdAt).toLocaleDateString()}
+                        </Text>
+                      </View>
+                      <Text
+                        style={[styles.commentContent, { color: colors.textSecondary }]}
+                        numberOfLines={2}
+                      >
+                        {comment.content}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
             {/* Stats */}
             <View style={styles.statsRow}>
               <View style={styles.stat}>
@@ -198,8 +289,8 @@ const styles = StyleSheet.create({
   },
   container: {
     width: '100%',
-    maxWidth: 450,
-    maxHeight: '80%',
+    maxWidth: 500,
+    maxHeight: '85%',
     borderRadius: 16,
     borderWidth: 1,
     overflow: 'hidden',
@@ -298,6 +389,71 @@ const styles = StyleSheet.create({
   epicText: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  attachmentsList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  attachmentItem: {
+    width: 70,
+    alignItems: 'center',
+  },
+  attachmentImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+  },
+  attachmentPlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  attachmentIcon: {
+    fontSize: 24,
+  },
+  attachmentName: {
+    fontSize: 10,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  moreAttachments: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  moreText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  commentsList: {
+    gap: 8,
+  },
+  commentItem: {
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  commentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  commentAuthor: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  commentDate: {
+    fontSize: 10,
+  },
+  commentContent: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   statsRow: {
     flexDirection: 'row',

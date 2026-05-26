@@ -79,7 +79,11 @@ import {
   LayersIcon,
   ListIcon,
   ActivityIcon,
+  TagIcon,
+  PinIcon,
 } from '@/theme/icons';
+import { FiFileText } from 'react-icons/fi';
+import { HiOutlineClipboardList, HiOutlineArchive } from 'react-icons/hi';
 import type { Board, Epic, Task, BoardStats, ActivityHeatmapEntry, Note, Section } from '@kanban/shared';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { Menu, Portal } from '@chakra-ui/react';
@@ -1558,9 +1562,14 @@ export function BoardListScreen(): React.JSX.Element {
               {/* Epics Section */}
               <Box>
                 <Flex justify="space-between" align="center" mb={3}>
-                  <Text fontSize="lg" fontWeight="semibold">
-                    🏷 Epics
-                  </Text>
+                  <HStack gap={2}>
+                    <Icon color="brand.500" boxSize={5}>
+                      <TagIcon />
+                    </Icon>
+                    <Text fontSize="lg" fontWeight="semibold">
+                      Epics
+                    </Text>
+                  </HStack>
                   <Text
                     color="brand.500"
                     fontWeight="semibold"
@@ -1599,9 +1608,9 @@ export function BoardListScreen(): React.JSX.Element {
                                   handleEpicEdit(epic);
                                 }}
                               >
-                                <Text fontSize="xs" color="fg.muted">
-                                  ✏️
-                                </Text>
+                                <Icon color="fg.muted" boxSize={3}>
+                                  <EditIcon />
+                                </Icon>
                               </Box>
                             </Flex>
                             <Text fontWeight="semibold" fontSize="sm" lineClamp={1}>
@@ -1638,9 +1647,14 @@ export function BoardListScreen(): React.JSX.Element {
               {/* Pin Board Section */}
               <Box>
                 <Flex justify="space-between" align="center" mb={3}>
-                  <Text fontSize="lg" fontWeight="semibold">
-                    📌 Pin Board
-                  </Text>
+                  <HStack gap={2}>
+                    <Icon color="brand.500" boxSize={5}>
+                      <PinIcon />
+                    </Icon>
+                    <Text fontSize="lg" fontWeight="semibold">
+                      Pin Board
+                    </Text>
+                  </HStack>
                   <HStack gap={3}>
                     <Text
                       color="brand.500"
@@ -1673,15 +1687,19 @@ export function BoardListScreen(): React.JSX.Element {
                     {/* Sticky Notes */}
                     {notes.length > 0 && (
                       <Box>
-                        <Text
-                          fontSize="xs"
-                          fontWeight="semibold"
-                          color="fg.muted"
-                          textTransform="uppercase"
-                          mb={2}
-                        >
-                          📝 Notes
-                        </Text>
+                        <HStack gap={1} mb={2}>
+                          <Icon color="fg.muted" boxSize={3}>
+                            <FiFileText />
+                          </Icon>
+                          <Text
+                            fontSize="xs"
+                            fontWeight="semibold"
+                            color="fg.muted"
+                            textTransform="uppercase"
+                          >
+                            Notes
+                          </Text>
+                        </HStack>
                         <HStack gap={3} overflowX="auto" pb={2}>
                           {notes.map((note) => (
                             <StickyNoteCard
@@ -1698,15 +1716,19 @@ export function BoardListScreen(): React.JSX.Element {
                     {/* Pinned Tasks */}
                     {pinnedTasks.length > 0 && (
                       <Box>
-                        <Text
-                          fontSize="xs"
-                          fontWeight="semibold"
-                          color="fg.muted"
-                          textTransform="uppercase"
-                          mb={2}
-                        >
-                          📌 Pinned Tasks
-                        </Text>
+                        <HStack gap={1} mb={2}>
+                          <Icon color="fg.muted" boxSize={3}>
+                            <PinIcon />
+                          </Icon>
+                          <Text
+                            fontSize="xs"
+                            fontWeight="semibold"
+                            color="fg.muted"
+                            textTransform="uppercase"
+                          >
+                            Pinned Tasks
+                          </Text>
+                        </HStack>
                         <HStack gap={3} overflowX="auto" pb={2}>
                           {pinnedTasks.map((task) => {
                             const board = boards.find((b) => b.id === task.boardId);
@@ -1733,9 +1755,14 @@ export function BoardListScreen(): React.JSX.Element {
               {/* Boards Section - Requirements: 6.1, 6.4, 17.3 */}
               <Box>
                 <Flex justify="space-between" align="center" mb={3}>
-                  <Text fontSize="lg" fontWeight="semibold">
-                    📋 Boards
-                  </Text>
+                  <HStack gap={2}>
+                    <Icon color="brand.500" boxSize={5}>
+                      <HiOutlineClipboardList />
+                    </Icon>
+                    <Text fontSize="lg" fontWeight="semibold">
+                      Boards
+                    </Text>
+                  </HStack>
                   {/* Requirements: 6.4 - Button with AddIcon */}
                   <AppButton
                     intent="primary"

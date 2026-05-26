@@ -54,6 +54,7 @@ import {
   createNote,
   updateNote,
   deleteNote,
+  reorderNotes,
 } from '@/store/slices';
 import {
   selectAllBoards,
@@ -86,6 +87,7 @@ import {
   TagIcon,
   PinIcon,
   SearchIcon,
+  CheckIcon,
 } from '@/theme/icons';
 import { FiFileText } from 'react-icons/fi';
 import { HiOutlineClipboardList } from 'react-icons/hi';
@@ -737,6 +739,7 @@ interface CreateFridgeTaskModalProps {
   isLoading: boolean;
   boards: Board[];
   sections: Section[];
+  initialTitle?: string;
 }
 
 /**
@@ -749,11 +752,19 @@ function CreateFridgeTaskModal({
   isLoading,
   boards,
   sections,
+  initialTitle = '',
 }: CreateFridgeTaskModalProps): React.JSX.Element {
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState(initialTitle);
   const [selectedBoardId, setSelectedBoardId] = useState('');
   const [selectedSectionId, setSelectedSectionId] = useState('');
   const [error, setError] = useState('');
+
+  // Reset title when initialTitle changes (e.g., when creating from a note)
+  useEffect(() => {
+    if (open) {
+      setTitle(initialTitle);
+    }
+  }, [open, initialTitle]);
 
   // Get sections for selected board
   const boardSections = useMemo(() => {
@@ -892,10 +903,13 @@ interface StickyNoteCardProps {
   note: Note;
   onEdit: (note: Note) => void;
   onDelete: (noteId: string) => void;
-  dragHandleProps?: Record<string, unknown>;
+  onToggleDone: (noteId: string, isDone: boolean) => void;
+  onCreateTask: (note: Note) => void;
+  drag?: () => void;
+  isActive?: boolean;
 }
 
-function StickyNoteCard({ note, onEdit, onDelete, dragHandleProps }: StickyNoteCardProps): React.JSX.Element {
+function StickyNoteCard({ note, onEdit, onDelete, onToggleDone, onCreateTask, drag, isActive }: StickyNoteCardProps): React.JSX.Element {
   return (
     <Box
       w="140px"
@@ -904,17 +918,17 @@ function StickyNoteCard({ note, onEdit, onDelete, dragHandleProps }: StickyNoteC
       borderRadius="sm"
       bg={note.color}
       boxShadow="md"
-      transform="rotate(-1deg)"
+      transform={isActive ? 'rotate(-1deg) scale(1.05)' : 'rotate(-1deg)'}
       position="relative"
       cursor="pointer"
       onClick={() => onEdit(note)}
       _hover={{ transform: 'rotate(-1deg) scale(1.02)' }}
       transition="transform 0.2s"
       flexShrink={0}
+      opacity={isActive ? 0.9 : (note.isDone ? 0.7 : 1)}
     >
       {/* Drag Handle */}
       <Box
-        {...dragHandleProps}
         position="absolute"
         top={1}
         left={1}
@@ -923,32 +937,92 @@ function StickyNoteCard({ note, onEdit, onDelete, dragHandleProps }: StickyNoteC
         borderRadius="sm"
         _hover={{ bg: 'blackAlpha.200' }}
         onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          drag?.();
+        }}
+        onTouchStart={(e) => {
+          e.stopPropagation();
+          drag?.();
+        }}
       >
         <Text fontSize="xs" color="gray.600" userSelect="none">⋮⋮</Text>
       </Box>
-      <Text fontSize="sm" color="gray.800" lineClamp={5} lineHeight="short" mt={3}>
+
+      {/* Top right actions: Done toggle and Delete */}
+      <HStack position="absolute" top={1} right={1} gap={0}>
+        {/* Done toggle */}
+        <Box
+          w="20px"
+          h="20px"
+          borderRadius="full"
+          bg={note.isDone ? 'green.500' : 'blackAlpha.200'}
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          cursor="pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleDone(note.id, !note.isDone);
+          }}
+          _hover={{ bg: note.isDone ? 'green.600' : 'blackAlpha.300' }}
+        >
+          <Icon boxSize={3} color={note.isDone ? 'white' : 'gray.600'}>
+            <CheckIcon />
+          </Icon>
+        </Box>
+        {/* Delete button */}
+        <Box
+          w="20px"
+          h="20px"
+          borderRadius="full"
+          bg="blackAlpha.200"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          cursor="pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete(note.id);
+          }}
+          _hover={{ bg: 'blackAlpha.300' }}
+        >
+          <Text fontSize="sm" fontWeight="bold" color="gray.700">
+            ×
+          </Text>
+        </Box>
+      </HStack>
+
+      {/* Note content */}
+      <Text 
+        fontSize="sm" 
+        color="gray.800" 
+        lineClamp={4} 
+        lineHeight="short" 
+        mt={3}
+        textDecoration={note.isDone ? 'line-through' : 'none'}
+      >
         {note.content}
       </Text>
+
+      {/* Create task button */}
       <Box
         position="absolute"
-        top={1}
+        bottom={1}
         right={1}
-        w="20px"
-        h="20px"
-        borderRadius="full"
+        px={1.5}
+        py={0.5}
+        borderRadius="sm"
         bg="blackAlpha.200"
-        display="flex"
-        alignItems="center"
-        justifyContent="center"
         cursor="pointer"
         onClick={(e) => {
           e.stopPropagation();
-          onDelete(note.id);
+          onCreateTask(note);
         }}
         _hover={{ bg: 'blackAlpha.300' }}
       >
-        <Text fontSize="sm" fontWeight="bold" color="gray.700">
-          ×
+        <Text fontSize="xs" color="gray.700" fontWeight="medium">
+          → Task
         </Text>
       </Box>
     </Box>
@@ -1561,6 +1635,7 @@ export function BoardListScreen(): React.JSX.Element {
   const [isCreatingNote, setIsCreatingNote] = useState(false);
   const [isCreatingFridgeTask, setIsCreatingFridgeTask] = useState(false);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [noteForTask, setNoteForTask] = useState<Note | null>(null); // Note to create task from
   const [selectedBoardForHeatmap, setSelectedBoardForHeatmap] = useState<string | null>(null);
 
   // Epic modal state
@@ -1958,6 +2033,35 @@ export function BoardListScreen(): React.JSX.Element {
     [dispatch, editingNote, toast]
   );
 
+  const handleToggleNoteDone = useCallback(
+    async (noteId: string, isDone: boolean) => {
+      try {
+        await dispatch(updateNote({ id: noteId, isDone })).unwrap();
+        toast.showSuccess(isDone ? 'Note marked as done' : 'Note marked as not done');
+      } catch {
+        toast.showError('Error', 'Failed to update note');
+      }
+    },
+    [dispatch, toast]
+  );
+
+  const handleCreateTaskFromNote = useCallback((note: Note) => {
+    setNoteForTask(note);
+    createFridgeTaskModal.onOpen();
+  }, [createFridgeTaskModal]);
+
+  const handleNotesReorder = useCallback(
+    async (data: Note[]) => {
+      const noteIds = data.map((note) => note.id);
+      try {
+        await dispatch(reorderNotes(noteIds)).unwrap();
+      } catch {
+        toast.showError('Error', 'Failed to reorder notes');
+      }
+    },
+    [dispatch, toast]
+  );
+
   const handleDeleteNote = useCallback(
     (noteId: string) => {
       setConfirmDialog({
@@ -1987,6 +2091,13 @@ export function BoardListScreen(): React.JSX.Element {
         ).unwrap();
         await dispatch(toggleTaskPin(result.id)).unwrap();
         dispatch(fetchBoardStats(boardId));
+        
+        // If creating from a note, delete the note
+        if (noteForTask) {
+          await dispatch(deleteNote(noteForTask.id)).unwrap();
+          setNoteForTask(null);
+        }
+        
         createFridgeTaskModal.onClose();
         toast.showSuccess('Task created and pinned');
       } catch {
@@ -1995,8 +2106,14 @@ export function BoardListScreen(): React.JSX.Element {
         setIsCreatingFridgeTask(false);
       }
     },
-    [dispatch, createFridgeTaskModal, toast]
+    [dispatch, createFridgeTaskModal, toast, noteForTask]
   );
+
+  // Handle closing the fridge task modal (reset noteForTask)
+  const handleCloseFridgeTaskModal = useCallback(() => {
+    setNoteForTask(null);
+    createFridgeTaskModal.onClose();
+  }, [createFridgeTaskModal]);
 
   const handleUnpinTask = useCallback(
     async (taskId: string) => {
@@ -2214,16 +2331,30 @@ export function BoardListScreen(): React.JSX.Element {
                             Notes
                           </Text>
                         </HStack>
-                        <HStack gap={3} overflowX="auto" pb={2}>
-                          {notes.map((note) => (
-                            <StickyNoteCard
-                              key={note.id}
-                              note={note}
-                              onEdit={handleEditNote}
-                              onDelete={handleDeleteNote}
-                            />
-                          ))}
-                        </HStack>
+                        <View style={{ height: 150 }}>
+                          <DraggableFlatList
+                            data={notes}
+                            keyExtractor={(item) => item.id}
+                            horizontal
+                            onDragEnd={({ data }) => handleNotesReorder(data)}
+                            renderItem={({ item, drag, isActive }: RenderItemParams<Note>) => (
+                              <ScaleDecorator>
+                                <View style={{ marginRight: 12 }}>
+                                  <StickyNoteCard
+                                    note={item}
+                                    onEdit={handleEditNote}
+                                    onDelete={handleDeleteNote}
+                                    onToggleDone={handleToggleNoteDone}
+                                    onCreateTask={handleCreateTaskFromNote}
+                                    drag={drag}
+                                    isActive={isActive}
+                                  />
+                                </View>
+                              </ScaleDecorator>
+                            )}
+                            contentContainerStyle={{ paddingBottom: 8 }}
+                          />
+                        </View>
                       </Box>
                     )}
 
@@ -2438,11 +2569,12 @@ export function BoardListScreen(): React.JSX.Element {
 
         <CreateFridgeTaskModal
           open={createFridgeTaskModal.open}
-          onClose={createFridgeTaskModal.onClose}
+          onClose={handleCloseFridgeTaskModal}
           onSubmit={handleCreateFridgeTask}
           isLoading={isCreatingFridgeTask}
           boards={boards}
           sections={allSections}
+          initialTitle={noteForTask?.content || ''}
         />
 
         <EditNoteModal

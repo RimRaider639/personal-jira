@@ -21,7 +21,7 @@ router.get(
       }
 
       const notes = await Note.find({ userId: new mongoose.Types.ObjectId(userId) })
-        .sort({ position: 1, createdAt: -1 });
+        .sort({ isDone: 1, position: 1, createdAt: -1 });
 
       res.status(200).json({
         success: true,
@@ -104,7 +104,7 @@ router.put(
         throw createError('Access denied', 403);
       }
 
-      const { content, color } = req.body;
+      const { content, color, isDone } = req.body;
 
       if (content !== undefined) {
         if (typeof content !== 'string' || content.trim().length === 0) {
@@ -118,6 +118,10 @@ router.put(
 
       if (color !== undefined) {
         note.color = color;
+      }
+
+      if (isDone !== undefined) {
+        note.isDone = Boolean(isDone);
       }
 
       await note.save();
@@ -221,7 +225,7 @@ router.put(
 
       // Fetch updated notes
       const updatedNotes = await Note.find({ userId: new mongoose.Types.ObjectId(userId) })
-        .sort({ position: 1, createdAt: -1 });
+        .sort({ isDone: 1, position: 1, createdAt: -1 });
 
       res.status(200).json({
         success: true,

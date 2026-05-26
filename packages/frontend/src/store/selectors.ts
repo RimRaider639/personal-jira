@@ -393,10 +393,20 @@ export const selectAuthError = (state: RootState) => state.auth.error;
 // ==================== Notes Selectors ====================
 
 /**
- * Select all notes as array
+ * Select all notes as array, sorted with done items at the end
  */
 export const selectAllNotes = (state: RootState): Note[] =>
-  state.notes.allIds.map((id) => state.notes.byId[id]).filter(Boolean);
+  state.notes.allIds
+    .map((id) => state.notes.byId[id])
+    .filter(Boolean)
+    .sort((a, b) => {
+      // Done items go to the end
+      if (a.isDone !== b.isDone) {
+        return a.isDone ? 1 : -1;
+      }
+      // Then sort by position
+      return a.position - b.position;
+    });
 
 /**
  * Select note by ID

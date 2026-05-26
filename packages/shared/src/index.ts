@@ -98,6 +98,7 @@ export interface Note {
   content: string;
   color: string;
   position: number;
+  isDone: boolean;
   createdAt: string;
   updatedAt: string;
 }

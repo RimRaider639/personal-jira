@@ -61,7 +61,7 @@ export const createNote = createAsyncThunk<
  */
 export const updateNote = createAsyncThunk<
   Note,
-  { id: string; content?: string; color?: string },
+  { id: string; content?: string; color?: string; isDone?: boolean },
   { rejectValue: string }
 >('notes/update', async ({ id, ...data }, { rejectWithValue }) => {
   try {

@@ -8,6 +8,7 @@ export interface INote extends Document {
   content: string;
   color: string;
   position: number;
+  isDone: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +36,10 @@ const noteSchema = new Schema<INote>(
     position: {
       type: Number,
       default: 0,
+    },
+    isDone: {
+      type: Boolean,
+      default: false,
     },
   },
   {

@@ -416,11 +416,13 @@ export const selectNotesError = (state: RootState) => state.notes.error;
 // ==================== Pinned Tasks Selectors ====================
 
 /**
- * Select all pinned tasks
+ * Select all pinned tasks, sorted by pinnedPosition
  */
 export const selectPinnedTasks = createSelector(
   [(state: RootState) => state.tasks.byId],
   (byId): Task[] => {
-    return Object.values(byId).filter((task) => task && task.isPinned);
+    return Object.values(byId)
+      .filter((task) => task && task.isPinned)
+      .sort((a, b) => (a.pinnedPosition || 0) - (b.pinnedPosition || 0));
   }
 );

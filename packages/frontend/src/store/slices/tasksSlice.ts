@@ -558,15 +558,20 @@ const tasksSlice = createSlice({
         const existingIds = state.byBoardId[boardId] || [];
         
         // Remove tasks that no longer exist in the response
+        // BUT preserve pinned tasks - they should not be removed even if not in response
+        // (e.g., archived tasks that are still pinned)
         existingIds.forEach((taskId) => {
           if (!newTaskIds.has(taskId)) {
             const task = state.byId[taskId];
-            if (task && state.bySectionId[task.sectionId]) {
-              state.bySectionId[task.sectionId] = state.bySectionId[task.sectionId].filter(
-                (id) => id !== taskId
-              );
+            // Don't remove pinned tasks - they should persist
+            if (task && !task.isPinned) {
+              if (state.bySectionId[task.sectionId]) {
+                state.bySectionId[task.sectionId] = state.bySectionId[task.sectionId].filter(
+                  (id) => id !== taskId
+                );
+              }
+              delete state.byId[taskId];
             }
-            delete state.byId[taskId];
           }
         });
 
@@ -574,6 +579,13 @@ const tasksSlice = createSlice({
         state.byBoardId[boardId] = [];
         tasks.forEach((task) => {
           addTaskToIndexes(state, task);
+        });
+        
+        // Re-add pinned tasks to the board index if they were removed
+        Object.values(state.byId).forEach((task) => {
+          if (task && task.isPinned && task.boardId === boardId && !state.byBoardId[boardId].includes(task.id)) {
+            state.byBoardId[boardId].push(task.id);
+          }
         });
       })
       .addCase(fetchTasks.rejected, (state, action) => {

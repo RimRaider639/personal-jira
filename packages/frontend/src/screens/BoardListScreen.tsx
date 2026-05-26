@@ -55,6 +55,9 @@ import {
   updateNote,
   deleteNote,
   reorderNotes,
+  fetchStreak,
+  checkIn,
+  clearPendingMilestone,
 } from '@/store/slices';
 import {
   selectAllBoards,
@@ -1406,6 +1409,14 @@ interface AnalyticsPreviewProps {
   tasks: Task[];
   sections: Section[];
   onViewMore: () => void;
+  streak: {
+    currentStreak: number;
+    longestStreak: number;
+    todayCheckedIn: boolean;
+    totalCheckIns: number;
+  } | null;
+  onCheckIn: () => void;
+  isCheckingIn: boolean;
 }
 
 /**
@@ -1541,6 +1552,129 @@ function MiniActivityHeatmap({ data }: { data: ActivityHeatmapEntry[] }): React.
 }
 
 /**
+ * StreakWidget - Displays current streak with motivational messaging
+ */
+function StreakWidget({ 
+  streak, 
+  onCheckIn, 
+  isCheckingIn 
+}: { 
+  streak: { currentStreak: number; longestStreak: number; todayCheckedIn: boolean; totalCheckIns: number } | null;
+  onCheckIn: () => void;
+  isCheckingIn: boolean;
+}): React.JSX.Element {
+  // Motivational messages based on streak
+  const getStreakMessage = (days: number, checkedIn: boolean): { emoji: string; message: string } => {
+    if (!checkedIn) {
+      if (days === 0) {
+        return { emoji: '🌱', message: 'Start your streak today!' };
+      }
+      return { emoji: '⏰', message: 'Check in to keep your streak!' };
+    }
+    
+    if (days === 0) return { emoji: '🌱', message: 'Start your journey!' };
+    if (days === 1) return { emoji: '🔥', message: 'Day 1 - Great start!' };
+    if (days < 3) return { emoji: '🔥', message: 'Building momentum!' };
+    if (days < 7) return { emoji: '⚡', message: 'You\'re on fire!' };
+    if (days < 14) return { emoji: '💪', message: 'Week warrior!' };
+    if (days < 30) return { emoji: '🏆', message: 'Unstoppable!' };
+    if (days < 50) return { emoji: '🌟', message: 'Legendary streak!' };
+    if (days < 100) return { emoji: '💎', message: 'Diamond dedication!' };
+    return { emoji: '👑', message: 'Absolute champion!' };
+  };
+
+  const currentStreak = streak?.currentStreak || 0;
+  const todayCheckedIn = streak?.todayCheckedIn || false;
+  const { emoji, message } = getStreakMessage(currentStreak, todayCheckedIn);
+
+  return (
+    <VStack gap={3} align="center" minW="140px">
+      {/* Streak Counter */}
+      <Box position="relative">
+        <Box
+          w="80px"
+          h="80px"
+          borderRadius="full"
+          bg={todayCheckedIn ? 'orange.100' : 'gray.100'}
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          borderWidth="3px"
+          borderColor={todayCheckedIn ? 'orange.400' : 'gray.300'}
+          position="relative"
+          overflow="hidden"
+        >
+          {/* Animated glow effect for active streaks */}
+          {todayCheckedIn && currentStreak > 0 && (
+            <Box
+              position="absolute"
+              inset={0}
+              bg="orange.200"
+              opacity={0.5}
+              animation="pulse 2s infinite"
+            />
+          )}
+          <VStack gap={0} position="relative">
+            <Text fontSize="2xl" fontWeight="bold" color={todayCheckedIn ? 'orange.600' : 'gray.500'}>
+              {currentStreak}
+            </Text>
+            <Text fontSize="xs" color={todayCheckedIn ? 'orange.500' : 'gray.400'} fontWeight="medium">
+              {currentStreak === 1 ? 'day' : 'days'}
+            </Text>
+          </VStack>
+        </Box>
+        {/* Flame emoji for active streaks */}
+        {currentStreak > 0 && todayCheckedIn && (
+          <Box position="absolute" top="-8px" right="-8px">
+            <Text fontSize="xl">🔥</Text>
+          </Box>
+        )}
+      </Box>
+
+      {/* Message */}
+      <VStack gap={1}>
+        <HStack gap={1}>
+          <Text fontSize="lg">{emoji}</Text>
+          <Text fontSize="sm" fontWeight="semibold" color="fg">
+            {message}
+          </Text>
+        </HStack>
+        
+        {/* Check-in button or status */}
+        {!todayCheckedIn ? (
+          <AppButton
+            intent="primary"
+            size="sm"
+            onClick={onCheckIn}
+            disabled={isCheckingIn}
+          >
+            {isCheckingIn ? 'Checking in...' : 'Check In'}
+          </AppButton>
+        ) : (
+          <HStack gap={1}>
+            <Icon boxSize={3} color="green.500">
+              <CheckIcon />
+            </Icon>
+            <Text fontSize="xs" color="green.600" fontWeight="medium">
+              Checked in today
+            </Text>
+          </HStack>
+        )}
+      </VStack>
+
+      {/* Stats */}
+      {streak && streak.longestStreak > 0 && (
+        <HStack gap={3} fontSize="xs" color="fg.muted">
+          <Text>Best: {streak.longestStreak} days</Text>
+          <Text>•</Text>
+          <Text>Total: {streak.totalCheckIns}</Text>
+        </HStack>
+      )}
+    </VStack>
+  );
+}
+
+/**
  * AnalyticsPreview - Preview widget for analytics on landing page
  */
 function AnalyticsPreview({
@@ -1548,6 +1682,9 @@ function AnalyticsPreview({
   tasks,
   sections,
   onViewMore,
+  streak,
+  onCheckIn,
+  isCheckingIn,
 }: AnalyticsPreviewProps): React.JSX.Element {
   return (
     <AppCard p={4}>
@@ -1570,7 +1707,15 @@ function AnalyticsPreview({
           </AppButton>
         </Flex>
 
-        <Flex gap={6} wrap="wrap" justify="space-between">
+        <Flex gap={6} wrap="wrap" justify="space-between" align="flex-start">
+          {/* Streak Widget */}
+          <Box>
+            <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={2}>
+              Daily Streak
+            </Text>
+            <StreakWidget streak={streak} onCheckIn={onCheckIn} isCheckingIn={isCheckingIn} />
+          </Box>
+
           {/* Activity Heatmap */}
           <Box>
             <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={2}>
@@ -1628,6 +1773,9 @@ export function BoardListScreen(): React.JSX.Element {
   const error = useAppSelector((state) => state.boards.error);
   const boardStats = useAppSelector((state) => state.boards.stats);
   const boardHeatmaps = useAppSelector((state) => state.boards.heatmaps);
+  const streak = useAppSelector((state) => state.streak.streak);
+  const pendingMilestone = useAppSelector((state) => state.streak.pendingMilestone);
+  const isCheckingIn = useAppSelector((state) => state.streak.isLoading);
 
   // Modal states
   const createBoardModal = useDisclosure();
@@ -1747,7 +1895,7 @@ export function BoardListScreen(): React.JSX.Element {
   );
 
   /**
-   * Fetch boards, epics, tasks, sections, and notes on mount
+   * Fetch boards, epics, tasks, sections, notes, and streak on mount
    */
   useEffect(() => {
     dispatch(fetchBoards());
@@ -1756,6 +1904,7 @@ export function BoardListScreen(): React.JSX.Element {
     dispatch(fetchAllSections());
     dispatch(fetchPinnedTasks());
     dispatch(fetchNotes());
+    dispatch(fetchStreak());
   }, [dispatch]);
 
   /**
@@ -1786,7 +1935,37 @@ export function BoardListScreen(): React.JSX.Element {
     }
   }, [route.params?.openEpicId, epics, navigation]);
 
+  /**
+   * Show achievement toast when there's a pending milestone
+   */
+  useEffect(() => {
+    if (pendingMilestone) {
+      toast.showSuccess(
+        `${pendingMilestone.emoji} ${pendingMilestone.title}!`,
+        pendingMilestone.message
+      );
+      dispatch(clearPendingMilestone());
+    }
+  }, [pendingMilestone, dispatch, toast]);
+
   // ==================== HANDLERS ====================
+
+  /**
+   * Handle daily check-in
+   */
+  const handleCheckIn = useCallback(async () => {
+    try {
+      const result = await dispatch(checkIn()).unwrap();
+      if (result.streakBroken) {
+        toast.showInfo('Streak Reset', 'Your streak was reset. Start fresh today!');
+      } else if (result.isNewStreak && !result.milestone) {
+        toast.showSuccess('Checked In!', 'Great start! Keep it going!');
+      }
+      // Milestone toast is handled by the useEffect above
+    } catch {
+      toast.showError('Error', 'Failed to check in. Please try again.');
+    }
+  }, [dispatch, toast]);
 
   const handleBoardPress = useCallback(
     (boardId: string) => {
@@ -2277,6 +2456,9 @@ export function BoardListScreen(): React.JSX.Element {
                 tasks={allTasks}
                 sections={allSections}
                 onViewMore={() => navigation.navigate('Analytics')}
+                streak={streak}
+                onCheckIn={handleCheckIn}
+                isCheckingIn={isCheckingIn}
               />
 
               {/* Pin Board Section */}

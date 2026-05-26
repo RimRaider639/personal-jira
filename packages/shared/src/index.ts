@@ -279,3 +279,26 @@ export interface SprintStartResponse {
   message: string;
   archivedCount: number;
 }
+
+// Streak and Gamification Types
+export interface UserStreak {
+  currentStreak: number;
+  longestStreak: number;
+  lastCheckInDate: string | null;
+  totalCheckIns: number;
+  todayCheckedIn: boolean;
+}
+
+export interface StreakMilestone {
+  days: number;
+  title: string;
+  emoji: string;
+  message: string;
+}
+
+export interface CheckInResponse {
+  streak: UserStreak;
+  milestone: StreakMilestone | null;
+  isNewStreak: boolean;
+  streakBroken: boolean;
+}

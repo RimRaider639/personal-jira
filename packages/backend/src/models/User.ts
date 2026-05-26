@@ -8,6 +8,11 @@ export interface IUser {
   email: string;
   passwordHash: string;
   displayName: string;
+  // Streak fields
+  currentStreak: number;
+  longestStreak: number;
+  lastCheckInDate: Date | null;
+  totalCheckIns: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -51,6 +56,23 @@ const userSchema = new Schema<IUserDocument, IUserModel>(
       required: [true, 'Display name is required'],
       trim: true,
       maxlength: [100, 'Display name cannot exceed 100 characters'],
+    },
+    // Streak fields
+    currentStreak: {
+      type: Number,
+      default: 0,
+    },
+    longestStreak: {
+      type: Number,
+      default: 0,
+    },
+    lastCheckInDate: {
+      type: Date,
+      default: null,
+    },
+    totalCheckIns: {
+      type: Number,
+      default: 0,
     },
   },
   {

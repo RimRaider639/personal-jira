@@ -10,6 +10,7 @@ import attachmentRoutes from './attachments';
 import exportRoutes from './export';
 import activityRoutes from './activity';
 import notesRoutes from './notes';
+import streakRoutes from './streak';
 
 const router = Router();
 
@@ -45,5 +46,8 @@ router.use('/', activityRoutes);
 
 // Notes routes (sticky notes for the fridge)
 router.use('/notes', notesRoutes);
+
+// Streak routes (gamification and daily check-ins)
+router.use('/streak', streakRoutes);
 
 export default router;

@@ -8,6 +8,7 @@ export { default as filtersReducer } from './filtersSlice';
 export { default as syncReducer } from './syncSlice';
 export { default as uiReducer } from './uiSlice';
 export { default as notesReducer } from './notesSlice';
+export { default as streakReducer } from './streakSlice';
 
 // Export auth actions
 export {
@@ -174,3 +175,14 @@ export {
   reorderNotes,
 } from './notesSlice';
 export type { NotesState } from './notesSlice';
+
+// Export streak actions
+export {
+  clearStreakError,
+  clearPendingMilestone,
+  clearLastCheckInResult,
+  resetStreak,
+  fetchStreak,
+  checkIn,
+} from './streakSlice';
+export type { StreakState } from './streakSlice';

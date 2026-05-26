@@ -523,136 +523,138 @@ export function EpicDetailScreen({
                           borderColor={cardBorder}
                           borderRadius="md"
                           p={3}
+                          w="full"
                         >
-                          <HStack justify="space-between" align="flex-start" gap={2}>
-                            {/* Task Info */}
-                            <VStack align="stretch" gap={1} flex={1} minW={0}>
-                              {/* Title - clickable */}
-                              <ChakraText
-                                fontWeight="medium"
-                                fontSize="sm"
-                                color={textColor}
-                                lineClamp={1}
-                                cursor="pointer"
-                                _hover={{ color: 'brand.500' }}
-                                onClick={() => onTaskPress?.(task.id, boardId)}
-                              >
-                                {task.title}
-                              </ChakraText>
+                          {/* Single row layout: Title | Priority | Deadline | Status */}
+                          <HStack justify="space-between" align="center" gap={3} w="full">
+                            {/* Left side: Title (takes remaining space) */}
+                            <ChakraText
+                              fontWeight="medium"
+                              fontSize="sm"
+                              color={textColor}
+                              lineClamp={1}
+                              cursor="pointer"
+                              flex={1}
+                              minW={0}
+                              _hover={{ color: 'brand.500' }}
+                              onClick={() => onTaskPress?.(task.id, boardId)}
+                            >
+                              {task.title}
+                            </ChakraText>
+                            
+                            {/* Right side: Priority, Deadline, Status */}
+                            <HStack gap={2} flexShrink={0}>
+                              {/* Priority Badge */}
+                              {task.priority && (
+                                <Box
+                                  px={2}
+                                  py={0.5}
+                                  borderRadius="md"
+                                  bg={`${priorityColor}20`}
+                                >
+                                  <ChakraText fontSize="xs" fontWeight="medium" color={priorityColor} textTransform="capitalize">
+                                    {task.priority}
+                                  </ChakraText>
+                                </Box>
+                              )}
                               
-                              {/* Meta row: Status dropdown, Deadline */}
-                              <HStack gap={2} wrap="wrap">
-                                {/* Status Dropdown */}
-                                <Menu.Root>
-                                  <Menu.Trigger asChild>
-                                    <Box
-                                      as="button"
-                                      px={2}
-                                      py={0.5}
-                                      borderRadius="md"
-                                      bg={`${statusColor}20`}
-                                      borderWidth="1px"
-                                      borderColor={statusColor}
-                                      display="flex"
-                                      alignItems="center"
-                                      gap={1}
-                                      cursor={isChangingStatus ? 'not-allowed' : 'pointer'}
-                                      _hover={{ opacity: 0.8 }}
-                                      opacity={isChangingStatus ? 0.6 : 1}
-                                    >
-                                      <ChakraText fontSize="xs" fontWeight="medium" color={statusColor}>
-                                        {section?.name || 'Unknown'}
-                                      </ChakraText>
-                                      <Icon boxSize={3} color={statusColor}>
-                                        <ChevronDownIcon />
-                                      </Icon>
-                                    </Box>
-                                  </Menu.Trigger>
-                                  <Portal>
-                                    <Menu.Positioner>
-                                      <Menu.Content
-                                        minW="150px"
-                                        bg={cardBg}
-                                        borderColor={cardBorder}
-                                        boxShadow="lg"
-                                        zIndex={1000}
-                                      >
-                                        {boardSections.map((s) => {
-                                          const sectionStatusColor = getStatusColor(s.name);
-                                          const isSelected = s.id === task.sectionId;
-                                          return (
-                                            <Menu.Item
-                                              key={s.id}
-                                              value={s.id}
-                                              onClick={() => handleStatusChange(task.id, s.id, task.sectionId)}
-                                              disabled={isChangingStatus}
-                                            >
-                                              <HStack justify="space-between" w="full">
-                                                <HStack gap={2}>
-                                                  <Box
-                                                    w="8px"
-                                                    h="8px"
-                                                    borderRadius="full"
-                                                    bg={sectionStatusColor}
-                                                  />
-                                                  <ChakraText
-                                                    fontSize="sm"
-                                                    fontWeight={isSelected ? 'semibold' : 'normal'}
-                                                    color={isSelected ? sectionStatusColor : textColor}
-                                                  >
-                                                    {s.name}
-                                                  </ChakraText>
-                                                </HStack>
-                                                {isSelected && (
-                                                  <Icon boxSize={4} color={sectionStatusColor}>
-                                                    <CheckIcon />
-                                                  </Icon>
-                                                )}
-                                              </HStack>
-                                            </Menu.Item>
-                                          );
-                                        })}
-                                      </Menu.Content>
-                                    </Menu.Positioner>
-                                  </Portal>
-                                </Menu.Root>
-                                
-                                {/* Deadline Badge */}
-                                {deadlineInfo && (
+                              {/* Deadline Badge */}
+                              {deadlineInfo && (
+                                <Box
+                                  px={2}
+                                  py={0.5}
+                                  borderRadius="md"
+                                  bg={deadlineInfo.isOverdue ? 'red.100' : deadlineInfo.isUrgent ? 'orange.100' : 'gray.100'}
+                                  _dark={{
+                                    bg: deadlineInfo.isOverdue ? 'red.900' : deadlineInfo.isUrgent ? 'orange.900' : 'gray.700',
+                                  }}
+                                >
+                                  <ChakraText
+                                    fontSize="xs"
+                                    fontWeight="medium"
+                                    color={deadlineInfo.color}
+                                  >
+                                    {deadlineInfo.text}
+                                  </ChakraText>
+                                </Box>
+                              )}
+                              
+                              {/* Status Dropdown */}
+                              <Menu.Root>
+                                <Menu.Trigger asChild>
                                   <Box
+                                    as="button"
                                     px={2}
                                     py={0.5}
                                     borderRadius="md"
-                                    bg={deadlineInfo.isOverdue ? 'red.100' : deadlineInfo.isUrgent ? 'orange.100' : 'gray.100'}
-                                    _dark={{
-                                      bg: deadlineInfo.isOverdue ? 'red.900' : deadlineInfo.isUrgent ? 'orange.900' : 'gray.700',
-                                    }}
+                                    bg={`${statusColor}20`}
+                                    borderWidth="1px"
+                                    borderColor={statusColor}
+                                    display="flex"
+                                    alignItems="center"
+                                    gap={1}
+                                    cursor={isChangingStatus ? 'not-allowed' : 'pointer'}
+                                    _hover={{ opacity: 0.8 }}
+                                    opacity={isChangingStatus ? 0.6 : 1}
+                                    minW="90px"
                                   >
-                                    <ChakraText
-                                      fontSize="xs"
-                                      fontWeight="medium"
-                                      color={deadlineInfo.color}
-                                    >
-                                      {deadlineInfo.text}
+                                    <ChakraText fontSize="xs" fontWeight="medium" color={statusColor}>
+                                      {section?.name || 'Unknown'}
                                     </ChakraText>
+                                    <Icon boxSize={3} color={statusColor}>
+                                      <ChevronDownIcon />
+                                    </Icon>
                                   </Box>
-                                )}
-                              </HStack>
-                            </VStack>
-                            
-                            {/* Priority Indicator */}
-                            {task.priority && (
-                              <Box
-                                px={2}
-                                py={0.5}
-                                borderRadius="md"
-                                bg={`${priorityColor}20`}
-                              >
-                                <ChakraText fontSize="xs" fontWeight="medium" color={priorityColor} textTransform="capitalize">
-                                  {task.priority}
-                                </ChakraText>
-                              </Box>
-                            )}
+                                </Menu.Trigger>
+                                <Portal>
+                                  <Menu.Positioner>
+                                    <Menu.Content
+                                      minW="150px"
+                                      bg={cardBg}
+                                      borderColor={cardBorder}
+                                      boxShadow="lg"
+                                      zIndex={1000}
+                                    >
+                                      {boardSections.map((s) => {
+                                        const sectionStatusColor = getStatusColor(s.name);
+                                        const isSelected = s.id === task.sectionId;
+                                        return (
+                                          <Menu.Item
+                                            key={s.id}
+                                            value={s.id}
+                                            onClick={() => handleStatusChange(task.id, s.id, task.sectionId)}
+                                            disabled={isChangingStatus}
+                                          >
+                                            <HStack justify="space-between" w="full">
+                                              <HStack gap={2}>
+                                                <Box
+                                                  w="8px"
+                                                  h="8px"
+                                                  borderRadius="full"
+                                                  bg={sectionStatusColor}
+                                                />
+                                                <ChakraText
+                                                  fontSize="sm"
+                                                  fontWeight={isSelected ? 'semibold' : 'normal'}
+                                                  color={isSelected ? sectionStatusColor : textColor}
+                                                >
+                                                  {s.name}
+                                                </ChakraText>
+                                              </HStack>
+                                              {isSelected && (
+                                                <Icon boxSize={4} color={sectionStatusColor}>
+                                                  <CheckIcon />
+                                                </Icon>
+                                              )}
+                                            </HStack>
+                                          </Menu.Item>
+                                        );
+                                      })}
+                                    </Menu.Content>
+                                  </Menu.Positioner>
+                                </Portal>
+                              </Menu.Root>
+                            </HStack>
                           </HStack>
                         </Box>
                       );

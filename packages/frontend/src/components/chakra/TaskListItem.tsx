@@ -9,7 +9,7 @@
  * 
  * Features:
  * - Consistent styling across the app
- * - Color-coded status badges
+ * - Color-coded status badges (using centralized semantic colors)
  * - Simple dropdown for status changes
  * - Priority indicator
  * - Deadline display with urgency colors
@@ -29,31 +29,42 @@ import { useColorModeValue } from '@/hooks/useColorMode';
 import type { Task, Section } from '@kanban/shared';
 import { CheckIcon, ChevronDownIcon } from '@/theme/icons';
 
+// Import from centralized semantic colors
+import {
+  getStatusColor as getStatusColorFromTheme,
+  getPriorityColor as getPriorityColorFromTheme,
+  getDeadlineInfo as getDeadlineInfoFromTheme,
+  statusColors,
+  priorityColors,
+  deadlineColors,
+} from '@/theme/semanticColors';
+
 /**
- * Get color for a section/status based on its name
+ * Get Chakra color token for a section/status based on its name
+ * Maps semantic colors to Chakra color tokens for component styling
  */
 export function getStatusColor(sectionName: string | undefined): string {
   if (!sectionName) return 'gray.500';
   const name = sectionName.toLowerCase();
   
   // Done/Complete - Green
-  if (name.includes('done') || name.includes('complete') || name.includes('finished')) {
+  if (name.includes('done') || name.includes('complete') || name.includes('finished') || name.includes('closed')) {
     return 'green.500';
   }
   // In Progress/Doing - Orange
-  if (name.includes('progress') || name.includes('doing') || name.includes('working')) {
+  if (name.includes('progress') || name.includes('doing') || name.includes('working') || name.includes('active')) {
     return 'orange.500';
   }
   // Review/Testing - Purple
-  if (name.includes('review') || name.includes('test') || name.includes('qa')) {
+  if (name.includes('review') || name.includes('test') || name.includes('qa') || name.includes('verify')) {
     return 'purple.500';
   }
   // Blocked/On Hold - Red
-  if (name.includes('block') || name.includes('hold') || name.includes('stuck')) {
+  if (name.includes('block') || name.includes('hold') || name.includes('stuck') || name.includes('wait')) {
     return 'red.500';
   }
-  // To Do/Backlog - Blue (default)
-  if (name.includes('todo') || name.includes('to do') || name.includes('backlog') || name.includes('new')) {
+  // To Do/Backlog - Blue
+  if (name.includes('todo') || name.includes('to do') || name.includes('backlog') || name.includes('new') || name.includes('open')) {
     return 'blue.500';
   }
   
@@ -61,7 +72,7 @@ export function getStatusColor(sectionName: string | undefined): string {
 }
 
 /**
- * Get priority color
+ * Get Chakra color token for priority
  */
 export function getPriorityColor(priority: string | null | undefined): string {
   switch (priority) {
@@ -74,7 +85,7 @@ export function getPriorityColor(priority: string | null | undefined): string {
 }
 
 /**
- * Calculate deadline info
+ * Calculate deadline info with Chakra color tokens
  */
 export function getDeadlineInfo(endDate: string | null | undefined): {
   text: string;
@@ -117,6 +128,10 @@ export function getDeadlineInfo(endDate: string | null | undefined): {
   
   return { text, color, isOverdue, isUrgent };
 }
+
+// Re-export semantic color utilities for components that need raw hex values
+export { statusColors, priorityColors, deadlineColors };
+export { getStatusColorFromTheme, getPriorityColorFromTheme, getDeadlineInfoFromTheme };
 
 interface TaskListItemProps {
   /** The task to display */

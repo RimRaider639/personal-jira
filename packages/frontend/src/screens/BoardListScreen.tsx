@@ -99,6 +99,9 @@ import type { Board, Epic, Task, BoardStats, ActivityHeatmapEntry, Note, Section
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { Menu, Portal } from '@chakra-ui/react';
 
+// Import semantic colors for consistent theming
+import { heatmapColors, chartColors, getHeatmapColor, getChartColor } from '@/theme/semanticColors';
+
 /**
  * Note colors for sticky notes
  */
@@ -144,14 +147,6 @@ function MiniHeatmap({ data }: { data: ActivityHeatmapEntry[] }): React.JSX.Elem
     return days;
   }, [data]);
 
-  const getHeatColor = (count: number): string => {
-    if (count === 0) return 'gray.200';
-    if (count <= 2) return 'green.200';
-    if (count <= 5) return 'green.400';
-    if (count <= 10) return 'green.500';
-    return 'green.600';
-  };
-
   return (
     <Flex wrap="wrap" gap="2px" w="58px">
       {last14Days.map((day) => (
@@ -160,7 +155,7 @@ function MiniHeatmap({ data }: { data: ActivityHeatmapEntry[] }): React.JSX.Elem
           w="6px"
           h="6px"
           borderRadius="1px"
-          bg={getHeatColor(day.count)}
+          bg={getHeatmapColor(day.count)}
         />
       ))}
     </Flex>
@@ -1427,15 +1422,14 @@ function MiniPieChart({ tasks, sections }: { tasks: Task[]; sections: Section[] 
   // Group tasks by section
   const sectionCounts = useMemo(() => {
     const counts: Record<string, { name: string; count: number; color: string }> = {};
-    const colors = ['#6366f1', '#22c55e', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4'];
     
     // Count tasks per section
     tasks.forEach((task) => {
       const section = sections.find((s) => s.id === task.sectionId);
       const sectionName = section?.name || 'Other';
       if (!counts[sectionName]) {
-        const colorIndex = Object.keys(counts).length % colors.length;
-        counts[sectionName] = { name: sectionName, count: 0, color: colors[colorIndex] };
+        const colorIndex = Object.keys(counts).length;
+        counts[sectionName] = { name: sectionName, count: 0, color: getChartColor(colorIndex) };
       }
       counts[sectionName].count++;
     });
@@ -1447,7 +1441,7 @@ function MiniPieChart({ tasks, sections }: { tasks: Task[]; sections: Section[] 
 
   if (total === 0) {
     return (
-      <VStack gap={2} align="center">
+      <VStack gap={2} align="center" justify="center" h="120px">
         <Text fontSize="sm" color="fg.muted">No tasks yet</Text>
       </VStack>
     );
@@ -1468,23 +1462,24 @@ function MiniPieChart({ tasks, sections }: { tasks: Task[]; sections: Section[] 
   ).join(', ');
 
   return (
-    <HStack gap={4} align="flex-start">
-      {/* Pie Chart - larger */}
+    <HStack gap={6} align="flex-start" w="full">
+      {/* Pie Chart */}
       <Box
-        w="100px"
-        h="100px"
+        w="120px"
+        h="120px"
         borderRadius="full"
+        flexShrink={0}
         style={{
           background: `conic-gradient(${gradientStops})`,
         }}
       />
       
       {/* Legend */}
-      <VStack gap={1.5} align="flex-start">
-        {segments.slice(0, 5).map((seg) => (
-          <HStack key={seg.name} gap={2}>
-            <Box w="12px" h="12px" borderRadius="2px" bg={seg.color} />
-            <Text fontSize="sm" color="fg.muted" lineClamp={1} maxW="100px">
+      <VStack gap={2} align="flex-start" flex={1}>
+        {segments.slice(0, 6).map((seg) => (
+          <HStack key={seg.name} gap={2} w="full">
+            <Box w="12px" h="12px" borderRadius="2px" bg={seg.color} flexShrink={0} />
+            <Text fontSize="sm" color="fg" lineClamp={1} flex={1}>
               {seg.name}
             </Text>
             <Text fontSize="sm" fontWeight="semibold" color="fg">
@@ -1492,9 +1487,9 @@ function MiniPieChart({ tasks, sections }: { tasks: Task[]; sections: Section[] 
             </Text>
           </HStack>
         ))}
-        {segments.length > 5 && (
+        {segments.length > 6 && (
           <Text fontSize="xs" color="fg.muted">
-            +{segments.length - 5} more
+            +{segments.length - 6} more
           </Text>
         )}
       </VStack>
@@ -1522,39 +1517,47 @@ function MiniActivityHeatmap({ data }: { data: ActivityHeatmapEntry[] }): React.
     return days;
   }, [data]);
 
-  const getHeatColor = (count: number): string => {
-    if (count === 0) return 'gray.200';
-    if (count <= 2) return 'green.200';
-    if (count <= 5) return 'green.400';
-    if (count <= 10) return 'green.500';
-    return 'green.600';
-  };
-
   const totalActivity = last49Days.reduce((sum, day) => sum + day.count, 0);
   const activeDays = last49Days.filter((day) => day.count > 0).length;
 
   return (
-    <VStack gap={3} align="flex-start">
-      <Flex wrap="wrap" gap="4px" w="140px">
-        {last49Days.map((day) => (
-          <Box
-            key={day.date}
-            w="14px"
-            h="14px"
-            borderRadius="3px"
-            bg={getHeatColor(day.count)}
-          />
-        ))}
-      </Flex>
-      <VStack gap={0.5} align="flex-start">
-        <Text fontSize="sm" fontWeight="semibold" color="fg">
-          {totalActivity} activities
-        </Text>
-        <Text fontSize="xs" color="fg.muted">
-          {activeDays} active days in 7 weeks
-        </Text>
+    <HStack gap={6} align="flex-start" w="full">
+      {/* Heatmap grid - 7 columns x 7 rows */}
+      <Box>
+        <SimpleGrid columns={7} gap="5px">
+          {last49Days.map((day) => (
+            <Box
+              key={day.date}
+              w="16px"
+              h="16px"
+              borderRadius="3px"
+              bg={getHeatmapColor(day.count)}
+              title={`${day.date}: ${day.count} activities`}
+            />
+          ))}
+        </SimpleGrid>
+      </Box>
+      
+      {/* Stats */}
+      <VStack gap={2} align="flex-start" flex={1}>
+        <VStack gap={0} align="flex-start">
+          <Text fontSize="2xl" fontWeight="bold" color="fg">
+            {totalActivity}
+          </Text>
+          <Text fontSize="sm" color="fg.muted">
+            total activities
+          </Text>
+        </VStack>
+        <VStack gap={0} align="flex-start">
+          <Text fontSize="lg" fontWeight="semibold" color="fg">
+            {activeDays}
+          </Text>
+          <Text fontSize="xs" color="fg.muted">
+            active days in 7 weeks
+          </Text>
+        </VStack>
       </VStack>
-    </VStack>
+    </HStack>
   );
 }
 
@@ -1821,7 +1824,7 @@ function AnalyticsPreview({
 }: AnalyticsPreviewProps): React.JSX.Element {
   return (
     <AppCard p={5}>
-      <VStack gap={5} align="stretch">
+      <VStack gap={6} align="stretch">
         <Flex justify="space-between" align="center">
           <HStack gap={2}>
             <Icon color="brand.500" boxSize={6}>
@@ -1840,40 +1843,74 @@ function AnalyticsPreview({
           </AppButton>
         </Flex>
 
-        {/* Main content - responsive grid */}
-        <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} gap={6}>
-          {/* Streak Widget */}
-          <Box>
-            <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={3}>
-              Daily Streak
-            </Text>
-            <StreakWidget streak={streak} onCheckIn={onCheckIn} isCheckingIn={isCheckingIn} />
-          </Box>
+        {/* Main content - 2 row layout for better spacing */}
+        <VStack gap={6} align="stretch">
+          {/* Row 1: Streak and Quick Stats side by side */}
+          <SimpleGrid columns={{ base: 1, md: 2 }} gap={8}>
+            {/* Streak Widget */}
+            <Box 
+              p={4} 
+              borderRadius="lg" 
+              bg="gray.50" 
+              _dark={{ bg: 'gray.800', borderColor: 'gray.700' }}
+              borderWidth="1px"
+              borderColor="gray.200"
+            >
+              <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={4}>
+                Daily Streak
+              </Text>
+              <StreakWidget streak={streak} onCheckIn={onCheckIn} isCheckingIn={isCheckingIn} />
+            </Box>
 
-          {/* Quick Stats */}
-          <Box>
-            <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={3}>
-              Quick Stats
-            </Text>
-            <QuickStats tasks={tasks} sections={sections} />
-          </Box>
+            {/* Quick Stats */}
+            <Box 
+              p={4} 
+              borderRadius="lg" 
+              bg="gray.50" 
+              _dark={{ bg: 'gray.800', borderColor: 'gray.700' }}
+              borderWidth="1px"
+              borderColor="gray.200"
+            >
+              <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={4}>
+                Quick Stats
+              </Text>
+              <QuickStats tasks={tasks} sections={sections} />
+            </Box>
+          </SimpleGrid>
 
-          {/* Activity Heatmap */}
-          <Box>
-            <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={3}>
-              Activity (7 weeks)
-            </Text>
-            <MiniActivityHeatmap data={heatmapData} />
-          </Box>
+          {/* Row 2: Activity Heatmap (wider) and Task Distribution */}
+          <SimpleGrid columns={{ base: 1, md: 2 }} gap={8}>
+            {/* Activity Heatmap - takes more visual space */}
+            <Box 
+              p={4} 
+              borderRadius="lg" 
+              bg="gray.50" 
+              _dark={{ bg: 'gray.800', borderColor: 'gray.700' }}
+              borderWidth="1px"
+              borderColor="gray.200"
+            >
+              <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={4}>
+                Activity (7 weeks)
+              </Text>
+              <MiniActivityHeatmap data={heatmapData} />
+            </Box>
 
-          {/* Task Distribution */}
-          <Box>
-            <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={3}>
-              Task Distribution
-            </Text>
-            <MiniPieChart tasks={tasks} sections={sections} />
-          </Box>
-        </SimpleGrid>
+            {/* Task Distribution */}
+            <Box 
+              p={4} 
+              borderRadius="lg" 
+              bg="gray.50" 
+              _dark={{ bg: 'gray.800', borderColor: 'gray.700' }}
+              borderWidth="1px"
+              borderColor="gray.200"
+            >
+              <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={4}>
+                Task Distribution
+              </Text>
+              <MiniPieChart tasks={tasks} sections={sections} />
+            </Box>
+          </SimpleGrid>
+        </VStack>
       </VStack>
     </AppCard>
   );

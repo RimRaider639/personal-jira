@@ -5,7 +5,11 @@
  * - Global dark mode toggle: Affects all UI elements (text, buttons, bars)
  * - Board-specific decorative themes: Add backgrounds and color palettes
  * - Each decorative theme has light and dark variants that respect the global toggle
+ * - Semantic colors: Centralized color definitions for status, priority, deadlines, etc.
  */
+
+// Re-export semantic colors for easy access
+export * from './semanticColors';
 
 // Base theme type (global light/dark mode)
 export type BaseThemeType = 'light' | 'dark';

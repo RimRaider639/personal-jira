@@ -24,6 +24,7 @@ interface DraggableSectionListProps {
   onToggleEpic: (taskId: string, epicId: string) => void;
   onTogglePin?: (taskId: string) => void;
   onEpicPress?: (epicId: string) => void;
+  onClone?: (taskId: string) => void;
   onSectionReorder: (sectionIds: string[]) => void;
   onAddTask: (sectionId: string) => void;
   onAddSection: () => void;
@@ -43,6 +44,7 @@ function DraggableSectionListComponent({
   onToggleEpic,
   onTogglePin,
   onEpicPress,
+  onClone,
   onSectionReorder,
   onAddTask,
   onAddSection,
@@ -122,6 +124,7 @@ function DraggableSectionListComponent({
               onToggleEpic={onToggleEpic}
               onTogglePin={onTogglePin}
               onEpicPress={onEpicPress}
+              onClone={onClone}
               onAddTask={() => handleAddTask(item.id)}
               sectionName={item.name}
             />
@@ -129,7 +132,7 @@ function DraggableSectionListComponent({
         </ScaleDecorator>
       );
     },
-    [colors, epics, sections, onTaskPress, onTaskReorder, onMoveTask, onToggleEpic, onTogglePin, onEpicPress, handleAddTask]
+    [colors, epics, sections, onTaskPress, onTaskReorder, onMoveTask, onToggleEpic, onTogglePin, onEpicPress, onClone, handleAddTask]
   );
 
   const keyExtractor = useCallback((item: SectionWithTasks) => item.id, []);
@@ -281,6 +284,7 @@ function arePropsEqual(
   if (prevProps.onToggleEpic !== nextProps.onToggleEpic) return false;
   if (prevProps.onTogglePin !== nextProps.onTogglePin) return false;
   if (prevProps.onEpicPress !== nextProps.onEpicPress) return false;
+  if (prevProps.onClone !== nextProps.onClone) return false;
   if (prevProps.onSectionReorder !== nextProps.onSectionReorder) return false;
   if (prevProps.onAddTask !== nextProps.onAddTask) return false;
   if (prevProps.onAddSection !== nextProps.onAddSection) return false;

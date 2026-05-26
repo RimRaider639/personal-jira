@@ -140,7 +140,11 @@ export function DatePicker({ value, onChange, placeholder = 'Select date' }: Dat
         onRequestClose={() => setVisible(false)}
       >
         <Pressable style={styles.overlay} onPress={() => setVisible(false)}>
-          <Pressable style={[styles.calendar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View 
+            style={[styles.calendar, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onStartShouldSetResponder={() => true}
+            onTouchEnd={(e) => e.stopPropagation()}
+          >
             {/* Header */}
             <View style={[styles.header, { borderBottomColor: colors.borderLight }]}>
               <TouchableOpacity onPress={handlePrevMonth} style={styles.navButton}>
@@ -202,7 +206,7 @@ export function DatePicker({ value, onChange, placeholder = 'Select date' }: Dat
                 <Text style={[styles.actionText, { color: colors.primary }]}>Done</Text>
               </TouchableOpacity>
             </View>
-          </Pressable>
+          </View>
         </Pressable>
       </Modal>
     </>

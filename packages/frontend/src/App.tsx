@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, enableExperimentalWebImplementation } from 'react-native-gesture-handler';
 import { ChakraProvider } from '@chakra-ui/react';
 
 import { store, persistor } from '@/store';
@@ -11,6 +11,10 @@ import { RootNavigator } from '@/navigation/RootNavigator';
 import { ThemeProvider, useTheme } from '@/theme/ThemeContext';
 import { system } from '@/theme/chakraTheme';
 import { setupApiInterceptors } from '@/services/api';
+
+// Enable experimental web implementation for gesture handler
+// This is required for drag and drop to work on web
+enableExperimentalWebImplementation(true);
 
 /**
  * ChakraColorModeSync - Syncs the app's theme context with Chakra's color mode

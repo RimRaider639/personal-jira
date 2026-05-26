@@ -52,6 +52,7 @@ import {
   unarchiveTask,
   logout,
   toggleTaskPin,
+  cloneTask,
 } from '@/store/slices';
 import {
   selectBoardById,
@@ -1252,6 +1253,21 @@ export function BoardScreen({
     [dispatch, toast]
   );
 
+  /**
+   * Handle cloning a task
+   */
+  const handleCloneTask = useCallback(
+    async (taskId: string) => {
+      try {
+        await dispatch(cloneTask(taskId)).unwrap();
+        toast.showSuccess('Task cloned', 'A copy of the task has been created');
+      } catch {
+        toast.showError('Error', 'Failed to clone task');
+      }
+    },
+    [dispatch, toast]
+  );
+
   // Loading state
   if (!boardId || !board) {
     return (
@@ -1313,6 +1329,7 @@ export function BoardScreen({
               onToggleEpic={handleToggleEpic}
               onTogglePin={handleTogglePin}
               onEpicPress={onEpicPress}
+              onClone={handleCloneTask}
               onSectionReorder={handleSectionReorder}
               onAddTask={handleAddTask}
               onAddSection={handleAddSection}

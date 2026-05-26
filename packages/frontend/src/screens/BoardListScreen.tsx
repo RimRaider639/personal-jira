@@ -1052,6 +1052,200 @@ function HeatmapModal({
 }
 
 
+// ==================== ANALYTICS PREVIEW ====================
+
+interface AnalyticsPreviewProps {
+  heatmapData: ActivityHeatmapEntry[];
+  tasks: Task[];
+  sections: Section[];
+  onViewMore: () => void;
+}
+
+/**
+ * MiniPieChart - Simple pie chart showing task distribution by section
+ */
+function MiniPieChart({ tasks, sections }: { tasks: Task[]; sections: Section[] }): React.JSX.Element {
+  // Group tasks by section
+  const sectionCounts = useMemo(() => {
+    const counts: Record<string, { name: string; count: number; color: string }> = {};
+    const colors = ['#6366f1', '#22c55e', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4'];
+    
+    // Count tasks per section
+    tasks.forEach((task) => {
+      const section = sections.find((s) => s.id === task.sectionId);
+      const sectionName = section?.name || 'Other';
+      if (!counts[sectionName]) {
+        const colorIndex = Object.keys(counts).length % colors.length;
+        counts[sectionName] = { name: sectionName, count: 0, color: colors[colorIndex] };
+      }
+      counts[sectionName].count++;
+    });
+
+    return Object.values(counts).sort((a, b) => b.count - a.count);
+  }, [tasks, sections]);
+
+  const total = tasks.length;
+
+  if (total === 0) {
+    return (
+      <VStack gap={2} align="center">
+        <Text fontSize="sm" color="fg.muted">No tasks yet</Text>
+      </VStack>
+    );
+  }
+
+  // Calculate percentages for the pie chart segments
+  let cumulativePercent = 0;
+  const segments = sectionCounts.map((section) => {
+    const percent = (section.count / total) * 100;
+    const startPercent = cumulativePercent;
+    cumulativePercent += percent;
+    return { ...section, percent, startPercent };
+  });
+
+  // Create conic gradient for pie chart
+  const gradientStops = segments.map((seg) => 
+    `${seg.color} ${seg.startPercent}% ${seg.startPercent + seg.percent}%`
+  ).join(', ');
+
+  return (
+    <HStack gap={4} align="flex-start">
+      {/* Pie Chart */}
+      <Box
+        w="80px"
+        h="80px"
+        borderRadius="full"
+        style={{
+          background: `conic-gradient(${gradientStops})`,
+        }}
+      />
+      
+      {/* Legend */}
+      <VStack gap={1} align="flex-start">
+        {segments.slice(0, 4).map((seg) => (
+          <HStack key={seg.name} gap={2}>
+            <Box w="10px" h="10px" borderRadius="2px" bg={seg.color} />
+            <Text fontSize="xs" color="fg.muted" lineClamp={1} maxW="80px">
+              {seg.name}
+            </Text>
+            <Text fontSize="xs" fontWeight="semibold" color="fg">
+              {seg.count}
+            </Text>
+          </HStack>
+        ))}
+        {segments.length > 4 && (
+          <Text fontSize="xs" color="fg.muted">
+            +{segments.length - 4} more
+          </Text>
+        )}
+      </VStack>
+    </HStack>
+  );
+}
+
+/**
+ * MiniActivityHeatmap - Compact heatmap for analytics preview
+ */
+function MiniActivityHeatmap({ data }: { data: ActivityHeatmapEntry[] }): React.JSX.Element {
+  // Show last 28 days in a 4x7 grid
+  const last28Days = useMemo(() => {
+    const days: { date: string; count: number }[] = [];
+    const now = new Date();
+
+    for (let i = 27; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      const entry = data.find((d) => d.date === dateStr);
+      days.push({ date: dateStr, count: entry?.count || 0 });
+    }
+
+    return days;
+  }, [data]);
+
+  const getHeatColor = (count: number): string => {
+    if (count === 0) return 'gray.200';
+    if (count <= 2) return 'green.200';
+    if (count <= 5) return 'green.400';
+    if (count <= 10) return 'green.500';
+    return 'green.600';
+  };
+
+  const totalActivity = last28Days.reduce((sum, day) => sum + day.count, 0);
+
+  return (
+    <VStack gap={2} align="flex-start">
+      <Flex wrap="wrap" gap="3px" w="100px">
+        {last28Days.map((day) => (
+          <Box
+            key={day.date}
+            w="10px"
+            h="10px"
+            borderRadius="2px"
+            bg={getHeatColor(day.count)}
+          />
+        ))}
+      </Flex>
+      <Text fontSize="xs" color="fg.muted">
+        {totalActivity} activities in 28 days
+      </Text>
+    </VStack>
+  );
+}
+
+/**
+ * AnalyticsPreview - Preview widget for analytics on landing page
+ */
+function AnalyticsPreview({
+  heatmapData,
+  tasks,
+  sections,
+  onViewMore,
+}: AnalyticsPreviewProps): React.JSX.Element {
+  return (
+    <AppCard p={4}>
+      <VStack gap={4} align="stretch">
+        <Flex justify="space-between" align="center">
+          <HStack gap={2}>
+            <Icon color="brand.500" boxSize={5}>
+              <ActivityIcon />
+            </Icon>
+            <Text fontSize="lg" fontWeight="semibold">
+              Analytics Overview
+            </Text>
+          </HStack>
+          <AppButton
+            intent="ghost"
+            size="sm"
+            onClick={onViewMore}
+          >
+            View More →
+          </AppButton>
+        </Flex>
+
+        <Flex gap={6} wrap="wrap" justify="space-between">
+          {/* Activity Heatmap */}
+          <Box>
+            <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={2}>
+              Activity
+            </Text>
+            <MiniActivityHeatmap data={heatmapData} />
+          </Box>
+
+          {/* Task Distribution */}
+          <Box>
+            <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={2}>
+              Task Distribution
+            </Text>
+            <MiniPieChart tasks={tasks} sections={sections} />
+          </Box>
+        </Flex>
+      </VStack>
+    </AppCard>
+  );
+}
+
+
 // ==================== MAIN BOARD LIST SCREEN ====================
 
 /**
@@ -1158,6 +1352,19 @@ export function BoardListScreen(): React.JSX.Element {
       return new Date(a.endDate).getTime() - new Date(b.endDate).getTime();
     });
   }, [epics]);
+
+  // Combine heatmap data from all boards for analytics preview
+  const combinedHeatmapData = useMemo(() => {
+    const combined: Record<string, number> = {};
+    Object.values(boardHeatmaps).forEach((heatmap) => {
+      if (heatmap?.data) {
+        heatmap.data.forEach((entry) => {
+          combined[entry.date] = (combined[entry.date] || 0) + entry.count;
+        });
+      }
+    });
+    return Object.entries(combined).map(([date, count]) => ({ date, count }));
+  }, [boardHeatmaps]);
 
   // Helper function to calculate time remaining
   const getTimeRemaining = useCallback(
@@ -1556,16 +1763,6 @@ export function BoardListScreen(): React.JSX.Element {
             </Text>
           </Box>
           <HStack gap={3}>
-            <Text
-              color={colors.headerText}
-              fontSize="sm"
-              cursor="pointer"
-              opacity={0.8}
-              _hover={{ opacity: 1 }}
-              onClick={() => navigation.navigate('Analytics')}
-            >
-              📊 Analytics
-            </Text>
             <DarkModeToggle />
             <ProfileAvatar displayName={user?.displayName || 'User'} onLogout={handleLogout} />
           </HStack>
@@ -1596,90 +1793,13 @@ export function BoardListScreen(): React.JSX.Element {
             <LoadingState variant="skeleton-card" count={6} label="Loading boards..." />
           ) : (
             <VStack gap={8} align="stretch">
-              {/* Epics Section */}
-              <Box>
-                <Flex justify="space-between" align="center" mb={3}>
-                  <HStack gap={2}>
-                    <Icon color="brand.500" boxSize={5}>
-                      <TagIcon />
-                    </Icon>
-                    <Text fontSize="lg" fontWeight="semibold">
-                      Epics
-                    </Text>
-                  </HStack>
-                  <Text
-                    color="brand.500"
-                    fontWeight="semibold"
-                    fontSize="sm"
-                    cursor="pointer"
-                    onClick={handleCreateEpicPress}
-                  >
-                    + New
-                  </Text>
-                </Flex>
-
-                {sortedEpics.length === 0 ? (
-                  <Text fontSize="sm" color="fg.muted" fontStyle="italic">
-                    No epics yet. Create one to group related tasks.
-                  </Text>
-                ) : (
-                  <HStack gap={3} overflowX="auto" pb={2}>
-                    {sortedEpics.map((epic) => {
-                      const timeRemaining = getTimeRemaining(epic.endDate);
-                      return (
-                        <AppCard
-                          key={epic.id}
-                          isHoverable
-                          onClick={() => handleEpicPress(epic)}
-                          w="140px"
-                          flexShrink={0}
-                          p={3}
-                        >
-                          <VStack align="stretch" gap={2}>
-                            <Flex justify="space-between" align="center">
-                              <Box w="24px" h="4px" borderRadius="2px" bg={epic.color} />
-                              <Box
-                                cursor="pointer"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEpicEdit(epic);
-                                }}
-                              >
-                                <Icon color="fg.muted" boxSize={3}>
-                                  <EditIcon />
-                                </Icon>
-                              </Box>
-                            </Flex>
-                            <Text fontWeight="semibold" fontSize="sm" lineClamp={1}>
-                              {epic.name}
-                            </Text>
-                            <Text fontSize="xs" color="fg.muted">
-                              {epicTaskCounts[epic.id] || 0} tasks
-                            </Text>
-                            {timeRemaining && (
-                              <Badge
-                                colorPalette={
-                                  timeRemaining.color.includes('red')
-                                    ? 'red'
-                                    : timeRemaining.color.includes('orange')
-                                    ? 'orange'
-                                    : timeRemaining.color.includes('yellow')
-                                    ? 'yellow'
-                                    : 'green'
-                                }
-                                fontSize="2xs"
-                                alignSelf="flex-start"
-                              >
-                                {timeRemaining.text}
-                              </Badge>
-                            )}
-                          </VStack>
-                        </AppCard>
-                      );
-                    })}
-                  </HStack>
-                )}
-              </Box>
+              {/* Analytics Preview Section */}
+              <AnalyticsPreview
+                heatmapData={combinedHeatmapData}
+                tasks={allTasks}
+                sections={allSections}
+                onViewMore={() => navigation.navigate('Analytics')}
+              />
 
               {/* Pin Board Section */}
               <Box>
@@ -1841,6 +1961,91 @@ export function BoardListScreen(): React.JSX.Element {
                       />
                     ))}
                   </SimpleGrid>
+                )}
+              </Box>
+
+              {/* Epics Section */}
+              <Box>
+                <Flex justify="space-between" align="center" mb={3}>
+                  <HStack gap={2}>
+                    <Icon color="brand.500" boxSize={5}>
+                      <TagIcon />
+                    </Icon>
+                    <Text fontSize="lg" fontWeight="semibold">
+                      Epics
+                    </Text>
+                  </HStack>
+                  <Text
+                    color="brand.500"
+                    fontWeight="semibold"
+                    fontSize="sm"
+                    cursor="pointer"
+                    onClick={handleCreateEpicPress}
+                  >
+                    + New
+                  </Text>
+                </Flex>
+
+                {sortedEpics.length === 0 ? (
+                  <Text fontSize="sm" color="fg.muted" fontStyle="italic">
+                    No epics yet. Create one to group related tasks.
+                  </Text>
+                ) : (
+                  <HStack gap={3} overflowX="auto" pb={2}>
+                    {sortedEpics.map((epic) => {
+                      const timeRemaining = getTimeRemaining(epic.endDate);
+                      return (
+                        <AppCard
+                          key={epic.id}
+                          isHoverable
+                          onClick={() => handleEpicPress(epic)}
+                          w="140px"
+                          flexShrink={0}
+                          p={3}
+                        >
+                          <VStack align="stretch" gap={2}>
+                            <Flex justify="space-between" align="center">
+                              <Box w="24px" h="4px" borderRadius="2px" bg={epic.color} />
+                              <Box
+                                cursor="pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEpicEdit(epic);
+                                }}
+                              >
+                                <Icon color="fg.muted" boxSize={3}>
+                                  <EditIcon />
+                                </Icon>
+                              </Box>
+                            </Flex>
+                            <Text fontWeight="semibold" fontSize="sm" lineClamp={1}>
+                              {epic.name}
+                            </Text>
+                            <Text fontSize="xs" color="fg.muted">
+                              {epicTaskCounts[epic.id] || 0} tasks
+                            </Text>
+                            {timeRemaining && (
+                              <Badge
+                                colorPalette={
+                                  timeRemaining.color.includes('red')
+                                    ? 'red'
+                                    : timeRemaining.color.includes('orange')
+                                    ? 'orange'
+                                    : timeRemaining.color.includes('yellow')
+                                    ? 'yellow'
+                                    : 'green'
+                                }
+                                fontSize="2xs"
+                                alignSelf="flex-start"
+                              >
+                                {timeRemaining.text}
+                              </Badge>
+                            )}
+                          </VStack>
+                        </AppCard>
+                      );
+                    })}
+                  </HStack>
                 )}
               </Box>
             </VStack>

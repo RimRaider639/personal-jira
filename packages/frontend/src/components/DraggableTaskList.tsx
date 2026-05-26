@@ -19,6 +19,7 @@ interface DraggableTaskListProps {
   onToggleEpic: (taskId: string, epicId: string) => void;
   onTogglePin?: (taskId: string) => void;
   onEpicPress?: (epicId: string) => void;
+  onClone?: (taskId: string) => void;
   onAddTask: () => void;
   sectionName: string;
 }
@@ -38,6 +39,7 @@ function DraggableTaskListComponent({
   onToggleEpic,
   onTogglePin,
   onEpicPress,
+  onClone,
   onAddTask,
   sectionName,
 }: DraggableTaskListProps): React.JSX.Element {
@@ -72,13 +74,14 @@ function DraggableTaskListComponent({
               onToggleEpic={onToggleEpic}
               onTogglePin={onTogglePin}
               onEpicPress={onEpicPress}
+              onClone={onClone}
               isDragging={isActive}
             />
           </TouchableOpacity>
         </ScaleDecorator>
       );
     },
-    [epics, sections, onTaskPress, onMoveTask, onToggleEpic, onTogglePin, onEpicPress]
+    [epics, sections, onTaskPress, onMoveTask, onToggleEpic, onTogglePin, onEpicPress, onClone]
   );
 
   const keyExtractor = useCallback((item: Task) => item.id, []);
@@ -193,6 +196,7 @@ function arePropsEqual(
   if (prevProps.onToggleEpic !== nextProps.onToggleEpic) return false;
   if (prevProps.onTogglePin !== nextProps.onTogglePin) return false;
   if (prevProps.onEpicPress !== nextProps.onEpicPress) return false;
+  if (prevProps.onClone !== nextProps.onClone) return false;
   if (prevProps.onAddTask !== nextProps.onAddTask) return false;
 
   return true;

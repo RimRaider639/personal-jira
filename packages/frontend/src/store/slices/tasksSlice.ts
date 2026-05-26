@@ -534,21 +534,35 @@ const tasksSlice = createSlice({
         state.isLoading = false;
         const { boardId, tasks } = action.payload;
 
-        // Clear existing tasks for this board
+        // Create a set of new task IDs for quick lookup
+        const newTaskIds = new Set(tasks.map(t => t.id));
+        
+        // Get existing task IDs for this board
         const existingIds = state.byBoardId[boardId] || [];
+        
+        // Remove tasks that no longer exist in the response
         existingIds.forEach((taskId) => {
-          const task = state.byId[taskId];
-          if (task && state.bySectionId[task.sectionId]) {
-            state.bySectionId[task.sectionId] = state.bySectionId[task.sectionId].filter(
-              (id) => id !== taskId
-            );
+          if (!newTaskIds.has(taskId)) {
+            const task = state.byId[taskId];
+            if (task && state.bySectionId[task.sectionId]) {
+              state.bySectionId[task.sectionId] = state.bySectionId[task.sectionId].filter(
+                (id) => id !== taskId
+              );
+            }
+            delete state.byId[taskId];
           }
-          delete state.byId[taskId];
         });
 
-        // Add new tasks
+        // Update or add tasks from the response
         state.byBoardId[boardId] = [];
         tasks.forEach((task) => {
+          // Preserve isPinned and pinnedPosition if the task already exists
+          // This prevents race conditions where fetchTasks overwrites pinned status
+          const existingTask = state.byId[task.id];
+          if (existingTask && existingTask.isPinned && !task.isPinned) {
+            // Keep the pinned status from the existing task
+            task = { ...task, isPinned: existingTask.isPinned, pinnedPosition: existingTask.pinnedPosition };
+          }
           addTaskToIndexes(state, task);
         });
       })

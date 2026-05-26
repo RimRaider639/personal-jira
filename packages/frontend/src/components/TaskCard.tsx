@@ -21,6 +21,7 @@ import {
   FiArrowRight,
   FiTag,
   FiFile,
+  FiCopy,
 } from 'react-icons/fi';
 import { HiOutlineBookmark } from 'react-icons/hi';
 import type { Task, Epic, Section } from '@kanban/shared';
@@ -35,6 +36,7 @@ interface TaskCardProps {
   onToggleEpic?: (taskId: string, epicId: string) => void;
   onTogglePin?: (taskId: string) => void;
   onEpicPress?: (epicId: string) => void;
+  onClone?: (taskId: string) => void;
   isDragging?: boolean;
 }
 
@@ -62,6 +64,7 @@ function TaskCardComponent({
   onToggleEpic,
   onTogglePin,
   onEpicPress,
+  onClone,
   isDragging = false,
 }: TaskCardProps): React.JSX.Element {
   const handlePress = useCallback(() => {
@@ -94,6 +97,10 @@ function TaskCardComponent({
     },
     [onEpicPress]
   );
+
+  const handleClone = useCallback(() => {
+    onClone?.(task.id);
+  }, [task.id, onClone]);
 
   const taskEpics = useMemo(
     () => epics.filter((epic) => task.epicIds.includes(epic.id)),
@@ -151,7 +158,7 @@ function TaskCardComponent({
     [sections, task.sectionId]
   );
 
-  const hasMenuActions = onMove || onToggleEpic || onTogglePin;
+  const hasMenuActions = onMove || onToggleEpic || onTogglePin || onClone;
 
   return (
     <Card.Root
@@ -227,6 +234,20 @@ function TaskCardComponent({
                         <Box ml={2}>
                           {task.isPinned ? 'Unpin from Board' : 'Pin to Board'}
                         </Box>
+                      </Menu.Item>
+                    )}
+
+                    {/* Clone action */}
+                    {onClone && (
+                      <Menu.Item
+                        value="clone"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleClone();
+                        }}
+                      >
+                        <FiCopy />
+                        <Box ml={2}>Clone Task</Box>
                       </Menu.Item>
                     )}
 
@@ -493,6 +514,7 @@ function arePropsEqual(prevProps: TaskCardProps, nextProps: TaskCardProps): bool
   if (prevProps.onToggleEpic !== nextProps.onToggleEpic) return false;
   if (prevProps.onTogglePin !== nextProps.onTogglePin) return false;
   if (prevProps.onEpicPress !== nextProps.onEpicPress) return false;
+  if (prevProps.onClone !== nextProps.onClone) return false;
 
   return true;
 }

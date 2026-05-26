@@ -7,6 +7,7 @@
  * - Support for label prop for tooltip content
  * - Pass-through of all standard Tooltip props
  * - Only renders tooltip wrapper when label is provided
+ * - Theme-aware styling (dark bg in light mode, light bg in dark mode)
  *
  * @see Requirements 12.6, 12.7
  */
@@ -16,6 +17,7 @@ import {
   Portal,
 } from '@chakra-ui/react';
 import * as React from 'react';
+import { useColorModeValue } from '@/hooks/useColorMode';
 
 /**
  * Placement options for the tooltip
@@ -57,6 +59,7 @@ const DEFAULT_OPEN_DELAY = 300;
  * - Only renders tooltip when label is provided
  * - Arrow display enabled by default (hasArrow defaults to true)
  * - Portal support for proper z-index handling
+ * - Theme-aware: dark background in light mode, light background in dark mode
  *
  * @example
  * // Basic usage
@@ -90,6 +93,10 @@ export const AppTooltip = React.forwardRef<HTMLDivElement, AppTooltipProps>(
       ...rest
     } = props;
 
+    // Theme-aware colors: dark bg in light mode, light bg in dark mode
+    const bg = useColorModeValue('gray.800', 'gray.100');
+    const color = useColorModeValue('white', 'gray.800');
+
     // If no label is provided, just render children without tooltip wrapper
     if (!label) {
       return <>{children}</>;
@@ -106,7 +113,18 @@ export const AppTooltip = React.forwardRef<HTMLDivElement, AppTooltipProps>(
         </ChakraTooltip.Trigger>
         <Portal disabled={!portalled} container={portalRef}>
           <ChakraTooltip.Positioner>
-            <ChakraTooltip.Content ref={ref} {...contentProps}>
+            <ChakraTooltip.Content 
+              ref={ref} 
+              bg={bg}
+              color={color}
+              px={2}
+              py={1}
+              borderRadius="md"
+              fontSize="sm"
+              fontWeight="medium"
+              boxShadow="md"
+              {...contentProps}
+            >
               {hasArrow && (
                 <ChakraTooltip.Arrow>
                   <ChakraTooltip.ArrowTip />

@@ -21,6 +21,7 @@ interface TaskPreviewModalProps {
   sectionName: string;
   onClose: () => void;
   onViewDetails: () => void;
+  onEpicPress?: (epicId: string) => void;
 }
 
 const PRIORITIES: Record<string, { label: string; color: string }> = {
@@ -42,6 +43,7 @@ export function TaskPreviewModal({
   sectionName,
   onClose,
   onViewDetails,
+  onEpicPress,
 }: TaskPreviewModalProps): React.JSX.Element {
   const { colors } = useTheme();
 
@@ -153,13 +155,15 @@ export function TaskPreviewModal({
                 <Text style={[styles.label, { color: colors.textMuted }]}>Epics</Text>
                 <View style={styles.epicsList}>
                   {taskEpics.map((epic) => (
-                    <View
+                    <TouchableOpacity
                       key={epic.id}
                       style={[styles.epicBadge, { backgroundColor: epic.color + '20' }]}
+                      onPress={() => onEpicPress?.(epic.id)}
+                      disabled={!onEpicPress}
                     >
                       <View style={[styles.epicDot, { backgroundColor: epic.color }]} />
                       <Text style={[styles.epicText, { color: epic.color }]}>{epic.name}</Text>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               </View>

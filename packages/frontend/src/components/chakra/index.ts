@@ -44,6 +44,12 @@ export {
   type ModalSize,
 } from './AppModal';
 
+// Confirm dialog components
+export {
+  ConfirmDialog,
+  type ConfirmDialogVariant,
+} from './ConfirmDialog';
+
 // State components
 export { ErrorState, type ErrorStateProps } from './ErrorState';
 

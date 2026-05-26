@@ -26,6 +26,7 @@ import {
   Textarea,
   useDisclosure,
 } from '@chakra-ui/react';
+import { ScrollView } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -70,6 +71,7 @@ import {
   AppModal,
   LoadingState,
   EmptyState,
+  ConfirmDialog,
 } from '@/components/chakra';
 import { useAppToast } from '@/hooks/useToast';
 import {
@@ -83,7 +85,7 @@ import {
   PinIcon,
 } from '@/theme/icons';
 import { FiFileText } from 'react-icons/fi';
-import { HiOutlineClipboardList, HiOutlineArchive } from 'react-icons/hi';
+import { HiOutlineClipboardList } from 'react-icons/hi';
 import type { Board, Epic, Task, BoardStats, ActivityHeatmapEntry, Note, Section } from '@kanban/shared';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import { Menu, Portal } from '@chakra-ui/react';
@@ -666,14 +668,6 @@ interface StickyNoteCardProps {
 }
 
 function StickyNoteCard({ note, onEdit, onDelete }: StickyNoteCardProps): React.JSX.Element {
-  const handleDelete = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      if (window.confirm('Delete this note?')) {
-        onDelete(note.id);
-      }
-    }
-  }, [note.id, onDelete]);
-
   return (
     <Box
       w="140px"
@@ -707,7 +701,7 @@ function StickyNoteCard({ note, onEdit, onDelete }: StickyNoteCardProps): React.
         cursor="pointer"
         onClick={(e) => {
           e.stopPropagation();
-          handleDelete();
+          onDelete(note.id);
         }}
         _hover={{ bg: 'blackAlpha.300' }}
       >
@@ -1112,6 +1106,21 @@ export function BoardListScreen(): React.JSX.Element {
   const [isNewEpic, setIsNewEpic] = useState(false);
   const [isSavingEpic, setIsSavingEpic] = useState(false);
 
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    variant: 'danger' | 'warning' | 'info';
+  }>({
+    open: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    variant: 'warning',
+  });
+
   // Get linked tasks for selected epic
   const linkedTasks = useMemo(() => {
     if (!selectedEpic) return [];
@@ -1233,40 +1242,41 @@ export function BoardListScreen(): React.JSX.Element {
   }, []);
 
   const handleBoardDelete = useCallback(
-    async (boardId: string) => {
+    (boardId: string) => {
       const board = boards.find((b) => b.id === boardId);
       if (!board) return;
 
-      if (
-        typeof window !== 'undefined' &&
-        !window.confirm(`Are you sure you want to delete "${board.name}"? This action cannot be undone.`)
-      ) {
-        return;
-      }
+      setConfirmDialog({
+        open: true,
+        title: 'Delete Board',
+        message: `Are you sure you want to delete "${board.name}"? This action cannot be undone.`,
+        variant: 'danger',
+        onConfirm: async () => {
+          // Store board data for potential undo - Requirements: 6.8
+          const deletedBoardData = {
+            name: board.name,
+            description: board.description || undefined,
+          };
 
-      // Store board data for potential undo - Requirements: 6.8
-      const deletedBoardData = {
-        name: board.name,
-        description: board.description || undefined,
-      };
-
-      try {
-        await dispatch(deleteBoard(boardId)).unwrap();
-        // Requirements: 6.8 - Success toast with undo option
-        toast.showSuccess('Board deleted', `"${board.name}" has been deleted`, {
-          label: 'Undo',
-          onClick: async () => {
-            try {
-              await dispatch(createBoard(deletedBoardData)).unwrap();
-              toast.showSuccess('Board restored', `"${deletedBoardData.name}" has been restored`);
-            } catch {
-              toast.showError('Error', 'Failed to restore board. Please try again.');
-            }
-          },
-        });
-      } catch {
-        toast.showError('Error', 'Failed to delete board. Please try again.');
-      }
+          try {
+            await dispatch(deleteBoard(boardId)).unwrap();
+            // Requirements: 6.8 - Success toast with undo option
+            toast.showSuccess('Board deleted', `"${board.name}" has been deleted`, {
+              label: 'Undo',
+              onClick: async () => {
+                try {
+                  await dispatch(createBoard(deletedBoardData)).unwrap();
+                  toast.showSuccess('Board restored', `"${deletedBoardData.name}" has been restored`);
+                } catch {
+                  toast.showError('Error', 'Failed to restore board. Please try again.');
+                }
+              },
+            });
+          } catch {
+            toast.showError('Error', 'Failed to delete board. Please try again.');
+          }
+        },
+      });
     },
     [dispatch, boards, toast]
   );
@@ -1379,22 +1389,25 @@ export function BoardListScreen(): React.JSX.Element {
 
   const handleDeleteEpic = useCallback(() => {
     if (!selectedEpic) return;
-    if (
-      typeof window !== 'undefined' &&
-      !window.confirm(`Are you sure you want to delete "${selectedEpic.name}"?`)
-    ) {
-      return;
-    }
-    dispatch(deleteEpic({ epicId: selectedEpic.id, boardId: selectedEpic.boardId }))
-      .unwrap()
-      .then(() => {
-        setEpicModalVisible(false);
-        setSelectedEpic(null);
-        toast.showSuccess('Epic deleted');
-      })
-      .catch(() => {
-        toast.showError('Error', 'Failed to delete epic');
-      });
+    
+    setConfirmDialog({
+      open: true,
+      title: 'Delete Epic',
+      message: `Are you sure you want to delete "${selectedEpic.name}"? This action cannot be undone.`,
+      variant: 'danger',
+      onConfirm: () => {
+        dispatch(deleteEpic({ epicId: selectedEpic.id, boardId: selectedEpic.boardId }))
+          .unwrap()
+          .then(() => {
+            setEpicModalVisible(false);
+            setSelectedEpic(null);
+            toast.showSuccess('Epic deleted');
+          })
+          .catch(() => {
+            toast.showError('Error', 'Failed to delete epic');
+          });
+      },
+    });
   }, [dispatch, selectedEpic, toast]);
 
   const handleTaskPress = useCallback(
@@ -1406,10 +1419,15 @@ export function BoardListScreen(): React.JSX.Element {
   );
 
   const handleLogout = useCallback(() => {
-    if (typeof window !== 'undefined' && !window.confirm('Are you sure you want to logout?')) {
-      return;
-    }
-    dispatch(logout());
+    setConfirmDialog({
+      open: true,
+      title: 'Logout',
+      message: 'Are you sure you want to logout?',
+      variant: 'warning',
+      onConfirm: () => {
+        dispatch(logout());
+      },
+    });
   }, [dispatch]);
 
   const handleClearError = useCallback(() => {
@@ -1454,13 +1472,21 @@ export function BoardListScreen(): React.JSX.Element {
   );
 
   const handleDeleteNote = useCallback(
-    async (noteId: string) => {
-      try {
-        await dispatch(deleteNote(noteId)).unwrap();
-        toast.showInfo('Note deleted');
-      } catch {
-        toast.showError('Error', 'Failed to delete note');
-      }
+    (noteId: string) => {
+      setConfirmDialog({
+        open: true,
+        title: 'Delete Note',
+        message: 'Are you sure you want to delete this note?',
+        variant: 'danger',
+        onConfirm: async () => {
+          try {
+            await dispatch(deleteNote(noteId)).unwrap();
+            toast.showInfo('Note deleted');
+          } catch {
+            toast.showError('Error', 'Failed to delete note');
+          }
+        },
+      });
     },
     [dispatch, toast]
   );
@@ -1508,7 +1534,8 @@ export function BoardListScreen(): React.JSX.Element {
 
   return (
     <ThemedBackground>
-      <Box minH="100vh">
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ minHeight: '100%' }}>
+        <Box minH="100vh">
         {/* Header */}
         <Flex
           as="header"
@@ -1763,16 +1790,16 @@ export function BoardListScreen(): React.JSX.Element {
                       Boards
                     </Text>
                   </HStack>
-                  {/* Requirements: 6.4 - Button with AddIcon */}
-                  <AppButton
-                    intent="primary"
-                    size="sm"
-                    leftIcon={<AddIcon />}
+                  {/* Requirements: 6.4 - Consistent "+ New" text link pattern */}
+                  <Text
+                    color="brand.500"
+                    fontWeight="semibold"
+                    fontSize="sm"
+                    cursor="pointer"
                     onClick={createBoardModal.onOpen}
-                    tooltip="Create a new board"
                   >
-                    New Board
-                  </AppButton>
+                    + New
+                  </Text>
                 </Flex>
 
                 {boards.length === 0 ? (
@@ -1871,7 +1898,19 @@ export function BoardListScreen(): React.JSX.Element {
           isLoading={isSavingEpic}
           isNew={isNewEpic}
         />
-      </Box>
+
+        {/* Confirm Dialog */}
+        <ConfirmDialog
+          open={confirmDialog.open}
+          onClose={() => setConfirmDialog((prev) => ({ ...prev, open: false }))}
+          onConfirm={confirmDialog.onConfirm}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          variant={confirmDialog.variant}
+          confirmText={confirmDialog.variant === 'danger' ? 'Delete' : 'Confirm'}
+        />
+        </Box>
+      </ScrollView>
     </ThemedBackground>
   );
 }

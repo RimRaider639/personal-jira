@@ -13,6 +13,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { HiOutlineBookmark } from 'react-icons/hi';
 
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
@@ -438,9 +439,13 @@ export function TaskDetailScreen({
             style={[styles.headerButton, styles.pinButton]}
             accessibilityLabel={task.isPinned ? 'Unpin task' : 'Pin task'}
           >
-            <Text style={[styles.pinButtonText, task.isPinned && styles.pinButtonTextActive]}>
-              {task.isPinned ? '📌' : '📍'}
-            </Text>
+            <View style={[styles.pinIconContainer, task.isPinned && { backgroundColor: colors.primary + '20' }]}>
+              <HiOutlineBookmark
+                size={18}
+                color={task.isPinned ? colors.primary : colors.textMuted}
+                style={task.isPinned ? { fill: colors.primary } : undefined}
+              />
+            </View>
           </TouchableOpacity>
           {isEditing ? (
             <>
@@ -938,6 +943,10 @@ const styles = StyleSheet.create({
   pinButton: {
     backgroundColor: 'transparent',
     paddingHorizontal: 8,
+  },
+  pinIconContainer: {
+    padding: 6,
+    borderRadius: 6,
   },
   pinButtonText: {
     fontSize: 18,

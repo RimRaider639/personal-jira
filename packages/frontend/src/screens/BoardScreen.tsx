@@ -1324,6 +1324,7 @@ export function BoardScreen({
           sectionName={previewSectionName}
           onClose={() => setPreviewTask(null)}
           onViewDetails={handleViewFullDetails}
+          onEpicPress={onEpicPress}
         />
 
         {/* Filter Panel */}

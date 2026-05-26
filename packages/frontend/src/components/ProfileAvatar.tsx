@@ -7,6 +7,7 @@ import {
   Modal,
   Platform,
 } from 'react-native';
+import { FiKey, FiLogOut } from 'react-icons/fi';
 import { useTheme } from '@/theme/ThemeContext';
 
 interface ProfileAvatarProps {
@@ -37,7 +38,7 @@ export function ProfileAvatar({
 
   // Generate a consistent color based on the name
   const getAvatarColor = (name: string): string => {
-    const colors = [
+    const avatarColors = [
       '#6366f1', '#8b5cf6', '#ec4899', '#ef4444', '#f97316',
       '#eab308', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6',
     ];
@@ -45,7 +46,7 @@ export function ProfileAvatar({
     for (let i = 0; i < name.length; i++) {
       hash = name.charCodeAt(i) + ((hash << 5) - hash);
     }
-    return colors[Math.abs(hash) % colors.length];
+    return avatarColors[Math.abs(hash) % avatarColors.length];
   };
 
   const avatarColor = getAvatarColor(displayName);
@@ -123,7 +124,9 @@ export function ProfileAvatar({
                   style={styles.menuItem}
                   onPress={handleChangePassword}
                 >
-                  <Text style={styles.menuItemIcon}>🔑</Text>
+                  <View style={styles.menuItemIcon}>
+                    <FiKey size={16} color={colors.text} />
+                  </View>
                   <Text style={[styles.menuItemText, { color: colors.text }]}>Change Password</Text>
                 </TouchableOpacity>
               )}
@@ -131,7 +134,9 @@ export function ProfileAvatar({
                 style={styles.menuItem}
                 onPress={handleLogout}
               >
-                <Text style={styles.menuItemIcon}>🚪</Text>
+                <View style={styles.menuItemIcon}>
+                  <FiLogOut size={16} color={colors.error} />
+                </View>
                 <Text style={[styles.menuItemText, { color: colors.error }]}>Logout</Text>
               </TouchableOpacity>
             </View>
@@ -208,8 +213,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   menuItemIcon: {
-    fontSize: 16,
+    width: 24,
     marginRight: 12,
+    alignItems: 'center',
   },
   menuItemText: {
     fontSize: 15,

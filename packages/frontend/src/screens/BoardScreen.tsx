@@ -935,23 +935,27 @@ export function BoardScreen({
 
   /**
    * Achievement detection - check for completed milestones
+   * Track previous section IDs to detect when tasks move to "done"
    */
-  const prevTasksRef = useRef<Task[]>([]);
+  const prevTaskSectionsRef = useRef<Map<string, string>>(new Map());
+  const achievementShownRef = useRef<Set<string>>(new Set());
   
   useEffect(() => {
-    if (!boardId || allBoardTasks.length === 0) return;
+    if (!boardId || allBoardTasks.length === 0 || sections.length === 0) return;
     
-    const prevTasks = prevTasksRef.current;
     const doneSectionIds = sections
       .filter((s) => s.name.toLowerCase().includes('done') || s.name.toLowerCase().includes('complete'))
       .map((s) => s.id);
     
+    const prevSections = prevTaskSectionsRef.current;
+    const shownAchievements = achievementShownRef.current;
+    
     // Only check if we have previous state to compare
-    if (prevTasks.length > 0) {
+    if (prevSections.size > 0) {
       // Check for newly completed tasks
       const newlyCompletedTasks = allBoardTasks.filter((task) => {
-        const prevTask = prevTasks.find((t) => t.id === task.id);
-        const wasNotDone = prevTask && !doneSectionIds.includes(prevTask.sectionId);
+        const prevSectionId = prevSections.get(task.id);
+        const wasNotDone = prevSectionId && !doneSectionIds.includes(prevSectionId);
         const isNowDone = doneSectionIds.includes(task.sectionId);
         return wasNotDone && isNowDone;
       });
@@ -959,11 +963,13 @@ export function BoardScreen({
       if (newlyCompletedTasks.length > 0) {
         // Check if all tasks in board are now done
         const openTasks = allBoardTasks.filter((t) => !doneSectionIds.includes(t.sectionId));
-        if (openTasks.length === 0 && allBoardTasks.length > 0) {
+        const boardCompleteKey = `board-complete-${boardId}`;
+        if (openTasks.length === 0 && allBoardTasks.length > 0 && !shownAchievements.has(boardCompleteKey)) {
           toast.showSuccess(
             '🎉 Board Complete!',
             `All tasks in "${board?.name}" are done! Time to celebrate!`
           );
+          shownAchievements.add(boardCompleteKey);
         }
         
         // Check if all overdue tasks are now done
@@ -972,15 +978,20 @@ export function BoardScreen({
           if (!t.endDate || doneSectionIds.includes(t.sectionId)) return false;
           return new Date(t.endDate) < now;
         });
-        const prevOverdueTasks = prevTasks.filter((t) => {
-          if (!t.endDate || doneSectionIds.includes(t.sectionId)) return false;
+        
+        // Check if any of the newly completed tasks were overdue
+        const completedOverdueTasks = newlyCompletedTasks.filter((t) => {
+          if (!t.endDate) return false;
           return new Date(t.endDate) < now;
         });
-        if (prevOverdueTasks.length > 0 && overdueTasksRemaining.length === 0) {
+        
+        const overdueKey = `overdue-cleared-${boardId}`;
+        if (completedOverdueTasks.length > 0 && overdueTasksRemaining.length === 0 && !shownAchievements.has(overdueKey)) {
           toast.showSuccess(
             '⚡ Overdue Cleared!',
             'You\'ve caught up on all overdue tasks! Great job!'
           );
+          shownAchievements.add(overdueKey);
         }
         
         // Check epic completion
@@ -991,11 +1002,13 @@ export function BoardScreen({
               if (epic) {
                 const epicTasks = allBoardTasks.filter((t) => t.epicIds?.includes(epicId));
                 const epicDoneTasks = epicTasks.filter((t) => doneSectionIds.includes(t.sectionId));
-                if (epicTasks.length > 0 && epicDoneTasks.length === epicTasks.length) {
+                const epicKey = `epic-complete-${epicId}`;
+                if (epicTasks.length > 0 && epicDoneTasks.length === epicTasks.length && !shownAchievements.has(epicKey)) {
                   toast.showSuccess(
                     '🏆 Epic Complete!',
                     `All tasks in "${epic.name}" are done! Amazing work!`
                   );
+                  shownAchievements.add(epicKey);
                 }
               }
             });
@@ -1004,8 +1017,28 @@ export function BoardScreen({
       }
     }
     
-    // Update ref for next comparison
-    prevTasksRef.current = [...allBoardTasks];
+    // Update ref for next comparison - store task ID -> section ID mapping
+    const newSections = new Map<string, string>();
+    allBoardTasks.forEach((task) => {
+      newSections.set(task.id, task.sectionId);
+    });
+    prevTaskSectionsRef.current = newSections;
+    
+    // Reset achievement tracking when board has open tasks again (allows re-triggering)
+    const openTasks = allBoardTasks.filter((t) => !doneSectionIds.includes(t.sectionId));
+    if (openTasks.length > 0) {
+      shownAchievements.delete(`board-complete-${boardId}`);
+    }
+    
+    // Reset overdue tracking when there are overdue tasks again
+    const now = new Date();
+    const overdueTasks = allBoardTasks.filter((t) => {
+      if (!t.endDate || doneSectionIds.includes(t.sectionId)) return false;
+      return new Date(t.endDate) < now;
+    });
+    if (overdueTasks.length > 0) {
+      shownAchievements.delete(`overdue-cleared-${boardId}`);
+    }
   }, [allBoardTasks, sections, epics, board, boardId, toast]);
 
   /**

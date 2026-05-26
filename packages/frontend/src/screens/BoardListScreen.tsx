@@ -1460,7 +1460,7 @@ function MiniPieChart({ tasks, sections }: { tasks: Task[]; sections: Section[] 
   ).join(', ');
 
   return (
-    <HStack gap={6} align="flex-start" w="full">
+    <HStack gap={6} align="center" justify="center" w="full">
       {/* Pie Chart */}
       <Box
         w="120px"
@@ -1473,11 +1473,11 @@ function MiniPieChart({ tasks, sections }: { tasks: Task[]; sections: Section[] 
       />
       
       {/* Legend */}
-      <VStack gap={2} align="flex-start" flex={1}>
+      <VStack gap={2} align="flex-start">
         {segments.slice(0, 6).map((seg) => (
-          <HStack key={seg.name} gap={2} w="full">
+          <HStack key={seg.name} gap={2}>
             <Box w="12px" h="12px" borderRadius="2px" bg={seg.color} flexShrink={0} />
-            <Text fontSize="sm" color="fg" lineClamp={1} flex={1}>
+            <Text fontSize="sm" color="fg" lineClamp={1} minW="80px">
               {seg.name}
             </Text>
             <Text fontSize="sm" fontWeight="semibold" color="fg">
@@ -1519,7 +1519,7 @@ function MiniActivityHeatmap({ data }: { data: ActivityHeatmapEntry[] }): React.
   const activeDays = last49Days.filter((day) => day.count > 0).length;
 
   return (
-    <HStack gap={6} align="flex-start" w="full">
+    <HStack gap={6} align="center" justify="center" w="full">
       {/* Heatmap grid - 7 columns x 7 rows */}
       <Box>
         <SimpleGrid columns={7} gap="5px">
@@ -1537,7 +1537,7 @@ function MiniActivityHeatmap({ data }: { data: ActivityHeatmapEntry[] }): React.
       </Box>
       
       {/* Stats */}
-      <VStack gap={2} align="flex-start" flex={1}>
+      <VStack gap={2} align="flex-start">
         <VStack gap={0} align="flex-start">
           <Text fontSize="2xl" fontWeight="bold" color="fg">
             {totalActivity}
@@ -1638,7 +1638,7 @@ function QuickStats({ tasks, sections }: { tasks: Task[]; sections: Section[] })
         </Box>
       </Box>
       
-      {/* Stats Grid */}
+      {/* Stats Grid - Always show all 4 stats */}
       <SimpleGrid columns={2} gap={3}>
         <Box bg="green.50" _dark={{ bg: 'green.900' }} p={2} borderRadius="md">
           <Text fontSize="xl" fontWeight="bold" color="green.600" _dark={{ color: 'green.300' }}>
@@ -1658,27 +1658,23 @@ function QuickStats({ tasks, sections }: { tasks: Task[]; sections: Section[] })
           </Text>
         </Box>
         
-        {stats.overdueTasks > 0 && (
-          <Box bg="red.50" _dark={{ bg: 'red.900' }} p={2} borderRadius="md">
-            <Text fontSize="xl" fontWeight="bold" color="red.600" _dark={{ color: 'red.300' }}>
-              {stats.overdueTasks}
-            </Text>
-            <Text fontSize="xs" color="red.600" _dark={{ color: 'red.400' }}>
-              Overdue
-            </Text>
-          </Box>
-        )}
+        <Box bg="red.50" _dark={{ bg: 'red.900' }} p={2} borderRadius="md">
+          <Text fontSize="xl" fontWeight="bold" color="red.600" _dark={{ color: 'red.300' }}>
+            {stats.overdueTasks}
+          </Text>
+          <Text fontSize="xs" color="red.600" _dark={{ color: 'red.400' }}>
+            Overdue
+          </Text>
+        </Box>
         
-        {stats.dueThisWeek > 0 && (
-          <Box bg="orange.50" _dark={{ bg: 'orange.900' }} p={2} borderRadius="md">
-            <Text fontSize="xl" fontWeight="bold" color="orange.600" _dark={{ color: 'orange.300' }}>
-              {stats.dueThisWeek}
-            </Text>
-            <Text fontSize="xs" color="orange.600" _dark={{ color: 'orange.400' }}>
-              Due this week
-            </Text>
-          </Box>
-        )}
+        <Box bg="orange.50" _dark={{ bg: 'orange.900' }} p={2} borderRadius="md">
+          <Text fontSize="xl" fontWeight="bold" color="orange.600" _dark={{ color: 'orange.300' }}>
+            {stats.dueThisWeek}
+          </Text>
+          <Text fontSize="xs" color="orange.600" _dark={{ color: 'orange.400' }}>
+            Due this week
+          </Text>
+        </Box>
       </SimpleGrid>
     </VStack>
   );

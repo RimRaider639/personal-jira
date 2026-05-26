@@ -77,6 +77,67 @@ router.post(
 );
 
 /**
+ * PUT /api/notes/reorder
+ * Reorder notes - MUST be before /:id route to avoid matching "reorder" as an ID
+ */
+router.put(
+  '/reorder',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw createError('User not authenticated', 401);
+      }
+
+      const { noteIds } = req.body;
+
+      if (!Array.isArray(noteIds)) {
+        throw createError('noteIds must be an array', 400);
+      }
+
+      // Validate all note IDs
+      for (const noteId of noteIds) {
+        if (!mongoose.Types.ObjectId.isValid(noteId)) {
+          throw createError(`Invalid note ID: ${noteId}`, 400);
+        }
+      }
+
+      // Verify all notes belong to the user
+      const notes = await Note.find({
+        _id: { $in: noteIds.map(id => new mongoose.Types.ObjectId(id)) },
+        userId: new mongoose.Types.ObjectId(userId),
+      });
+
+      if (notes.length !== noteIds.length) {
+        throw createError('Some notes not found or access denied', 400);
+      }
+
+      // Update positions
+      const bulkOps = noteIds.map((noteId: string, index: number) => ({
+        updateOne: {
+          filter: { _id: new mongoose.Types.ObjectId(noteId) },
+          update: { $set: { position: index } },
+        },
+      }));
+
+      await Note.bulkWrite(bulkOps);
+
+      // Fetch updated notes
+      const updatedNotes = await Note.find({ userId: new mongoose.Types.ObjectId(userId) })
+        .sort({ isDone: 1, position: 1, createdAt: -1 });
+
+      res.status(200).json({
+        success: true,
+        data: updatedNotes,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * PUT /api/notes/:id
  * Update a note
  */
@@ -169,67 +230,6 @@ router.delete(
       res.status(200).json({
         success: true,
         message: 'Note deleted successfully',
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-/**
- * PUT /api/notes/reorder
- * Reorder notes
- */
-router.put(
-  '/reorder',
-  authenticate,
-  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const userId = req.user?.userId;
-      if (!userId) {
-        throw createError('User not authenticated', 401);
-      }
-
-      const { noteIds } = req.body;
-
-      if (!Array.isArray(noteIds)) {
-        throw createError('noteIds must be an array', 400);
-      }
-
-      // Validate all note IDs
-      for (const noteId of noteIds) {
-        if (!mongoose.Types.ObjectId.isValid(noteId)) {
-          throw createError(`Invalid note ID: ${noteId}`, 400);
-        }
-      }
-
-      // Verify all notes belong to the user
-      const notes = await Note.find({
-        _id: { $in: noteIds.map(id => new mongoose.Types.ObjectId(id)) },
-        userId: new mongoose.Types.ObjectId(userId),
-      });
-
-      if (notes.length !== noteIds.length) {
-        throw createError('Some notes not found or access denied', 400);
-      }
-
-      // Update positions
-      const bulkOps = noteIds.map((noteId: string, index: number) => ({
-        updateOne: {
-          filter: { _id: new mongoose.Types.ObjectId(noteId) },
-          update: { $set: { position: index } },
-        },
-      }));
-
-      await Note.bulkWrite(bulkOps);
-
-      // Fetch updated notes
-      const updatedNotes = await Note.find({ userId: new mongoose.Types.ObjectId(userId) })
-        .sort({ isDone: 1, position: 1, createdAt: -1 });
-
-      res.status(200).json({
-        success: true,
-        data: updatedNotes,
       });
     } catch (error) {
       next(error);

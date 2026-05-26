@@ -75,6 +75,7 @@ import {
   LoadingState,
   EmptyState,
   ConfirmDialog,
+  AppTooltip,
 } from '@/components/chakra';
 import { useAppToast } from '@/hooks/useToast';
 import {
@@ -928,69 +929,72 @@ function StickyNoteCard({ note, onEdit, onDelete, onToggleDone, onCreateTask, dr
       opacity={isActive ? 0.9 : (note.isDone ? 0.7 : 1)}
     >
       {/* Drag Handle */}
-      <Box
-        position="absolute"
-        top={1}
-        left={1}
-        cursor="grab"
-        px={1}
-        borderRadius="sm"
-        _hover={{ bg: 'blackAlpha.200' }}
-        onClick={(e) => e.stopPropagation()}
-        onMouseDown={(e) => {
-          e.stopPropagation();
-          drag?.();
-        }}
-        onTouchStart={(e) => {
-          e.stopPropagation();
-          drag?.();
-        }}
-      >
-        <Text fontSize="xs" color="gray.600" userSelect="none">⋮⋮</Text>
-      </Box>
+      <AppTooltip label="Drag to reorder" placement="top">
+        <Box
+          position="absolute"
+          top={1}
+          left={1}
+          cursor="grab"
+          px={1}
+          borderRadius="sm"
+          _hover={{ bg: 'blackAlpha.200' }}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            drag?.();
+          }}
+          onTouchStart={(e) => {
+            e.stopPropagation();
+            drag?.();
+          }}
+        >
+          <Text fontSize="xs" color="gray.600" userSelect="none">⋮⋮</Text>
+        </Box>
+      </AppTooltip>
 
       {/* Top right actions: Done toggle and Delete */}
       <HStack position="absolute" top={1} right={1} gap={0}>
         {/* Done toggle */}
-        <Box
-          w="20px"
-          h="20px"
-          borderRadius="full"
-          bg={note.isDone ? 'green.500' : 'blackAlpha.200'}
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          cursor="pointer"
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleDone(note.id, !note.isDone);
-          }}
-          _hover={{ bg: note.isDone ? 'green.600' : 'blackAlpha.300' }}
-        >
-          <Icon boxSize={3} color={note.isDone ? 'white' : 'gray.600'}>
-            <CheckIcon />
-          </Icon>
-        </Box>
-        {/* Delete button */}
-        <Box
-          w="20px"
-          h="20px"
-          borderRadius="full"
-          bg="blackAlpha.200"
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          cursor="pointer"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(note.id);
-          }}
-          _hover={{ bg: 'blackAlpha.300' }}
-        >
-          <Text fontSize="sm" fontWeight="bold" color="gray.700">
-            ×
-          </Text>
-        </Box>
+        <AppTooltip label={note.isDone ? 'Mark as not done' : 'Mark as done'} placement="top">
+          <Box
+            w="20px"
+            h="20px"
+            borderRadius="full"
+            bg={note.isDone ? 'green.500' : 'blackAlpha.200'}
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            cursor="pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleDone(note.id, !note.isDone);
+            }}
+            _hover={{ bg: note.isDone ? 'green.600' : 'blackAlpha.300' }}
+          >
+            <Icon boxSize={3} color={note.isDone ? 'white' : 'gray.600'}>
+              <CheckIcon />
+            </Icon>
+          </Box>
+        </AppTooltip>
+        {/* Delete button - using pin emoji */}
+        <AppTooltip label="Delete note" placement="top">
+          <Box
+            w="20px"
+            h="20px"
+            display="flex"
+            alignItems="center"
+            justifyContent="center"
+            cursor="pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(note.id);
+            }}
+            _hover={{ transform: 'scale(1.1)' }}
+            transition="transform 0.2s"
+          >
+            <Text fontSize="xs">📌</Text>
+          </Box>
+        </AppTooltip>
       </HStack>
 
       {/* Note content */}
@@ -1006,25 +1010,30 @@ function StickyNoteCard({ note, onEdit, onDelete, onToggleDone, onCreateTask, dr
       </Text>
 
       {/* Create task button */}
-      <Box
-        position="absolute"
-        bottom={1}
-        right={1}
-        px={1.5}
-        py={0.5}
-        borderRadius="sm"
-        bg="blackAlpha.200"
-        cursor="pointer"
-        onClick={(e) => {
-          e.stopPropagation();
-          onCreateTask(note);
-        }}
-        _hover={{ bg: 'blackAlpha.300' }}
-      >
-        <Text fontSize="xs" color="gray.700" fontWeight="medium">
-          → Task
-        </Text>
-      </Box>
+      <AppTooltip label="Create task from note" placement="bottom">
+        <Box
+          position="absolute"
+          bottom={1}
+          right={1}
+          w="22px"
+          h="22px"
+          borderRadius="full"
+          bg="blackAlpha.200"
+          display="flex"
+          alignItems="center"
+          justifyContent="center"
+          cursor="pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            onCreateTask(note);
+          }}
+          _hover={{ bg: 'blackAlpha.300' }}
+        >
+          <Icon boxSize={3} color="gray.700">
+            <AddIcon />
+          </Icon>
+        </Box>
+      </AppTooltip>
     </Box>
   );
 }

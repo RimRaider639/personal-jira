@@ -12,6 +12,7 @@ import { Box, Icon } from '@chakra-ui/react';
 import { useTheme } from '@/theme/ThemeContext';
 import { decorativeThemes, DecorativeThemeType } from '@/theme';
 import { PaletteIcon, SunIcon, MoonIcon } from '@/theme/icons';
+import { AppTooltip } from '@/components/chakra';
 
 interface ThemeSelectorProps {
   boardId?: string; // If provided, allows setting board-specific theme
@@ -25,25 +26,27 @@ export function DarkModeToggle(): React.JSX.Element {
   const { isDarkMode, toggleDarkMode } = useTheme();
 
   return (
-    <Box
-      as="button"
-      onClick={toggleDarkMode}
-      w="40px"
-      h="40px"
-      borderRadius="full"
-      display="flex"
-      alignItems="center"
-      justifyContent="center"
-      bg={isDarkMode ? 'whiteAlpha.200' : 'blackAlpha.100'}
-      _hover={{ bg: isDarkMode ? 'whiteAlpha.300' : 'blackAlpha.200' }}
-      transition="all 0.2s"
-      cursor="pointer"
-      aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-    >
-      <Icon boxSize={5} color={isDarkMode ? 'yellow.300' : 'gray.700'}>
-        {isDarkMode ? <SunIcon /> : <MoonIcon />}
-      </Icon>
-    </Box>
+    <AppTooltip label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'} placement="bottom">
+      <Box
+        as="button"
+        onClick={toggleDarkMode}
+        w="40px"
+        h="40px"
+        borderRadius="full"
+        display="flex"
+        alignItems="center"
+        justifyContent="center"
+        bg={isDarkMode ? 'whiteAlpha.200' : 'blackAlpha.100'}
+        _hover={{ bg: isDarkMode ? 'whiteAlpha.300' : 'blackAlpha.200' }}
+        transition="all 0.2s"
+        cursor="pointer"
+        aria-label={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+      >
+        <Icon boxSize={5} color={isDarkMode ? 'yellow.300' : 'gray.700'}>
+          {isDarkMode ? <SunIcon /> : <MoonIcon />}
+        </Icon>
+      </Box>
+    </AppTooltip>
   );
 }
 

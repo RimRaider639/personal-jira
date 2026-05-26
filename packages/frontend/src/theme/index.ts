@@ -107,7 +107,7 @@ const lightBaseColors: ThemeColors = {
   cardBorder: '#dfe1e6',
   cardShadow: 'rgba(9, 30, 66, 0.08)',
   
-  headerBackground: '#0052cc',
+  headerBackground: '#4a90d9',
   headerText: '#ffffff',
   
   sectionBackground: '#ebecf0',

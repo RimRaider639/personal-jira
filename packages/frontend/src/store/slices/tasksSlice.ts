@@ -381,14 +381,17 @@ export const cloneTask = createAsyncThunk<
 
 /**
  * Helper to add task to indexes
- * Preserves isPinned and pinnedPosition if the task already exists with those values
+ * Preserves isPinned and pinnedPosition - always keeps the "pinned" state if either existing or new task is pinned
  */
 const addTaskToIndexes = (state: TasksState, task: Task) => {
-  // Preserve isPinned and pinnedPosition if the task already exists
   const existingTask = state.byId[task.id];
-  if (existingTask && existingTask.isPinned && !task.isPinned) {
-    // Keep the pinned status from the existing task
-    state.byId[task.id] = { ...task, isPinned: existingTask.isPinned, pinnedPosition: existingTask.pinnedPosition };
+  
+  // Merge isPinned status - if either existing or new task is pinned, keep it pinned
+  // This handles race conditions between fetchAllTasks and fetchPinnedTasks
+  if (existingTask) {
+    const shouldBePinned = existingTask.isPinned || task.isPinned;
+    const pinnedPosition = task.isPinned ? task.pinnedPosition : (existingTask.isPinned ? existingTask.pinnedPosition : 0);
+    state.byId[task.id] = { ...task, isPinned: shouldBePinned, pinnedPosition };
   } else {
     state.byId[task.id] = task;
   }

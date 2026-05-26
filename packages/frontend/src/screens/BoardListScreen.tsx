@@ -83,6 +83,7 @@ import {
   ActivityIcon,
   TagIcon,
   PinIcon,
+  SearchIcon,
 } from '@/theme/icons';
 import { FiFileText } from 'react-icons/fi';
 import { HiOutlineClipboardList } from 'react-icons/hi';
@@ -158,6 +159,223 @@ function MiniHeatmap({ data }: { data: ActivityHeatmapEntry[] }): React.JSX.Elem
   );
 }
 
+// ==================== GLOBAL SEARCH ====================
+
+interface SearchResult {
+  type: 'board' | 'task' | 'epic';
+  id: string;
+  title: string;
+  subtitle?: string;
+  boardId?: string;
+}
+
+interface GlobalSearchProps {
+  boards: Board[];
+  tasks: Task[];
+  epics: Epic[];
+  sections: Section[];
+  onSelectBoard: (boardId: string) => void;
+  onSelectTask: (taskId: string, boardId: string) => void;
+  onSelectEpic: (epicId: string) => void;
+}
+
+function GlobalSearch({
+  boards,
+  tasks,
+  epics,
+  sections,
+  onSelectBoard,
+  onSelectTask,
+  onSelectEpic,
+}: GlobalSearchProps): React.JSX.Element {
+  const [query, setQuery] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+
+  const results = useMemo((): SearchResult[] => {
+    if (!query.trim()) return [];
+    
+    const q = query.toLowerCase();
+    const matches: SearchResult[] = [];
+
+    // Search boards
+    boards.forEach((board) => {
+      if (board.name.toLowerCase().includes(q) || board.description?.toLowerCase().includes(q)) {
+        matches.push({
+          type: 'board',
+          id: board.id,
+          title: board.name,
+          subtitle: board.description || `${board.sectionOrder.length} sections`,
+        });
+      }
+    });
+
+    // Search tasks
+    tasks.forEach((task) => {
+      if (task.title.toLowerCase().includes(q) || task.description?.toLowerCase().includes(q)) {
+        const board = boards.find((b) => b.id === task.boardId);
+        const section = sections.find((s) => s.id === task.sectionId);
+        matches.push({
+          type: 'task',
+          id: task.id,
+          title: task.title,
+          subtitle: `${board?.name || 'Unknown'} • ${section?.name || 'Unknown'}`,
+          boardId: task.boardId,
+        });
+      }
+    });
+
+    // Search epics
+    epics.forEach((epic) => {
+      if (epic.name.toLowerCase().includes(q) || epic.description?.toLowerCase().includes(q)) {
+        const board = boards.find((b) => b.id === epic.boardId);
+        matches.push({
+          type: 'epic',
+          id: epic.id,
+          title: epic.name,
+          subtitle: board?.name || 'Unknown board',
+        });
+      }
+    });
+
+    return matches.slice(0, 10); // Limit to 10 results
+  }, [query, boards, tasks, epics, sections]);
+
+  const handleSelect = useCallback((result: SearchResult) => {
+    setQuery('');
+    setIsOpen(false);
+    
+    switch (result.type) {
+      case 'board':
+        onSelectBoard(result.id);
+        break;
+      case 'task':
+        if (result.boardId) {
+          onSelectTask(result.id, result.boardId);
+        }
+        break;
+      case 'epic':
+        onSelectEpic(result.id);
+        break;
+    }
+  }, [onSelectBoard, onSelectTask, onSelectEpic]);
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'board': return '📋';
+      case 'task': return '✓';
+      case 'epic': return '🏷️';
+      default: return '•';
+    }
+  };
+
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'board': return 'blue.500';
+      case 'task': return 'green.500';
+      case 'epic': return 'purple.500';
+      default: return 'gray.500';
+    }
+  };
+
+  return (
+    <Box position="relative" w={{ base: '200px', md: '300px' }}>
+      <Box position="relative">
+        <Box position="absolute" left={3} top="50%" transform="translateY(-50%)" zIndex={1}>
+          <Icon color="whiteAlpha.700" boxSize={4}>
+            <SearchIcon />
+          </Icon>
+        </Box>
+        <Input
+          placeholder="Search boards, tasks, epics..."
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => setTimeout(() => setIsOpen(false), 200)}
+          pl={10}
+          bg="whiteAlpha.200"
+          border="none"
+          color="white"
+          _placeholder={{ color: 'whiteAlpha.600' }}
+          _hover={{ bg: 'whiteAlpha.300' }}
+          _focus={{ bg: 'whiteAlpha.300', outline: 'none' }}
+          size="sm"
+          borderRadius="md"
+        />
+      </Box>
+      
+      {/* Search Results Dropdown */}
+      {isOpen && results.length > 0 && (
+        <Box
+          position="absolute"
+          top="100%"
+          left={0}
+          right={0}
+          mt={2}
+          bg="white"
+          _dark={{ bg: 'gray.800' }}
+          borderRadius="md"
+          boxShadow="lg"
+          zIndex={100}
+          maxH="300px"
+          overflowY="auto"
+        >
+          {results.map((result) => (
+            <Box
+              key={`${result.type}-${result.id}`}
+              px={3}
+              py={2}
+              cursor="pointer"
+              _hover={{ bg: 'gray.100', _dark: { bg: 'gray.700' } }}
+              onClick={() => handleSelect(result)}
+            >
+              <HStack gap={2}>
+                <Text fontSize="sm">{getTypeIcon(result.type)}</Text>
+                <VStack align="start" gap={0} flex={1}>
+                  <Text fontSize="sm" fontWeight="medium" color="fg" lineClamp={1}>
+                    {result.title}
+                  </Text>
+                  {result.subtitle && (
+                    <Text fontSize="xs" color="fg.muted" lineClamp={1}>
+                      {result.subtitle}
+                    </Text>
+                  )}
+                </VStack>
+                <Badge colorPalette={result.type === 'board' ? 'blue' : result.type === 'task' ? 'green' : 'purple'} fontSize="2xs">
+                  {result.type}
+                </Badge>
+              </HStack>
+            </Box>
+          ))}
+        </Box>
+      )}
+      
+      {/* No results message */}
+      {isOpen && query.trim() && results.length === 0 && (
+        <Box
+          position="absolute"
+          top="100%"
+          left={0}
+          right={0}
+          mt={2}
+          bg="white"
+          _dark={{ bg: 'gray.800' }}
+          borderRadius="md"
+          boxShadow="lg"
+          zIndex={100}
+          p={3}
+        >
+          <Text fontSize="sm" color="fg.muted" textAlign="center">
+            No results found for "{query}"
+          </Text>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
 /**
  * BoardCard - Individual board card component with stats and heatmap
  *
@@ -202,6 +420,13 @@ function BoardCard({
                 >
                   {board.name}
                 </Text>
+
+                {/* Board description */}
+                {board.description && (
+                  <Text fontSize="xs" color="fg.muted" lineClamp={2}>
+                    {board.description}
+                  </Text>
+                )}
 
                 {/* Stats - Requirements: 6.3 */}
                 {stats && (
@@ -665,9 +890,10 @@ interface StickyNoteCardProps {
   note: Note;
   onEdit: (note: Note) => void;
   onDelete: (noteId: string) => void;
+  dragHandleProps?: Record<string, unknown>;
 }
 
-function StickyNoteCard({ note, onEdit, onDelete }: StickyNoteCardProps): React.JSX.Element {
+function StickyNoteCard({ note, onEdit, onDelete, dragHandleProps }: StickyNoteCardProps): React.JSX.Element {
   return (
     <Box
       w="140px"
@@ -684,7 +910,21 @@ function StickyNoteCard({ note, onEdit, onDelete }: StickyNoteCardProps): React.
       transition="transform 0.2s"
       flexShrink={0}
     >
-      <Text fontSize="sm" color="gray.800" lineClamp={5} lineHeight="short">
+      {/* Drag Handle */}
+      <Box
+        {...dragHandleProps}
+        position="absolute"
+        top={1}
+        left={1}
+        cursor="grab"
+        px={1}
+        borderRadius="sm"
+        _hover={{ bg: 'blackAlpha.200' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Text fontSize="xs" color="gray.600" userSelect="none">⋮⋮</Text>
+      </Box>
+      <Text fontSize="sm" color="gray.800" lineClamp={5} lineHeight="short" mt={3}>
         {note.content}
       </Text>
       <Box
@@ -722,6 +962,7 @@ interface PinnedTaskCardProps {
   section: Section | undefined;
   onPress: (taskId: string, boardId: string) => void;
   onUnpin: (taskId: string) => void;
+  dragHandleProps?: Record<string, unknown>;
 }
 
 function PinnedTaskCard({
@@ -730,6 +971,7 @@ function PinnedTaskCard({
   section,
   onPress,
   onUnpin,
+  dragHandleProps,
 }: PinnedTaskCardProps): React.JSX.Element {
   const priorityColors: Record<string, string> = {
     critical: 'red.500',
@@ -748,18 +990,32 @@ function PinnedTaskCard({
     >
       <VStack align="stretch" gap={2}>
         <HStack justify="space-between">
-          {task.priority && (
-            <Box w="8px" h="8px" borderRadius="full" bg={priorityColors[task.priority]} />
-          )}
+          {/* Drag Handle */}
           <Box
-            cursor="pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              onUnpin(task.id);
-            }}
+            {...dragHandleProps}
+            cursor="grab"
+            px={1}
+            py={0.5}
+            borderRadius="sm"
+            _hover={{ bg: 'blackAlpha.100' }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <Text fontSize="sm">📌</Text>
+            <Text fontSize="xs" color="fg.muted" userSelect="none">⋮⋮</Text>
           </Box>
+          <HStack gap={1}>
+            {task.priority && (
+              <Box w="8px" h="8px" borderRadius="full" bg={priorityColors[task.priority]} />
+            )}
+            <Box
+              cursor="pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                onUnpin(task.id);
+              }}
+            >
+              <Text fontSize="sm">📌</Text>
+            </Box>
+          </HStack>
         </HStack>
         <Text fontWeight="semibold" fontSize="sm" lineClamp={2} color="fg">
           {task.title}
@@ -1529,6 +1785,13 @@ export function BoardListScreen(): React.JSX.Element {
     [navigation]
   );
 
+  const handleEpicPressById = useCallback(
+    (epicId: string) => {
+      navigation.navigate('EpicDetail', { epicId });
+    },
+    [navigation]
+  );
+
   const handleEpicEdit = useCallback((epic: Epic) => {
     setSelectedEpic(epic);
     setIsNewEpic(false);
@@ -1775,6 +2038,15 @@ export function BoardListScreen(): React.JSX.Element {
             </Text>
           </Box>
           <HStack gap={3}>
+            <GlobalSearch
+              boards={boards}
+              tasks={allTasks}
+              epics={epics}
+              sections={allSections}
+              onSelectBoard={handleBoardPress}
+              onSelectTask={handlePinnedTaskPress}
+              onSelectEpic={handleEpicPressById}
+            />
             <DarkModeToggle />
             <ProfileAvatar displayName={user?.displayName || 'User'} onLogout={handleLogout} />
           </HStack>

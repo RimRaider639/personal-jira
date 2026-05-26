@@ -14,6 +14,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { HiOutlineBookmark, HiOutlineDuplicate } from 'react-icons/hi';
+import {
+  Box,
+  VStack,
+  HStack,
+  Text as ChakraText,
+  Icon,
+} from '@chakra-ui/react';
+import { Menu, Portal } from '@chakra-ui/react';
+import { useColorModeValue } from '@/hooks/useColorMode';
 
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
@@ -34,11 +43,14 @@ import {
   removeDependency,
   toggleTaskPin,
   cloneTask,
+  changeTaskSection,
 } from '@/store/slices';
 import { selectTaskById, selectEpicsByBoardId, selectSectionsByBoardId, selectTasksByBoardId } from '@/store/selectors';
 import { DatePicker } from '@/components';
+import { getStatusColor, getPriorityColor, getDeadlineInfo } from '@/components/chakra';
 import { useTheme } from '@/theme/ThemeContext';
-import type { Priority, Epic, Task } from '@kanban/shared';
+import { CheckIcon, ChevronDownIcon } from '@/theme/icons';
+import type { Priority, Epic, Task, Section } from '@kanban/shared';
 
 interface TaskDetailScreenProps {
   taskId: string;
@@ -113,6 +125,15 @@ export function TaskDetailScreen({
   // Dependency selector state
   const [showDependencySelector, setShowDependencySelector] = useState(false);
   const [addingDependencyId, setAddingDependencyId] = useState<string | null>(null);
+
+  // Status change state for dependent tasks
+  const [changingStatusTaskId, setChangingStatusTaskId] = useState<string | null>(null);
+
+  // Theme colors for Chakra components
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const cardBorder = useColorModeValue('gray.200', 'gray.600');
+  const textColor = useColorModeValue('gray.800', 'white');
+  const mutedColor = useColorModeValue('gray.500', 'gray.400');
 
   // Get dependent tasks
   const dependentTasks = useMemo(() => {
@@ -403,6 +424,25 @@ export function TaskDetailScreen({
       }
     },
     [onTaskPress, boardId]
+  );
+
+  // Handle changing status of a dependent task
+  const handleDependentTaskStatusChange = useCallback(
+    async (depTaskId: string, newSectionId: string, oldSectionId: string) => {
+      if (newSectionId === oldSectionId) return;
+      
+      setChangingStatusTaskId(depTaskId);
+      try {
+        await dispatch(changeTaskSection({ taskId: depTaskId, sectionId: newSectionId, oldSectionId })).unwrap();
+        // Refresh tasks to get updated data
+        dispatch(fetchTasks(boardId));
+      } catch {
+        Alert.alert('Error', 'Failed to change task status');
+      } finally {
+        setChangingStatusTaskId(null);
+      }
+    },
+    [dispatch, boardId]
   );
 
   // Handle toggling pin status
@@ -765,44 +805,178 @@ export function TaskDetailScreen({
           ) : (
             <View style={styles.dependenciesList}>
               {dependentTasks.length > 0 ? (
-                dependentTasks.map((depTask) => {
-                  const depSection = sections.find(s => s.id === depTask.sectionId);
-                  // Determine status color based on section name
-                  const getStatusColor = (sectionName: string | undefined) => {
-                    if (!sectionName) return colors.textMuted;
-                    const name = sectionName.toLowerCase();
-                    if (name.includes('done') || name.includes('complete')) return '#22c55e';
-                    if (name.includes('progress') || name.includes('doing')) return '#f97316';
-                    if (name.includes('review') || name.includes('test')) return '#8b5cf6';
-                    return colors.primary;
-                  };
-                  const statusColor = getStatusColor(depSection?.name);
-                  return (
-                    <View key={depTask.id} style={[styles.dependencyItem, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' }]}>
-                      <TouchableOpacity
-                        style={styles.dependencyItemInfo}
-                        onPress={() => handleDependentTaskPress(depTask.id)}
+                <VStack gap={2} w="full">
+                  {dependentTasks.map((depTask) => {
+                    const depSection = sections.find(s => s.id === depTask.sectionId);
+                    const statusColor = getStatusColor(depSection?.name);
+                    const priorityColor = getPriorityColor(depTask.priority);
+                    const deadlineInfo = getDeadlineInfo(depTask.endDate);
+                    const isChangingStatus = changingStatusTaskId === depTask.id;
+                    
+                    return (
+                      <Box
+                        key={depTask.id}
+                        bg={cardBg}
+                        borderWidth="1px"
+                        borderColor={cardBorder}
+                        borderRadius="md"
+                        p={3}
                       >
-                        <View style={styles.dependencyItemHeader}>
-                          <Text style={[styles.dependencyItemTitle, { color: colors.primary }]} numberOfLines={1}>
-                            {depTask.title}
-                          </Text>
-                          <View style={[styles.dependencyStatusBadge, { backgroundColor: statusColor + '20', borderColor: statusColor }]}>
-                            <Text style={[styles.dependencyStatusText, { color: statusColor }]}>
-                              {depSection?.name || 'Unknown'}
-                            </Text>
-                          </View>
-                        </View>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={styles.removeDependencyButton}
-                        onPress={() => handleRemoveDependency(depTask.id)}
-                      >
-                        <Text style={styles.removeDependencyText}>×</Text>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                })
+                        <HStack justify="space-between" align="flex-start" gap={2}>
+                          {/* Task Info */}
+                          <VStack align="stretch" gap={1} flex={1} minW={0}>
+                            {/* Title - clickable */}
+                            <ChakraText
+                              fontWeight="medium"
+                              fontSize="sm"
+                              color={textColor}
+                              lineClamp={1}
+                              cursor="pointer"
+                              _hover={{ color: 'brand.500' }}
+                              onClick={() => handleDependentTaskPress(depTask.id)}
+                            >
+                              {depTask.title}
+                            </ChakraText>
+                            
+                            {/* Meta row: Status dropdown, Deadline */}
+                            <HStack gap={2} wrap="wrap">
+                              {/* Status Dropdown */}
+                              <Menu.Root>
+                                <Menu.Trigger asChild>
+                                  <Box
+                                    as="button"
+                                    px={2}
+                                    py={0.5}
+                                    borderRadius="md"
+                                    bg={`${statusColor}20`}
+                                    borderWidth="1px"
+                                    borderColor={statusColor}
+                                    display="flex"
+                                    alignItems="center"
+                                    gap={1}
+                                    cursor={isChangingStatus ? 'not-allowed' : 'pointer'}
+                                    _hover={{ opacity: 0.8 }}
+                                    opacity={isChangingStatus ? 0.6 : 1}
+                                  >
+                                    <ChakraText fontSize="xs" fontWeight="medium" color={statusColor}>
+                                      {depSection?.name || 'Unknown'}
+                                    </ChakraText>
+                                    <Icon boxSize={3} color={statusColor}>
+                                      <ChevronDownIcon />
+                                    </Icon>
+                                  </Box>
+                                </Menu.Trigger>
+                                <Portal>
+                                  <Menu.Positioner>
+                                    <Menu.Content
+                                      minW="150px"
+                                      bg={cardBg}
+                                      borderColor={cardBorder}
+                                      boxShadow="lg"
+                                      zIndex={1000}
+                                    >
+                                      {sections.map((s) => {
+                                        const sectionStatusColor = getStatusColor(s.name);
+                                        const isSelected = s.id === depTask.sectionId;
+                                        return (
+                                          <Menu.Item
+                                            key={s.id}
+                                            value={s.id}
+                                            onClick={() => handleDependentTaskStatusChange(depTask.id, s.id, depTask.sectionId)}
+                                            disabled={isChangingStatus}
+                                          >
+                                            <HStack justify="space-between" w="full">
+                                              <HStack gap={2}>
+                                                <Box
+                                                  w="8px"
+                                                  h="8px"
+                                                  borderRadius="full"
+                                                  bg={sectionStatusColor}
+                                                />
+                                                <ChakraText
+                                                  fontSize="sm"
+                                                  fontWeight={isSelected ? 'semibold' : 'normal'}
+                                                  color={isSelected ? sectionStatusColor : textColor}
+                                                >
+                                                  {s.name}
+                                                </ChakraText>
+                                              </HStack>
+                                              {isSelected && (
+                                                <Icon boxSize={4} color={sectionStatusColor}>
+                                                  <CheckIcon />
+                                                </Icon>
+                                              )}
+                                            </HStack>
+                                          </Menu.Item>
+                                        );
+                                      })}
+                                    </Menu.Content>
+                                  </Menu.Positioner>
+                                </Portal>
+                              </Menu.Root>
+                              
+                              {/* Deadline Badge */}
+                              {deadlineInfo && (
+                                <Box
+                                  px={2}
+                                  py={0.5}
+                                  borderRadius="md"
+                                  bg={deadlineInfo.isOverdue ? 'red.100' : deadlineInfo.isUrgent ? 'orange.100' : 'gray.100'}
+                                  _dark={{
+                                    bg: deadlineInfo.isOverdue ? 'red.900' : deadlineInfo.isUrgent ? 'orange.900' : 'gray.700',
+                                  }}
+                                >
+                                  <ChakraText
+                                    fontSize="xs"
+                                    fontWeight="medium"
+                                    color={deadlineInfo.color}
+                                  >
+                                    {deadlineInfo.text}
+                                  </ChakraText>
+                                </Box>
+                              )}
+                            </HStack>
+                          </VStack>
+                          
+                          {/* Right side: Priority + Remove button */}
+                          <HStack gap={2}>
+                            {/* Priority Indicator */}
+                            {depTask.priority && (
+                              <Box
+                                px={2}
+                                py={0.5}
+                                borderRadius="md"
+                                bg={`${priorityColor}20`}
+                              >
+                                <ChakraText fontSize="xs" fontWeight="medium" color={priorityColor} textTransform="capitalize">
+                                  {depTask.priority}
+                                </ChakraText>
+                              </Box>
+                            )}
+                            
+                            {/* Remove Button */}
+                            <Box
+                              as="button"
+                              w="24px"
+                              h="24px"
+                              borderRadius="full"
+                              bg="red.100"
+                              _dark={{ bg: 'red.900' }}
+                              display="flex"
+                              alignItems="center"
+                              justifyContent="center"
+                              cursor="pointer"
+                              onClick={() => handleRemoveDependency(depTask.id)}
+                              _hover={{ bg: 'red.200', _dark: { bg: 'red.800' } }}
+                            >
+                              <ChakraText fontSize="sm" color="red.500" fontWeight="bold">×</ChakraText>
+                            </Box>
+                          </HStack>
+                        </HStack>
+                      </Box>
+                    );
+                  })}
+                </VStack>
               ) : (
                 <Text style={[styles.emptyValue, { color: colors.textMuted }]}>No dependent tasks</Text>
               )}

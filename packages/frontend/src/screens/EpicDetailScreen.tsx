@@ -12,6 +12,15 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  Box,
+  VStack,
+  HStack,
+  Text as ChakraText,
+  Icon,
+} from '@chakra-ui/react';
+import { Menu, Portal } from '@chakra-ui/react';
+import { useColorModeValue } from '@/hooks/useColorMode';
 
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
@@ -25,7 +34,9 @@ import {
 } from '@/store/slices';
 import { selectAllEpics, selectAllTasks, selectAllSections, selectAllBoards } from '@/store/selectors';
 import { DatePicker } from '@/components';
+import { getStatusColor, getPriorityColor, getDeadlineInfo } from '@/components/chakra';
 import { useTheme } from '@/theme/ThemeContext';
+import { CheckIcon, ChevronDownIcon } from '@/theme/icons';
 import type { Epic, Task, Board, Section } from '@kanban/shared';
 
 interface EpicDetailScreenProps {
@@ -137,9 +148,14 @@ export function EpicDetailScreen({
     return grouped;
   }, [linkedTasks]);
 
-  // Status change dropdown state
-  const [statusDropdownTask, setStatusDropdownTask] = useState<string | null>(null);
+  // Status change state
   const [isChangingStatus, setIsChangingStatus] = useState(false);
+
+  // Theme colors for Chakra components
+  const cardBg = useColorModeValue('white', 'gray.800');
+  const cardBorder = useColorModeValue('gray.200', 'gray.600');
+  const textColor = useColorModeValue('gray.800', 'white');
+  const mutedColor = useColorModeValue('gray.500', 'gray.400');
 
   useEffect(() => {
     dispatch(fetchAllEpics());
@@ -254,10 +270,11 @@ export function EpicDetailScreen({
 
   // Handle task status change
   const handleStatusChange = useCallback(async (taskId: string, newSectionId: string, oldSectionId: string) => {
+    if (newSectionId === oldSectionId) return;
+    
     setIsChangingStatus(true);
     try {
       await dispatch(changeTaskSection({ taskId, sectionId: newSectionId, oldSectionId })).unwrap();
-      setStatusDropdownTask(null);
     } catch {
       Alert.alert('Error', 'Failed to change task status');
     } finally {
@@ -269,26 +286,6 @@ export function EpicDetailScreen({
   const getSectionsForBoard = useCallback((boardId: string): Section[] => {
     return allSections.filter(s => s.boardId === boardId);
   }, [allSections]);
-
-  // Get deadline info for a task
-  const getTaskDeadlineInfo = useCallback((task: Task) => {
-    if (!task.endDate) return null;
-    
-    const deadline = new Date(task.endDate);
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    deadline.setHours(0, 0, 0, 0);
-    
-    const diffTime = deadline.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    return {
-      date: deadline,
-      daysRemaining: diffDays,
-      isOverdue: diffDays < 0,
-      isUrgent: diffDays >= 0 && diffDays <= 2,
-    };
-  }, []);
 
   if (!epic) {
     return (
@@ -511,105 +508,156 @@ export function EpicDetailScreen({
                   <Text style={[styles.boardGroupTitle, { color: colors.textMuted }]}>
                     {board?.name || 'Unknown Board'}
                   </Text>
-                  {tasks.map(task => {
-                    const section = allSections.find(s => s.id === task.sectionId);
-                    const taskDeadline = getTaskDeadlineInfo(task);
-                    const isDropdownOpen = statusDropdownTask === task.id;
-                    
-                    return (
-                      <View key={task.id}>
-                        <TouchableOpacity
-                          style={[styles.taskItem, { borderColor: colors.borderLight, backgroundColor: colors.surfaceSecondary }]}
-                          onPress={() => onTaskPress?.(task.id, boardId)}
+                  <VStack gap={2} w="full">
+                    {tasks.map(task => {
+                      const section = allSections.find(s => s.id === task.sectionId);
+                      const statusColor = getStatusColor(section?.name);
+                      const priorityColor = getPriorityColor(task.priority);
+                      const deadlineInfo = getDeadlineInfo(task.endDate);
+                      
+                      return (
+                        <Box
+                          key={task.id}
+                          bg={cardBg}
+                          borderWidth="1px"
+                          borderColor={cardBorder}
+                          borderRadius="md"
+                          p={3}
                         >
-                          <View style={styles.taskInfo}>
-                            <Text style={[styles.taskTitle, { color: colors.text }]} numberOfLines={1}>
-                              {task.title}
-                            </Text>
-                            <View style={styles.taskMeta}>
-                              {/* Status dropdown button */}
-                              <TouchableOpacity
-                                style={[styles.statusButton, { backgroundColor: colors.border }]}
-                                onPress={(e) => {
-                                  e.stopPropagation();
-                                  setStatusDropdownTask(isDropdownOpen ? null : task.id);
-                                }}
+                          <HStack justify="space-between" align="flex-start" gap={2}>
+                            {/* Task Info */}
+                            <VStack align="stretch" gap={1} flex={1} minW={0}>
+                              {/* Title - clickable */}
+                              <ChakraText
+                                fontWeight="medium"
+                                fontSize="sm"
+                                color={textColor}
+                                lineClamp={1}
+                                cursor="pointer"
+                                _hover={{ color: 'brand.500' }}
+                                onClick={() => onTaskPress?.(task.id, boardId)}
                               >
-                                <Text style={[styles.statusButtonText, { color: colors.text }]}>
-                                  {section?.name || 'Unknown'}
-                                </Text>
-                                <Text style={[styles.dropdownArrow, { color: colors.textMuted }]}>▼</Text>
-                              </TouchableOpacity>
+                                {task.title}
+                              </ChakraText>
                               
-                              {/* Task deadline */}
-                              {taskDeadline && (
-                                <View style={[
-                                  styles.taskDeadlineBadge,
-                                  taskDeadline.isOverdue && styles.deadlineOverdue,
-                                  taskDeadline.isUrgent && !taskDeadline.isOverdue && styles.deadlineUrgent,
-                                  !taskDeadline.isOverdue && !taskDeadline.isUrgent && { backgroundColor: colors.border },
-                                ]}>
-                                  <Text style={[
-                                    styles.taskDeadlineText,
-                                    taskDeadline.isOverdue && styles.deadlineOverdueText,
-                                    taskDeadline.isUrgent && !taskDeadline.isOverdue && styles.deadlineUrgentText,
-                                    !taskDeadline.isOverdue && !taskDeadline.isUrgent && { color: colors.textMuted },
-                                  ]}>
-                                    {taskDeadline.isOverdue 
-                                      ? `${Math.abs(taskDeadline.daysRemaining)}d overdue`
-                                      : taskDeadline.daysRemaining === 0
-                                        ? 'Today'
-                                        : `${taskDeadline.daysRemaining}d left`
-                                    }
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
-                          </View>
-                          {task.priority && (
-                            <View style={[styles.priorityBadge, { backgroundColor: getPriorityColor(task.priority) + '20' }]}>
-                              <Text style={[styles.priorityText, { color: getPriorityColor(task.priority) }]}>
-                                {task.priority}
-                              </Text>
-                            </View>
-                          )}
-                        </TouchableOpacity>
-                        
-                        {/* Status dropdown */}
-                        {isDropdownOpen && (
-                          <View style={[styles.statusDropdown, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                            {boardSections.map(s => (
-                              <TouchableOpacity
-                                key={s.id}
-                                style={[
-                                  styles.statusOption,
-                                  s.id === task.sectionId && { backgroundColor: colors.primary + '20' },
-                                ]}
-                                onPress={() => {
-                                  if (s.id !== task.sectionId) {
-                                    handleStatusChange(task.id, s.id, task.sectionId);
-                                  } else {
-                                    setStatusDropdownTask(null);
-                                  }
-                                }}
-                                disabled={isChangingStatus}
-                              >
-                                <Text style={[
-                                  styles.statusOptionText,
-                                  { color: s.id === task.sectionId ? colors.primary : colors.text },
-                                ]}>
-                                  {s.name}
-                                </Text>
-                                {s.id === task.sectionId && (
-                                  <Text style={{ color: colors.primary }}>✓</Text>
+                              {/* Meta row: Status dropdown, Deadline */}
+                              <HStack gap={2} wrap="wrap">
+                                {/* Status Dropdown */}
+                                <Menu.Root>
+                                  <Menu.Trigger asChild>
+                                    <Box
+                                      as="button"
+                                      px={2}
+                                      py={0.5}
+                                      borderRadius="md"
+                                      bg={`${statusColor}20`}
+                                      borderWidth="1px"
+                                      borderColor={statusColor}
+                                      display="flex"
+                                      alignItems="center"
+                                      gap={1}
+                                      cursor={isChangingStatus ? 'not-allowed' : 'pointer'}
+                                      _hover={{ opacity: 0.8 }}
+                                      opacity={isChangingStatus ? 0.6 : 1}
+                                    >
+                                      <ChakraText fontSize="xs" fontWeight="medium" color={statusColor}>
+                                        {section?.name || 'Unknown'}
+                                      </ChakraText>
+                                      <Icon boxSize={3} color={statusColor}>
+                                        <ChevronDownIcon />
+                                      </Icon>
+                                    </Box>
+                                  </Menu.Trigger>
+                                  <Portal>
+                                    <Menu.Positioner>
+                                      <Menu.Content
+                                        minW="150px"
+                                        bg={cardBg}
+                                        borderColor={cardBorder}
+                                        boxShadow="lg"
+                                        zIndex={1000}
+                                      >
+                                        {boardSections.map((s) => {
+                                          const sectionStatusColor = getStatusColor(s.name);
+                                          const isSelected = s.id === task.sectionId;
+                                          return (
+                                            <Menu.Item
+                                              key={s.id}
+                                              value={s.id}
+                                              onClick={() => handleStatusChange(task.id, s.id, task.sectionId)}
+                                              disabled={isChangingStatus}
+                                            >
+                                              <HStack justify="space-between" w="full">
+                                                <HStack gap={2}>
+                                                  <Box
+                                                    w="8px"
+                                                    h="8px"
+                                                    borderRadius="full"
+                                                    bg={sectionStatusColor}
+                                                  />
+                                                  <ChakraText
+                                                    fontSize="sm"
+                                                    fontWeight={isSelected ? 'semibold' : 'normal'}
+                                                    color={isSelected ? sectionStatusColor : textColor}
+                                                  >
+                                                    {s.name}
+                                                  </ChakraText>
+                                                </HStack>
+                                                {isSelected && (
+                                                  <Icon boxSize={4} color={sectionStatusColor}>
+                                                    <CheckIcon />
+                                                  </Icon>
+                                                )}
+                                              </HStack>
+                                            </Menu.Item>
+                                          );
+                                        })}
+                                      </Menu.Content>
+                                    </Menu.Positioner>
+                                  </Portal>
+                                </Menu.Root>
+                                
+                                {/* Deadline Badge */}
+                                {deadlineInfo && (
+                                  <Box
+                                    px={2}
+                                    py={0.5}
+                                    borderRadius="md"
+                                    bg={deadlineInfo.isOverdue ? 'red.100' : deadlineInfo.isUrgent ? 'orange.100' : 'gray.100'}
+                                    _dark={{
+                                      bg: deadlineInfo.isOverdue ? 'red.900' : deadlineInfo.isUrgent ? 'orange.900' : 'gray.700',
+                                    }}
+                                  >
+                                    <ChakraText
+                                      fontSize="xs"
+                                      fontWeight="medium"
+                                      color={deadlineInfo.color}
+                                    >
+                                      {deadlineInfo.text}
+                                    </ChakraText>
+                                  </Box>
                                 )}
-                              </TouchableOpacity>
-                            ))}
-                          </View>
-                        )}
-                      </View>
-                    );
-                  })}
+                              </HStack>
+                            </VStack>
+                            
+                            {/* Priority Indicator */}
+                            {task.priority && (
+                              <Box
+                                px={2}
+                                py={0.5}
+                                borderRadius="md"
+                                bg={`${priorityColor}20`}
+                              >
+                                <ChakraText fontSize="xs" fontWeight="medium" color={priorityColor} textTransform="capitalize">
+                                  {task.priority}
+                                </ChakraText>
+                              </Box>
+                            )}
+                          </HStack>
+                        </Box>
+                      );
+                    })}
+                  </VStack>
                 </View>
               );
             })
@@ -634,11 +682,6 @@ export function EpicDetailScreen({
       </ScrollView>
     </SafeAreaView>
   );
-}
-
-function getPriorityColor(priority: string): string {
-  const p = PRIORITIES.find(pr => pr.value === priority);
-  return p?.color || '#9ca3af';
 }
 
 const styles = StyleSheet.create({

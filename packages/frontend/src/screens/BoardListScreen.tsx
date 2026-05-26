@@ -1408,6 +1408,7 @@ interface AnalyticsPreviewProps {
   heatmapData: ActivityHeatmapEntry[];
   tasks: Task[];
   sections: Section[];
+  boards: Board[];
   onViewMore: () => void;
   streak: {
     currentStreak: number;
@@ -1468,10 +1469,10 @@ function MiniPieChart({ tasks, sections }: { tasks: Task[]; sections: Section[] 
 
   return (
     <HStack gap={4} align="flex-start">
-      {/* Pie Chart */}
+      {/* Pie Chart - larger */}
       <Box
-        w="80px"
-        h="80px"
+        w="100px"
+        h="100px"
         borderRadius="full"
         style={{
           background: `conic-gradient(${gradientStops})`,
@@ -1479,21 +1480,21 @@ function MiniPieChart({ tasks, sections }: { tasks: Task[]; sections: Section[] 
       />
       
       {/* Legend */}
-      <VStack gap={1} align="flex-start">
-        {segments.slice(0, 4).map((seg) => (
+      <VStack gap={1.5} align="flex-start">
+        {segments.slice(0, 5).map((seg) => (
           <HStack key={seg.name} gap={2}>
-            <Box w="10px" h="10px" borderRadius="2px" bg={seg.color} />
-            <Text fontSize="xs" color="fg.muted" lineClamp={1} maxW="80px">
+            <Box w="12px" h="12px" borderRadius="2px" bg={seg.color} />
+            <Text fontSize="sm" color="fg.muted" lineClamp={1} maxW="100px">
               {seg.name}
             </Text>
-            <Text fontSize="xs" fontWeight="semibold" color="fg">
+            <Text fontSize="sm" fontWeight="semibold" color="fg">
               {seg.count}
             </Text>
           </HStack>
         ))}
-        {segments.length > 4 && (
+        {segments.length > 5 && (
           <Text fontSize="xs" color="fg.muted">
-            +{segments.length - 4} more
+            +{segments.length - 5} more
           </Text>
         )}
       </VStack>
@@ -1502,15 +1503,15 @@ function MiniPieChart({ tasks, sections }: { tasks: Task[]; sections: Section[] 
 }
 
 /**
- * MiniActivityHeatmap - Compact heatmap for analytics preview
+ * MiniActivityHeatmap - Compact heatmap for analytics preview (7 weeks / 49 days)
  */
 function MiniActivityHeatmap({ data }: { data: ActivityHeatmapEntry[] }): React.JSX.Element {
-  // Show last 28 days in a 4x7 grid
-  const last28Days = useMemo(() => {
+  // Show last 49 days (7 weeks) in a 7x7 grid
+  const last49Days = useMemo(() => {
     const days: { date: string; count: number }[] = [];
     const now = new Date();
 
-    for (let i = 27; i >= 0; i--) {
+    for (let i = 48; i >= 0; i--) {
       const date = new Date(now);
       date.setDate(date.getDate() - i);
       const dateStr = date.toISOString().split('T')[0];
@@ -1529,24 +1530,155 @@ function MiniActivityHeatmap({ data }: { data: ActivityHeatmapEntry[] }): React.
     return 'green.600';
   };
 
-  const totalActivity = last28Days.reduce((sum, day) => sum + day.count, 0);
+  const totalActivity = last49Days.reduce((sum, day) => sum + day.count, 0);
+  const activeDays = last49Days.filter((day) => day.count > 0).length;
 
   return (
-    <VStack gap={2} align="flex-start">
-      <Flex wrap="wrap" gap="3px" w="100px">
-        {last28Days.map((day) => (
+    <VStack gap={3} align="flex-start">
+      <Flex wrap="wrap" gap="4px" w="140px">
+        {last49Days.map((day) => (
           <Box
             key={day.date}
-            w="10px"
-            h="10px"
-            borderRadius="2px"
+            w="14px"
+            h="14px"
+            borderRadius="3px"
             bg={getHeatColor(day.count)}
           />
         ))}
       </Flex>
-      <Text fontSize="xs" color="fg.muted">
-        {totalActivity} activities in 28 days
-      </Text>
+      <VStack gap={0.5} align="flex-start">
+        <Text fontSize="sm" fontWeight="semibold" color="fg">
+          {totalActivity} activities
+        </Text>
+        <Text fontSize="xs" color="fg.muted">
+          {activeDays} active days in 7 weeks
+        </Text>
+      </VStack>
+    </VStack>
+  );
+}
+
+/**
+ * QuickStats - Shows key metrics at a glance
+ */
+function QuickStats({ tasks, sections }: { tasks: Task[]; sections: Section[] }): React.JSX.Element {
+  const stats = useMemo(() => {
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    startOfWeek.setHours(0, 0, 0, 0);
+    
+    // Find "done" sections
+    const doneSectionIds = sections
+      .filter((s) => s.name.toLowerCase().includes('done') || s.name.toLowerCase().includes('complete'))
+      .map((s) => s.id);
+    
+    // Tasks completed (in done sections)
+    const completedTasks = tasks.filter((t) => doneSectionIds.includes(t.sectionId));
+    
+    // Tasks completed this week (approximation - tasks in done section updated this week)
+    const completedThisWeek = completedTasks.filter((t) => {
+      const updatedAt = new Date(t.updatedAt);
+      return updatedAt >= startOfWeek;
+    }).length;
+    
+    // Overdue tasks
+    const overdueTasks = tasks.filter((t) => {
+      if (!t.endDate || doneSectionIds.includes(t.sectionId)) return false;
+      return new Date(t.endDate) < now;
+    }).length;
+    
+    // Due this week
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(endOfWeek.getDate() + 7);
+    const dueThisWeek = tasks.filter((t) => {
+      if (!t.endDate || doneSectionIds.includes(t.sectionId)) return false;
+      const dueDate = new Date(t.endDate);
+      return dueDate >= now && dueDate <= endOfWeek;
+    }).length;
+    
+    // Open tasks (not in done sections)
+    const openTasks = tasks.filter((t) => !doneSectionIds.includes(t.sectionId)).length;
+    
+    // Productivity score (completed / total * 100, capped at 100)
+    const totalTasks = tasks.length;
+    const productivityScore = totalTasks > 0 
+      ? Math.min(100, Math.round((completedTasks.length / totalTasks) * 100))
+      : 0;
+    
+    return {
+      completedThisWeek,
+      overdueTasks,
+      dueThisWeek,
+      openTasks,
+      totalCompleted: completedTasks.length,
+      productivityScore,
+    };
+  }, [tasks, sections]);
+
+  return (
+    <VStack gap={3} align="stretch">
+      {/* Productivity Score */}
+      <Box>
+        <HStack justify="space-between" mb={1}>
+          <Text fontSize="sm" color="fg.muted">Completion Rate</Text>
+          <Text fontSize="sm" fontWeight="bold" color={stats.productivityScore >= 50 ? 'green.500' : 'orange.500'}>
+            {stats.productivityScore}%
+          </Text>
+        </HStack>
+        <Box h="8px" bg="gray.200" borderRadius="full" overflow="hidden">
+          <Box 
+            h="full" 
+            w={`${stats.productivityScore}%`} 
+            bg={stats.productivityScore >= 50 ? 'green.500' : 'orange.500'}
+            borderRadius="full"
+            transition="width 0.3s"
+          />
+        </Box>
+      </Box>
+      
+      {/* Stats Grid */}
+      <SimpleGrid columns={2} gap={3}>
+        <Box bg="green.50" _dark={{ bg: 'green.900' }} p={2} borderRadius="md">
+          <Text fontSize="xl" fontWeight="bold" color="green.600" _dark={{ color: 'green.300' }}>
+            {stats.completedThisWeek}
+          </Text>
+          <Text fontSize="xs" color="green.600" _dark={{ color: 'green.400' }}>
+            Done this week
+          </Text>
+        </Box>
+        
+        <Box bg="blue.50" _dark={{ bg: 'blue.900' }} p={2} borderRadius="md">
+          <Text fontSize="xl" fontWeight="bold" color="blue.600" _dark={{ color: 'blue.300' }}>
+            {stats.openTasks}
+          </Text>
+          <Text fontSize="xs" color="blue.600" _dark={{ color: 'blue.400' }}>
+            Open tasks
+          </Text>
+        </Box>
+        
+        {stats.overdueTasks > 0 && (
+          <Box bg="red.50" _dark={{ bg: 'red.900' }} p={2} borderRadius="md">
+            <Text fontSize="xl" fontWeight="bold" color="red.600" _dark={{ color: 'red.300' }}>
+              {stats.overdueTasks}
+            </Text>
+            <Text fontSize="xs" color="red.600" _dark={{ color: 'red.400' }}>
+              Overdue
+            </Text>
+          </Box>
+        )}
+        
+        {stats.dueThisWeek > 0 && (
+          <Box bg="orange.50" _dark={{ bg: 'orange.900' }} p={2} borderRadius="md">
+            <Text fontSize="xl" fontWeight="bold" color="orange.600" _dark={{ color: 'orange.300' }}>
+              {stats.dueThisWeek}
+            </Text>
+            <Text fontSize="xs" color="orange.600" _dark={{ color: 'orange.400' }}>
+              Due this week
+            </Text>
+          </Box>
+        )}
+      </SimpleGrid>
     </VStack>
   );
 }
@@ -1588,18 +1720,18 @@ function StreakWidget({
   const { emoji, message } = getStreakMessage(currentStreak, todayCheckedIn);
 
   return (
-    <VStack gap={3} align="center" minW="140px">
-      {/* Streak Counter */}
+    <VStack gap={3} align="center" minW="160px">
+      {/* Streak Counter - larger */}
       <Box position="relative">
         <Box
-          w="80px"
-          h="80px"
+          w="100px"
+          h="100px"
           borderRadius="full"
           bg={todayCheckedIn ? 'orange.100' : 'gray.100'}
           display="flex"
           alignItems="center"
           justifyContent="center"
-          borderWidth="3px"
+          borderWidth="4px"
           borderColor={todayCheckedIn ? 'orange.400' : 'gray.300'}
           position="relative"
           overflow="hidden"
@@ -1615,18 +1747,18 @@ function StreakWidget({
             />
           )}
           <VStack gap={0} position="relative">
-            <Text fontSize="2xl" fontWeight="bold" color={todayCheckedIn ? 'orange.600' : 'gray.500'}>
+            <Text fontSize="3xl" fontWeight="bold" color={todayCheckedIn ? 'orange.600' : 'gray.500'}>
               {currentStreak}
             </Text>
-            <Text fontSize="xs" color={todayCheckedIn ? 'orange.500' : 'gray.400'} fontWeight="medium">
+            <Text fontSize="sm" color={todayCheckedIn ? 'orange.500' : 'gray.400'} fontWeight="medium">
               {currentStreak === 1 ? 'day' : 'days'}
             </Text>
           </VStack>
         </Box>
         {/* Flame emoji for active streaks */}
         {currentStreak > 0 && todayCheckedIn && (
-          <Box position="absolute" top="-8px" right="-8px">
-            <Text fontSize="xl">🔥</Text>
+          <Box position="absolute" top="-10px" right="-10px">
+            <Text fontSize="2xl">🔥</Text>
           </Box>
         )}
       </Box>
@@ -1634,8 +1766,8 @@ function StreakWidget({
       {/* Message */}
       <VStack gap={1}>
         <HStack gap={1}>
-          <Text fontSize="lg">{emoji}</Text>
-          <Text fontSize="sm" fontWeight="semibold" color="fg">
+          <Text fontSize="xl">{emoji}</Text>
+          <Text fontSize="md" fontWeight="semibold" color="fg">
             {message}
           </Text>
         </HStack>
@@ -1652,10 +1784,10 @@ function StreakWidget({
           </AppButton>
         ) : (
           <HStack gap={1}>
-            <Icon boxSize={3} color="green.500">
+            <Icon boxSize={4} color="green.500">
               <CheckIcon />
             </Icon>
-            <Text fontSize="xs" color="green.600" fontWeight="medium">
+            <Text fontSize="sm" color="green.600" fontWeight="medium">
               Checked in today
             </Text>
           </HStack>
@@ -1664,7 +1796,7 @@ function StreakWidget({
 
       {/* Stats */}
       {streak && streak.longestStreak > 0 && (
-        <HStack gap={3} fontSize="xs" color="fg.muted">
+        <HStack gap={3} fontSize="sm" color="fg.muted">
           <Text>Best: {streak.longestStreak} days</Text>
           <Text>•</Text>
           <Text>Total: {streak.totalCheckIns}</Text>
@@ -1681,20 +1813,21 @@ function AnalyticsPreview({
   heatmapData,
   tasks,
   sections,
+  boards,
   onViewMore,
   streak,
   onCheckIn,
   isCheckingIn,
 }: AnalyticsPreviewProps): React.JSX.Element {
   return (
-    <AppCard p={4}>
-      <VStack gap={4} align="stretch">
+    <AppCard p={5}>
+      <VStack gap={5} align="stretch">
         <Flex justify="space-between" align="center">
           <HStack gap={2}>
-            <Icon color="brand.500" boxSize={5}>
+            <Icon color="brand.500" boxSize={6}>
               <ActivityIcon />
             </Icon>
-            <Text fontSize="lg" fontWeight="semibold">
+            <Text fontSize="xl" fontWeight="semibold">
               Analytics Overview
             </Text>
           </HStack>
@@ -1707,31 +1840,40 @@ function AnalyticsPreview({
           </AppButton>
         </Flex>
 
-        <Flex gap={6} wrap="wrap" justify="space-between" align="flex-start">
+        {/* Main content - responsive grid */}
+        <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} gap={6}>
           {/* Streak Widget */}
           <Box>
-            <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={2}>
+            <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={3}>
               Daily Streak
             </Text>
             <StreakWidget streak={streak} onCheckIn={onCheckIn} isCheckingIn={isCheckingIn} />
           </Box>
 
+          {/* Quick Stats */}
+          <Box>
+            <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={3}>
+              Quick Stats
+            </Text>
+            <QuickStats tasks={tasks} sections={sections} />
+          </Box>
+
           {/* Activity Heatmap */}
           <Box>
-            <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={2}>
-              Activity
+            <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={3}>
+              Activity (7 weeks)
             </Text>
             <MiniActivityHeatmap data={heatmapData} />
           </Box>
 
           {/* Task Distribution */}
           <Box>
-            <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={2}>
+            <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={3}>
               Task Distribution
             </Text>
             <MiniPieChart tasks={tasks} sections={sections} />
           </Box>
-        </Flex>
+        </SimpleGrid>
       </VStack>
     </AppCard>
   );
@@ -2455,6 +2597,7 @@ export function BoardListScreen(): React.JSX.Element {
                 heatmapData={combinedHeatmapData}
                 tasks={allTasks}
                 sections={allSections}
+                boards={boards}
                 onViewMore={() => navigation.navigate('Analytics')}
                 streak={streak}
                 onCheckIn={handleCheckIn}

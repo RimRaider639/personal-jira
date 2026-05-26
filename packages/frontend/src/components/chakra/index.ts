@@ -74,3 +74,11 @@ export {
   ResponsiveContainer,
   type ResponsiveContainerProps,
 } from './ResponsiveContainer';
+
+// Task list item component
+export {
+  TaskListItem,
+  getStatusColor,
+  getPriorityColor,
+  getDeadlineInfo,
+} from './TaskListItem';

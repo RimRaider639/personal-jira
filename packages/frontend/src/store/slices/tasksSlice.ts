@@ -391,7 +391,13 @@ const addTaskToIndexes = (state: TasksState, task: Task) => {
   if (existingTask) {
     const shouldBePinned = existingTask.isPinned || task.isPinned;
     const pinnedPosition = task.isPinned ? task.pinnedPosition : (existingTask.isPinned ? existingTask.pinnedPosition : 0);
-    state.byId[task.id] = { ...task, isPinned: shouldBePinned, pinnedPosition };
+    // Merge task data, preserving pinned status from either source
+    state.byId[task.id] = { 
+      ...existingTask,  // Keep existing data as base
+      ...task,          // Override with new data
+      isPinned: shouldBePinned,  // But always preserve pinned status
+      pinnedPosition 
+    };
   } else {
     state.byId[task.id] = task;
   }
@@ -634,7 +640,15 @@ const tasksSlice = createSlice({
       .addCase(updateTask.fulfilled, (state, action) => {
         state.isLoading = false;
         const task = action.payload;
-        state.byId[task.id] = task;
+        const existingTask = state.byId[task.id];
+        // Preserve pinned status when updating task
+        if (existingTask) {
+          const shouldBePinned = existingTask.isPinned || task.isPinned;
+          const pinnedPosition = task.isPinned ? task.pinnedPosition : (existingTask.isPinned ? existingTask.pinnedPosition : 0);
+          state.byId[task.id] = { ...task, isPinned: shouldBePinned, pinnedPosition };
+        } else {
+          state.byId[task.id] = task;
+        }
       })
       .addCase(updateTask.rejected, (state, action) => {
         state.isLoading = false;

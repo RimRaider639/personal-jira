@@ -26,7 +26,8 @@ import {
   Textarea,
   useDisclosure,
 } from '@chakra-ui/react';
-import { ScrollView } from 'react-native';
+import { ScrollView, View } from 'react-native';
+import DraggableFlatList, { ScaleDecorator, RenderItemParams } from 'react-native-draggable-flatlist';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -47,6 +48,7 @@ import {
   fetchActivityHeatmap,
   fetchPinnedTasks,
   toggleTaskPin,
+  reorderPinnedTasks,
   createTask,
   fetchNotes,
   createNote,
@@ -962,7 +964,8 @@ interface PinnedTaskCardProps {
   section: Section | undefined;
   onPress: (taskId: string, boardId: string) => void;
   onUnpin: (taskId: string) => void;
-  dragHandleProps?: Record<string, unknown>;
+  drag?: () => void;
+  isActive?: boolean;
 }
 
 function PinnedTaskCard({
@@ -971,7 +974,8 @@ function PinnedTaskCard({
   section,
   onPress,
   onUnpin,
-  dragHandleProps,
+  drag,
+  isActive,
 }: PinnedTaskCardProps): React.JSX.Element {
   const priorityColors: Record<string, string> = {
     critical: 'red.500',
@@ -987,18 +991,27 @@ function PinnedTaskCard({
       w="160px"
       p={3}
       flexShrink={0}
+      opacity={isActive ? 0.8 : 1}
+      transform={isActive ? 'scale(1.05)' : undefined}
     >
       <VStack align="stretch" gap={2}>
         <HStack justify="space-between">
           {/* Drag Handle */}
           <Box
-            {...dragHandleProps}
             cursor="grab"
             px={1}
             py={0.5}
             borderRadius="sm"
             _hover={{ bg: 'blackAlpha.100' }}
             onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              drag?.();
+            }}
+            onTouchStart={(e) => {
+              e.stopPropagation();
+              drag?.();
+            }}
           >
             <Text fontSize="xs" color="fg.muted" userSelect="none">⋮⋮</Text>
           </Box>
@@ -1997,6 +2010,19 @@ export function BoardListScreen(): React.JSX.Element {
     [dispatch, toast]
   );
 
+  // Handle reordering pinned tasks via drag and drop
+  const handlePinnedTasksReorder = useCallback(
+    async (data: Task[]) => {
+      const taskIds = data.map((task) => task.id);
+      try {
+        await dispatch(reorderPinnedTasks(taskIds)).unwrap();
+      } catch {
+        toast.showError('Error', 'Failed to reorder pinned tasks');
+      }
+    },
+    [dispatch, toast]
+  );
+
   const handlePinnedTaskPress = useCallback(
     (taskId: string, boardId: string) => {
       // Find the task and show preview modal
@@ -2217,22 +2243,34 @@ export function BoardListScreen(): React.JSX.Element {
                             Pinned Tasks
                           </Text>
                         </HStack>
-                        <HStack gap={3} overflowX="auto" pb={2}>
-                          {pinnedTasks.map((task) => {
-                            const board = boards.find((b) => b.id === task.boardId);
-                            const section = allSections.find((s) => s.id === task.sectionId);
-                            return (
-                              <PinnedTaskCard
-                                key={task.id}
-                                task={task}
-                                board={board}
-                                section={section}
-                                onPress={handlePinnedTaskPress}
-                                onUnpin={handleUnpinTask}
-                              />
-                            );
-                          })}
-                        </HStack>
+                        <View style={{ height: 140 }}>
+                          <DraggableFlatList
+                            data={pinnedTasks}
+                            keyExtractor={(item) => item.id}
+                            horizontal
+                            onDragEnd={({ data }) => handlePinnedTasksReorder(data)}
+                            renderItem={({ item, drag, isActive }: RenderItemParams<Task>) => {
+                              const board = boards.find((b) => b.id === item.boardId);
+                              const section = allSections.find((s) => s.id === item.sectionId);
+                              return (
+                                <ScaleDecorator>
+                                  <View style={{ marginRight: 12 }}>
+                                    <PinnedTaskCard
+                                      task={item}
+                                      board={board}
+                                      section={section}
+                                      onPress={handlePinnedTaskPress}
+                                      onUnpin={handleUnpinTask}
+                                      drag={drag}
+                                      isActive={isActive}
+                                    />
+                                  </View>
+                                </ScaleDecorator>
+                              );
+                            }}
+                            contentContainerStyle={{ paddingBottom: 8 }}
+                          />
+                        </View>
                       </Box>
                     )}
                   </VStack>

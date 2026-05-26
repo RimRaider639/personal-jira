@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  Alert,
   Platform,
   Linking,
   Modal,
@@ -47,8 +46,9 @@ import {
 } from '@/store/slices';
 import { selectTaskById, selectEpicsByBoardId, selectSectionsByBoardId, selectTasksByBoardId } from '@/store/selectors';
 import { DatePicker } from '@/components';
-import { getStatusColor, getPriorityColor, getDeadlineInfo } from '@/components/chakra';
+import { getStatusColor, getPriorityColor, getDeadlineInfo, ConfirmDialog } from '@/components/chakra';
 import { useTheme } from '@/theme/ThemeContext';
+import { useAppToast } from '@/hooks/useToast';
 import { CheckIcon, ChevronDownIcon } from '@/theme/icons';
 import type { Priority, Epic, Task, Section } from '@kanban/shared';
 
@@ -129,6 +129,16 @@ export function TaskDetailScreen({
   // Status change state for dependent tasks
   const [changingStatusTaskId, setChangingStatusTaskId] = useState<string | null>(null);
 
+  // Confirmation dialog states
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteAttachmentConfirm, setShowDeleteAttachmentConfirm] = useState<string | null>(null);
+  const [showDeleteCommentConfirm, setShowDeleteCommentConfirm] = useState<string | null>(null);
+  const [showRemoveDependencyConfirm, setShowRemoveDependencyConfirm] = useState<string | null>(null);
+  const [showCloneSuccess, setShowCloneSuccess] = useState<{ id: string; boardId: string } | null>(null);
+
+  // Toast hook
+  const toast = useAppToast();
+
   // Theme colors for Chakra components
   const cardBg = useColorModeValue('white', 'gray.800');
   const cardBorder = useColorModeValue('gray.200', 'gray.600');
@@ -188,39 +198,36 @@ export function TaskDetailScreen({
         })
       ).unwrap();
       setIsEditing(false);
+      toast.showSuccess('Saved', 'Task updated successfully');
     } catch {
-      Alert.alert('Error', 'Failed to save changes');
+      toast.showError('Error', 'Failed to save changes');
     } finally {
       setIsSaving(false);
     }
-  }, [dispatch, taskId, task, editTitle, editDescription, editPriority, editStoryPoints, editEndDate]);
+  }, [dispatch, taskId, task, editTitle, editDescription, editPriority, editStoryPoints, editEndDate, toast]);
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(() => {
     if (!task) return;
+    setShowDeleteConfirm(true);
+  }, [task]);
 
-    Alert.alert('Delete Task', 'Are you sure you want to delete this task?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await dispatch(
-              deleteTask({
-                taskId,
-                sectionId: task.sectionId,
-                boardId: task.boardId,
-              })
-            ).unwrap();
-            onDelete?.();
-            onBack?.();
-          } catch {
-            Alert.alert('Error', 'Failed to delete task');
-          }
-        },
-      },
-    ]);
-  }, [dispatch, taskId, task, onDelete, onBack]);
+  const confirmDelete = useCallback(async () => {
+    if (!task) return;
+    setShowDeleteConfirm(false);
+    try {
+      await dispatch(
+        deleteTask({
+          taskId,
+          sectionId: task.sectionId,
+          boardId: task.boardId,
+        })
+      ).unwrap();
+      onDelete?.();
+      onBack?.();
+    } catch {
+      toast.showError('Error', 'Failed to delete task');
+    }
+  }, [dispatch, taskId, task, onDelete, onBack, toast]);
 
   const handleToggleEpic = useCallback(
     async (epicId: string) => {
@@ -234,10 +241,10 @@ export function TaskDetailScreen({
           await dispatch(assignEpicToTask({ taskId, epicId })).unwrap();
         }
       } catch {
-        Alert.alert('Error', `Failed to ${isAssigned ? 'remove' : 'assign'} epic`);
+        toast.showError('Error', `Failed to ${isAssigned ? 'remove' : 'assign'} epic`);
       }
     },
-    [dispatch, taskId, task]
+    [dispatch, taskId, task, toast]
   );
 
   // Handle file upload (web only)
@@ -250,11 +257,11 @@ export function TaskDetailScreen({
       setUploadError(null);
       try {
         await dispatch(uploadAttachment({ taskId, file })).unwrap();
-        Alert.alert('Success', 'Attachment uploaded successfully');
+        toast.showSuccess('Success', 'Attachment uploaded successfully');
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to upload attachment';
         setUploadError(errorMessage);
-        Alert.alert('Error', errorMessage);
+        toast.showError('Error', errorMessage);
         console.error('Upload error:', error);
       } finally {
         setIsUploadingAttachment(false);
@@ -264,7 +271,7 @@ export function TaskDetailScreen({
         }
       }
     },
-    [dispatch, taskId]
+    [dispatch, taskId, toast]
   );
 
   const handleAddAttachment = useCallback(() => {
@@ -272,30 +279,29 @@ export function TaskDetailScreen({
     if (Platform.OS === 'web') {
       fileInputRef.current?.click();
     } else {
-      Alert.alert('Info', 'File upload is only available on web');
+      toast.showInfo('Info', 'File upload is only available on web');
     }
-  }, []);
+  }, [toast]);
 
   const handleDeleteAttachment = useCallback(
-    async (attachmentId: string) => {
-      Alert.alert('Delete Attachment', 'Are you sure you want to delete this attachment?', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await dispatch(deleteAttachment({ taskId, attachmentId })).unwrap();
-            } catch (error) {
-              const errorMessage = error instanceof Error ? error.message : 'Failed to delete attachment';
-              Alert.alert('Error', errorMessage);
-            }
-          },
-        },
-      ]);
+    (attachmentId: string) => {
+      setShowDeleteAttachmentConfirm(attachmentId);
     },
-    [dispatch, taskId]
+    []
   );
+
+  const confirmDeleteAttachment = useCallback(async () => {
+    if (!showDeleteAttachmentConfirm) return;
+    const attachmentId = showDeleteAttachmentConfirm;
+    setShowDeleteAttachmentConfirm(null);
+    try {
+      await dispatch(deleteAttachment({ taskId, attachmentId })).unwrap();
+      toast.showSuccess('Deleted', 'Attachment deleted successfully');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete attachment';
+      toast.showError('Error', errorMessage);
+    }
+  }, [dispatch, taskId, showDeleteAttachmentConfirm, toast]);
 
   const handleOpenAttachment = useCallback((url: string) => {
     if (Platform.OS === 'web') {
@@ -314,32 +320,31 @@ export function TaskDetailScreen({
       setNewComment('');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to add comment';
-      Alert.alert('Error', errorMessage);
+      toast.showError('Error', errorMessage);
     } finally {
       setIsAddingComment(false);
     }
-  }, [dispatch, taskId, newComment]);
+  }, [dispatch, taskId, newComment, toast]);
 
   const handleDeleteComment = useCallback(
-    async (commentId: string) => {
-      Alert.alert('Delete Comment', 'Are you sure you want to delete this comment?', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await dispatch(deleteComment({ taskId, commentId })).unwrap();
-            } catch (error) {
-              const errorMessage = error instanceof Error ? error.message : 'Failed to delete comment';
-              Alert.alert('Error', errorMessage);
-            }
-          },
-        },
-      ]);
+    (commentId: string) => {
+      setShowDeleteCommentConfirm(commentId);
     },
-    [dispatch, taskId]
+    []
   );
+
+  const confirmDeleteComment = useCallback(async () => {
+    if (!showDeleteCommentConfirm) return;
+    const commentId = showDeleteCommentConfirm;
+    setShowDeleteCommentConfirm(null);
+    try {
+      await dispatch(deleteComment({ taskId, commentId })).unwrap();
+      toast.showSuccess('Deleted', 'Comment deleted successfully');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete comment';
+      toast.showError('Error', errorMessage);
+    }
+  }, [dispatch, taskId, showDeleteCommentConfirm, toast]);
 
   // Handle moving task to a different section
   const handleMoveToSection = useCallback(
@@ -358,13 +363,13 @@ export function TaskDetailScreen({
           })
         ).unwrap();
         setShowSectionSelector(false);
-        Alert.alert('Success', 'Task moved successfully');
+        toast.showSuccess('Success', 'Task moved successfully');
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to move task';
-        Alert.alert('Error', errorMessage);
+        toast.showError('Error', errorMessage);
       }
     },
-    [dispatch, taskId, task]
+    [dispatch, taskId, task, toast]
   );
 
   // Handle adding a dependency
@@ -379,42 +384,37 @@ export function TaskDetailScreen({
         dispatch(fetchTask(taskId));
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to add dependency';
-        Alert.alert('Error', errorMessage);
+        toast.showError('Error', errorMessage);
       } finally {
         setAddingDependencyId(null);
       }
     },
-    [dispatch, taskId, task]
+    [dispatch, taskId, task, toast]
   );
 
   // Handle removing a dependency
   const handleRemoveDependency = useCallback(
-    async (dependentTaskId: string) => {
+    (dependentTaskId: string) => {
       if (!task) return;
-
-      // On web, Alert.alert may not work properly, so use window.confirm as fallback
-      const confirmRemove = Platform.OS === 'web' 
-        ? window.confirm('Are you sure you want to remove this dependency?')
-        : await new Promise<boolean>((resolve) => {
-            Alert.alert('Remove Dependency', 'Are you sure you want to remove this dependency?', [
-              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-              { text: 'Remove', style: 'destructive', onPress: () => resolve(true) },
-            ]);
-          });
-
-      if (!confirmRemove) return;
-
-      try {
-        await dispatch(removeDependency({ taskId, dependentTaskId })).unwrap();
-        // Refresh the task to get updated dependentTaskIds
-        dispatch(fetchTask(taskId));
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to remove dependency';
-        Alert.alert('Error', errorMessage);
-      }
+      setShowRemoveDependencyConfirm(dependentTaskId);
     },
-    [dispatch, taskId, task]
+    [task]
   );
+
+  const confirmRemoveDependency = useCallback(async () => {
+    if (!showRemoveDependencyConfirm) return;
+    const dependentTaskId = showRemoveDependencyConfirm;
+    setShowRemoveDependencyConfirm(null);
+    try {
+      await dispatch(removeDependency({ taskId, dependentTaskId })).unwrap();
+      // Refresh the task to get updated dependentTaskIds
+      dispatch(fetchTask(taskId));
+      toast.showSuccess('Removed', 'Dependency removed successfully');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to remove dependency';
+      toast.showError('Error', errorMessage);
+    }
+  }, [dispatch, taskId, showRemoveDependencyConfirm, toast]);
 
   // Handle clicking on a dependent task
   const handleDependentTaskPress = useCallback(
@@ -437,12 +437,12 @@ export function TaskDetailScreen({
         // Refresh tasks to get updated data
         dispatch(fetchTasks(boardId));
       } catch {
-        Alert.alert('Error', 'Failed to change task status');
+        toast.showError('Error', 'Failed to change task status');
       } finally {
         setChangingStatusTaskId(null);
       }
     },
-    [dispatch, boardId]
+    [dispatch, boardId, toast]
   );
 
   // Handle toggling pin status
@@ -451,26 +451,27 @@ export function TaskDetailScreen({
     try {
       await dispatch(toggleTaskPin(taskId)).unwrap();
     } catch {
-      Alert.alert('Error', 'Failed to update pin status');
+      toast.showError('Error', 'Failed to update pin status');
     }
-  }, [dispatch, taskId, task]);
+  }, [dispatch, taskId, task, toast]);
 
   // Handle cloning task
   const handleClone = useCallback(async () => {
     if (!task) return;
     try {
       const clonedTask = await dispatch(cloneTask(taskId)).unwrap();
-      Alert.alert('Success', 'Task cloned successfully', [
-        {
-          text: 'View Clone',
-          onPress: () => onClone?.(clonedTask.id, clonedTask.boardId),
-        },
-        { text: 'Stay Here', style: 'cancel' },
-      ]);
+      setShowCloneSuccess({ id: clonedTask.id, boardId: clonedTask.boardId });
     } catch {
-      Alert.alert('Error', 'Failed to clone task');
+      toast.showError('Error', 'Failed to clone task');
     }
-  }, [dispatch, taskId, task, onClone]);
+  }, [dispatch, taskId, task, toast]);
+
+  const handleViewClone = useCallback(() => {
+    if (showCloneSuccess) {
+      onClone?.(showCloneSuccess.id, showCloneSuccess.boardId);
+      setShowCloneSuccess(null);
+    }
+  }, [showCloneSuccess, onClone]);
 
   if (!task) {
     return (
@@ -1110,6 +1111,62 @@ export function TaskDetailScreen({
           </View>
         </View>
       </ScrollView>
+
+      {/* Delete Task Confirmation */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={confirmDelete}
+        title="Delete Task"
+        message="Are you sure you want to delete this task? This action cannot be undone."
+        confirmText="Delete"
+        variant="danger"
+      />
+
+      {/* Delete Attachment Confirmation */}
+      <ConfirmDialog
+        open={showDeleteAttachmentConfirm !== null}
+        onClose={() => setShowDeleteAttachmentConfirm(null)}
+        onConfirm={confirmDeleteAttachment}
+        title="Delete Attachment"
+        message="Are you sure you want to delete this attachment?"
+        confirmText="Delete"
+        variant="danger"
+      />
+
+      {/* Delete Comment Confirmation */}
+      <ConfirmDialog
+        open={showDeleteCommentConfirm !== null}
+        onClose={() => setShowDeleteCommentConfirm(null)}
+        onConfirm={confirmDeleteComment}
+        title="Delete Comment"
+        message="Are you sure you want to delete this comment?"
+        confirmText="Delete"
+        variant="danger"
+      />
+
+      {/* Remove Dependency Confirmation */}
+      <ConfirmDialog
+        open={showRemoveDependencyConfirm !== null}
+        onClose={() => setShowRemoveDependencyConfirm(null)}
+        onConfirm={confirmRemoveDependency}
+        title="Remove Dependency"
+        message="Are you sure you want to remove this dependency?"
+        confirmText="Remove"
+        variant="warning"
+      />
+
+      {/* Clone Success Dialog */}
+      <ConfirmDialog
+        open={showCloneSuccess !== null}
+        onClose={() => setShowCloneSuccess(null)}
+        onConfirm={handleViewClone}
+        title="Task Cloned"
+        message="Task cloned successfully! Would you like to view the cloned task?"
+        confirmText="View Clone"
+        cancelText="Stay Here"
+        variant="info"
+      />
     </SafeAreaView>
   );
 }

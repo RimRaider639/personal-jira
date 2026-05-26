@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  Alert,
   useWindowDimensions,
   Modal,
 } from 'react-native';
@@ -34,8 +33,9 @@ import {
 } from '@/store/slices';
 import { selectAllEpics, selectAllTasks, selectAllSections, selectAllBoards } from '@/store/selectors';
 import { DatePicker } from '@/components';
-import { getStatusColor, getPriorityColor, getDeadlineInfo } from '@/components/chakra';
+import { getStatusColor, getPriorityColor, getDeadlineInfo, ConfirmDialog } from '@/components/chakra';
 import { useTheme } from '@/theme/ThemeContext';
+import { useAppToast } from '@/hooks/useToast';
 import { CheckIcon, ChevronDownIcon } from '@/theme/icons';
 import type { Epic, Task, Board, Section } from '@kanban/shared';
 
@@ -88,6 +88,12 @@ export function EpicDetailScreen({
   const [editColor, setEditColor] = useState('');
   const [editEndDate, setEditEndDate] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  // Confirmation dialog state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Toast hook
+  const toast = useAppToast();
 
   // Linked tasks - sorted by deadline
   const linkedTasks = useMemo(() => {
@@ -197,7 +203,7 @@ export function EpicDetailScreen({
       switch (field) {
         case 'name':
           if (!editName.trim()) {
-            Alert.alert('Error', 'Epic name is required');
+            toast.showError('Error', 'Epic name is required');
             setIsSaving(false);
             return;
           }
@@ -221,32 +227,29 @@ export function EpicDetailScreen({
       
       setEditingField(null);
     } catch {
-      Alert.alert('Error', 'Failed to save changes');
+      toast.showError('Error', 'Failed to save changes');
     } finally {
       setIsSaving(false);
     }
-  }, [dispatch, epic, editName, editDescription, editColor, editEndDate]);
+  }, [dispatch, epic, editName, editDescription, editColor, editEndDate, toast]);
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(() => {
     if (!epic) return;
+    setShowDeleteConfirm(true);
+  }, [epic]);
 
-    Alert.alert('Delete Epic', 'Are you sure you want to delete this epic? Tasks will not be deleted.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await dispatch(deleteEpic({ epicId: epic.id, boardId: epic.boardId })).unwrap();
-            onDelete?.();
-            onBack?.();
-          } catch {
-            Alert.alert('Error', 'Failed to delete epic');
-          }
-        },
-      },
-    ]);
-  }, [dispatch, epic, onDelete, onBack]);
+  const confirmDelete = useCallback(async () => {
+    if (!epic) return;
+    setShowDeleteConfirm(false);
+    try {
+      await dispatch(deleteEpic({ epicId: epic.id, boardId: epic.boardId })).unwrap();
+      toast.showSuccess('Epic Deleted', 'The epic has been deleted successfully.');
+      onDelete?.();
+      onBack?.();
+    } catch {
+      toast.showError('Error', 'Failed to delete epic');
+    }
+  }, [dispatch, epic, onDelete, onBack, toast]);
 
   const startEditing = useCallback((field: string) => {
     setEditingField(field);
@@ -276,11 +279,11 @@ export function EpicDetailScreen({
     try {
       await dispatch(changeTaskSection({ taskId, sectionId: newSectionId, oldSectionId })).unwrap();
     } catch {
-      Alert.alert('Error', 'Failed to change task status');
+      toast.showError('Error', 'Failed to change task status');
     } finally {
       setIsChangingStatus(false);
     }
-  }, [dispatch]);
+  }, [dispatch, toast]);
 
   // Get sections for a board (for status dropdown)
   const getSectionsForBoard = useCallback((boardId: string): Section[] => {
@@ -682,6 +685,17 @@ export function EpicDetailScreen({
           </View>
         </View>
       </ScrollView>
+
+      {/* Delete Epic Confirmation */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={confirmDelete}
+        title="Delete Epic"
+        message="Are you sure you want to delete this epic? Tasks will not be deleted."
+        variant="danger"
+        confirmText="Delete"
+      />
     </SafeAreaView>
   );
 }

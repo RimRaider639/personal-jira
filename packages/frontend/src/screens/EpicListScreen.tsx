@@ -8,7 +8,6 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -21,7 +20,9 @@ import {
 } from '@/store/slices';
 import { selectEpicsByBoardId, selectTasksByBoardId } from '@/store/selectors';
 import { ThemedBackground } from '@/components';
+import { ConfirmDialog } from '@/components/chakra';
 import { useTheme } from '@/theme/ThemeContext';
+import { useAppToast } from '@/hooks/useToast';
 import type { Epic, Task } from '@kanban/shared';
 
 interface EpicListScreenProps {
@@ -275,6 +276,10 @@ export function EpicListScreen({
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [editingEpic, setEditingEpic] = useState<Epic | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [epicToDelete, setEpicToDelete] = useState<Epic | null>(null);
+
+  // Toast hook
+  const toast = useAppToast();
 
   useEffect(() => {
     dispatch(fetchEpics(boardId));
@@ -295,13 +300,14 @@ export function EpicListScreen({
       try {
         await dispatch(createEpic({ boardId, data: { name, description: description || undefined, color } })).unwrap();
         setCreateModalVisible(false);
+        toast.showSuccess('Epic Created', `"${name}" has been created successfully.`);
       } catch {
-        Alert.alert('Error', 'Failed to create epic');
+        toast.showError('Error', 'Failed to create epic');
       } finally {
         setIsSaving(false);
       }
     },
-    [dispatch, boardId]
+    [dispatch, boardId, toast]
   );
 
   const handleUpdateEpic = useCallback(
@@ -311,37 +317,37 @@ export function EpicListScreen({
       try {
         await dispatch(updateEpic({ id: editingEpic.id, data: { name, description: description || undefined, color } })).unwrap();
         setEditingEpic(null);
+        toast.showSuccess('Epic Updated', `"${name}" has been updated successfully.`);
       } catch {
-        Alert.alert('Error', 'Failed to update epic');
+        toast.showError('Error', 'Failed to update epic');
       } finally {
         setIsSaving(false);
       }
     },
-    [dispatch, editingEpic]
+    [dispatch, editingEpic, toast]
   );
 
   const handleDeleteEpic = useCallback(
     (epic: Epic) => {
-      Alert.alert(
-        'Delete Epic',
-        `Are you sure you want to delete "${epic.name}"? Tasks will be unlinked but not deleted.`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                await dispatch(deleteEpic({ epicId: epic.id, boardId })).unwrap();
-              } catch {
-                Alert.alert('Error', 'Failed to delete epic');
-              }
-            },
-          },
-        ]
-      );
+      setEpicToDelete(epic);
     },
-    [dispatch, boardId]
+    []
+  );
+
+  const confirmDeleteEpic = useCallback(
+    async () => {
+      if (!epicToDelete) return;
+      const epicName = epicToDelete.name;
+      try {
+        await dispatch(deleteEpic({ epicId: epicToDelete.id, boardId })).unwrap();
+        toast.showSuccess('Epic Deleted', `"${epicName}" has been deleted.`);
+      } catch {
+        toast.showError('Error', 'Failed to delete epic');
+      } finally {
+        setEpicToDelete(null);
+      }
+    },
+    [dispatch, boardId, epicToDelete, toast]
   );
 
   const handleTaskPress = useCallback(
@@ -414,6 +420,17 @@ export function EpicListScreen({
           }}
           onSubmit={editingEpic ? handleUpdateEpic : handleCreateEpic}
           isLoading={isSaving}
+        />
+
+        {/* Delete Epic Confirmation */}
+        <ConfirmDialog
+          open={epicToDelete !== null}
+          onClose={() => setEpicToDelete(null)}
+          onConfirm={confirmDeleteEpic}
+          title="Delete Epic"
+          message={`Are you sure you want to delete "${epicToDelete?.name}"? Tasks will be unlinked but not deleted.`}
+          variant="danger"
+          confirmText="Delete"
         />
       </SafeAreaView>
     </ThemedBackground>

@@ -4,10 +4,10 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   Platform,
 } from 'react-native';
 import { apiClient } from '@/services/api';
+import { useAppToast } from '@/hooks/useToast';
 
 interface ExportButtonProps {
   boardId?: string;
@@ -31,6 +31,7 @@ function ExportButtonComponent({
   style,
 }: ExportButtonProps): React.JSX.Element {
   const [isExporting, setIsExporting] = useState(false);
+  const toast = useAppToast();
 
   const accessibilityLabel = useMemo(
     () => (exportAll ? 'Export all boards data' : 'Export current board data'),
@@ -70,22 +71,22 @@ function ExportButtonComponent({
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
 
-        Alert.alert('Success', 'Export downloaded successfully');
+        toast.showSuccess('Export Complete', 'Your data has been downloaded successfully.');
       } else {
         // Mobile: Would use Share API or file system
         // For now, show success message
-        Alert.alert(
+        toast.showInfo(
           'Export Ready',
           'Export data is ready. In a production app, this would open the share sheet.'
         );
       }
     } catch (error) {
       console.error('Export failed:', error);
-      Alert.alert('Error', 'Failed to export data. Please try again.');
+      toast.showError('Export Failed', 'Failed to export data. Please try again.');
     } finally {
       setIsExporting(false);
     }
-  }, [boardId, exportAll]);
+  }, [boardId, exportAll, toast]);
 
   return (
     <TouchableOpacity

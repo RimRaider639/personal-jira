@@ -24,7 +24,7 @@ import {
   Icon,
   Spinner,
 } from '@chakra-ui/react';
-import { Modal, Alert, ScrollView } from 'react-native';
+import { Modal, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAppDispatch, useAppSelector } from '@/store';
@@ -77,6 +77,7 @@ import {
   AppModal,
   AppTooltip,
   AppInput,
+  ConfirmDialog,
 } from '@/components/chakra';
 import { useAppToast } from '@/hooks/useToast';
 import {
@@ -904,6 +905,8 @@ export function BoardScreen({
   // Sprint management state
   const [showArchivedModal, setShowArchivedModal] = useState(false);
   const [isStartingSprint, setIsStartingSprint] = useState(false);
+  const [showSprintConfirm, setShowSprintConfirm] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const archivedTasks = useAppSelector((state) => boardId ? state.boards.archivedTasks[boardId] || [] : []);
 
   /**
@@ -1170,25 +1173,14 @@ export function BoardScreen({
    * Handle starting a new sprint
    */
   const handleStartSprint = useCallback(async () => {
-    const confirmStart = () => {
-      if (typeof window !== 'undefined' && window.confirm) {
-        return window.confirm('This will archive all tasks in "Done" sections. Are you sure you want to start a new sprint?');
-      }
-      return new Promise<boolean>((resolve) => {
-        Alert.alert(
-          'Start New Sprint',
-          'This will archive all tasks in "Done" sections. Are you sure?',
-          [
-            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-            { text: 'Start Sprint', style: 'default', onPress: () => resolve(true) },
-          ]
-        );
-      });
-    };
+    setShowSprintConfirm(true);
+  }, []);
 
-    const confirmed = await confirmStart();
-    if (!confirmed) return;
-
+  /**
+   * Confirm and execute sprint start
+   */
+  const confirmStartSprint = useCallback(async () => {
+    setShowSprintConfirm(false);
     setIsStartingSprint(true);
     try {
       const result = await dispatch(startSprint(boardId)).unwrap();
@@ -1229,14 +1221,15 @@ export function BoardScreen({
    * Handle logout
    */
   const handleLogout = useCallback(() => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: () => dispatch(logout()),
-      },
-    ]);
+    setShowLogoutConfirm(true);
+  }, []);
+
+  /**
+   * Confirm and execute logout
+   */
+  const confirmLogout = useCallback(() => {
+    setShowLogoutConfirm(false);
+    dispatch(logout());
   }, [dispatch]);
 
   /**
@@ -1399,6 +1392,29 @@ export function BoardScreen({
           tasks={archivedTasks}
           onClose={() => setShowArchivedModal(false)}
           onUnarchive={handleUnarchiveTask}
+        />
+
+        {/* Sprint Confirmation Dialog */}
+        <ConfirmDialog
+          open={showSprintConfirm}
+          onClose={() => setShowSprintConfirm(false)}
+          onConfirm={confirmStartSprint}
+          title="Start New Sprint"
+          message="This will archive all tasks in 'Done' sections. Are you sure you want to start a new sprint?"
+          confirmText="Start Sprint"
+          variant="warning"
+          isLoading={isStartingSprint}
+        />
+
+        {/* Logout Confirmation Dialog */}
+        <ConfirmDialog
+          open={showLogoutConfirm}
+          onClose={() => setShowLogoutConfirm(false)}
+          onConfirm={confirmLogout}
+          title="Logout"
+          message="Are you sure you want to logout?"
+          confirmText="Logout"
+          variant="danger"
         />
       </SafeAreaView>
     </ThemedBackground>

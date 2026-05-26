@@ -82,3 +82,6 @@ export {
   getPriorityColor,
   getDeadlineInfo,
 } from './TaskListItem';
+
+// Linked task item component (for epics and dependencies)
+export { LinkedTaskItem } from './LinkedTaskItem';

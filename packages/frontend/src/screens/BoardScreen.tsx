@@ -11,7 +11,7 @@
  * Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6
  */
 
-import React, { useEffect, useCallback, useState, useMemo } from 'react';
+import React, { useEffect, useCallback, useState, useMemo, useRef } from 'react';
 import {
   Box,
   Flex,
@@ -656,7 +656,7 @@ function FilterCountBadge({ filteredCount, totalCount, onClear }: FilterCountBad
  * Requirements: 7.3, 7.5, 7.6
  */
 interface BoardHeaderProps {
-  board: { name: string; color?: string | null };
+  board: { name: string; description?: string | null; color?: string | null };
   user: { displayName?: string } | null;
   hasActiveFilters: boolean;
   filteredCount: number;
@@ -711,13 +711,19 @@ function BoardHeader({
             </AppIconButton>
           </AppTooltip>
         )}
-        <Box cursor="pointer" onClick={onEditBoard}>
+        <Box cursor="pointer" onClick={onEditBoard} flex={1} minW={0}>
           <Text fontSize="xl" fontWeight="bold" color="white" lineClamp={1}>
             {board.name}
           </Text>
-          <Text fontSize="xs" color="whiteAlpha.700">
-            Tap to edit
-          </Text>
+          {board.description ? (
+            <Text fontSize="xs" color="whiteAlpha.800" lineClamp={1}>
+              {board.description}
+            </Text>
+          ) : (
+            <Text fontSize="xs" color="whiteAlpha.700">
+              Tap to edit
+            </Text>
+          )}
         </Box>
       </HStack>
 
@@ -926,6 +932,81 @@ export function BoardScreen({
       dispatch(setCurrentBoard(null));
     };
   }, [dispatch, boardId]);
+
+  /**
+   * Achievement detection - check for completed milestones
+   */
+  const prevTasksRef = useRef<Task[]>([]);
+  
+  useEffect(() => {
+    if (!boardId || allBoardTasks.length === 0) return;
+    
+    const prevTasks = prevTasksRef.current;
+    const doneSectionIds = sections
+      .filter((s) => s.name.toLowerCase().includes('done') || s.name.toLowerCase().includes('complete'))
+      .map((s) => s.id);
+    
+    // Only check if we have previous state to compare
+    if (prevTasks.length > 0) {
+      // Check for newly completed tasks
+      const newlyCompletedTasks = allBoardTasks.filter((task) => {
+        const prevTask = prevTasks.find((t) => t.id === task.id);
+        const wasNotDone = prevTask && !doneSectionIds.includes(prevTask.sectionId);
+        const isNowDone = doneSectionIds.includes(task.sectionId);
+        return wasNotDone && isNowDone;
+      });
+      
+      if (newlyCompletedTasks.length > 0) {
+        // Check if all tasks in board are now done
+        const openTasks = allBoardTasks.filter((t) => !doneSectionIds.includes(t.sectionId));
+        if (openTasks.length === 0 && allBoardTasks.length > 0) {
+          toast.showSuccess(
+            '🎉 Board Complete!',
+            `All tasks in "${board?.name}" are done! Time to celebrate!`
+          );
+        }
+        
+        // Check if all overdue tasks are now done
+        const now = new Date();
+        const overdueTasksRemaining = allBoardTasks.filter((t) => {
+          if (!t.endDate || doneSectionIds.includes(t.sectionId)) return false;
+          return new Date(t.endDate) < now;
+        });
+        const prevOverdueTasks = prevTasks.filter((t) => {
+          if (!t.endDate || doneSectionIds.includes(t.sectionId)) return false;
+          return new Date(t.endDate) < now;
+        });
+        if (prevOverdueTasks.length > 0 && overdueTasksRemaining.length === 0) {
+          toast.showSuccess(
+            '⚡ Overdue Cleared!',
+            'You\'ve caught up on all overdue tasks! Great job!'
+          );
+        }
+        
+        // Check epic completion
+        newlyCompletedTasks.forEach((task) => {
+          if (task.epicIds && task.epicIds.length > 0) {
+            task.epicIds.forEach((epicId) => {
+              const epic = epics.find((e) => e.id === epicId);
+              if (epic) {
+                const epicTasks = allBoardTasks.filter((t) => t.epicIds?.includes(epicId));
+                const epicDoneTasks = epicTasks.filter((t) => doneSectionIds.includes(t.sectionId));
+                if (epicTasks.length > 0 && epicDoneTasks.length === epicTasks.length) {
+                  toast.showSuccess(
+                    '🏆 Epic Complete!',
+                    `All tasks in "${epic.name}" are done! Amazing work!`
+                  );
+                }
+              }
+            });
+          }
+        });
+      }
+    }
+    
+    // Update ref for next comparison
+    prevTasksRef.current = [...allBoardTasks];
+  }, [allBoardTasks, sections, epics, board, boardId, toast]);
 
   /**
    * Handle task press - show preview modal first

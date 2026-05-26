@@ -1411,8 +1411,6 @@ interface AnalyticsPreviewProps {
     todayCheckedIn: boolean;
     totalCheckIns: number;
   } | null;
-  onCheckIn: () => void;
-  isCheckingIn: boolean;
 }
 
 /**
@@ -1688,25 +1686,15 @@ function QuickStats({ tasks, sections }: { tasks: Task[]; sections: Section[] })
 
 /**
  * StreakWidget - Displays current streak with motivational messaging
+ * Check-in is now automatic on page load
  */
 function StreakWidget({ 
   streak, 
-  onCheckIn, 
-  isCheckingIn 
 }: { 
   streak: { currentStreak: number; longestStreak: number; todayCheckedIn: boolean; totalCheckIns: number } | null;
-  onCheckIn: () => void;
-  isCheckingIn: boolean;
 }): React.JSX.Element {
   // Motivational messages based on streak
-  const getStreakMessage = (days: number, checkedIn: boolean): { emoji: string; message: string } => {
-    if (!checkedIn) {
-      if (days === 0) {
-        return { emoji: '🌱', message: 'Start your streak today!' };
-      }
-      return { emoji: '⏰', message: 'Check in to keep your streak!' };
-    }
-    
+  const getStreakMessage = (days: number): { emoji: string; message: string } => {
     if (days === 0) return { emoji: '🌱', message: 'Start your journey!' };
     if (days === 1) return { emoji: '🔥', message: 'Day 1 - Great start!' };
     if (days < 3) return { emoji: '🔥', message: 'Building momentum!' };
@@ -1720,10 +1708,10 @@ function StreakWidget({
 
   const currentStreak = streak?.currentStreak || 0;
   const todayCheckedIn = streak?.todayCheckedIn || false;
-  const { emoji, message } = getStreakMessage(currentStreak, todayCheckedIn);
+  const { emoji, message } = getStreakMessage(currentStreak);
 
   return (
-    <VStack gap={3} align="center" minW="160px">
+    <VStack gap={3} align="center" w="full">
       {/* Streak Counter - larger */}
       <Box position="relative">
         <Box
@@ -1775,17 +1763,8 @@ function StreakWidget({
           </Text>
         </HStack>
         
-        {/* Check-in button or status */}
-        {!todayCheckedIn ? (
-          <AppButton
-            intent="primary"
-            size="sm"
-            onClick={onCheckIn}
-            disabled={isCheckingIn}
-          >
-            {isCheckingIn ? 'Checking in...' : 'Check In'}
-          </AppButton>
-        ) : (
+        {/* Status indicator */}
+        {todayCheckedIn && (
           <HStack gap={1}>
             <Icon boxSize={4} color="green.500">
               <CheckIcon />
@@ -1819,8 +1798,6 @@ function AnalyticsPreview({
   boards,
   onViewMore,
   streak,
-  onCheckIn,
-  isCheckingIn,
 }: AnalyticsPreviewProps): React.JSX.Element {
   return (
     <AppCard p={5}>
@@ -1855,11 +1832,16 @@ function AnalyticsPreview({
               _dark={{ bg: 'gray.800', borderColor: 'gray.700' }}
               borderWidth="1px"
               borderColor="gray.200"
+              display="flex"
+              alignItems="center"
+              justifyContent="center"
             >
-              <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={4}>
-                Daily Streak
-              </Text>
-              <StreakWidget streak={streak} onCheckIn={onCheckIn} isCheckingIn={isCheckingIn} />
+              <VStack gap={4} align="center" w="full">
+                <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase">
+                  Daily Streak
+                </Text>
+                <StreakWidget streak={streak} />
+              </VStack>
             </Box>
 
             {/* Quick Stats */}
@@ -1870,8 +1852,11 @@ function AnalyticsPreview({
               _dark={{ bg: 'gray.800', borderColor: 'gray.700' }}
               borderWidth="1px"
               borderColor="gray.200"
+              display="flex"
+              flexDirection="column"
+              justifyContent="center"
             >
-              <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={4}>
+              <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={4} textAlign="center">
                 Quick Stats
               </Text>
               <QuickStats tasks={tasks} sections={sections} />
@@ -1888,6 +1873,10 @@ function AnalyticsPreview({
               _dark={{ bg: 'gray.800', borderColor: 'gray.700' }}
               borderWidth="1px"
               borderColor="gray.200"
+              display="flex"
+              flexDirection="column"
+              alignItems="center"
+              justifyContent="center"
             >
               <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={4}>
                 Activity (7 weeks)
@@ -1903,6 +1892,10 @@ function AnalyticsPreview({
               _dark={{ bg: 'gray.800', borderColor: 'gray.700' }}
               borderWidth="1px"
               borderColor="gray.200"
+              display="flex"
+              flexDirection="column"
+              alignItems="center"
+              justifyContent="center"
             >
               <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase" mb={4}>
                 Task Distribution
@@ -2085,6 +2078,44 @@ export function BoardListScreen(): React.JSX.Element {
     dispatch(fetchNotes());
     dispatch(fetchStreak());
   }, [dispatch]);
+
+  /**
+   * Automatic daily check-in on page load (like LeetCode)
+   */
+  useEffect(() => {
+    // Only auto check-in if streak data is loaded and not already checked in today
+    if (streak && !streak.todayCheckedIn && !isCheckingIn) {
+      const performAutoCheckIn = async () => {
+        try {
+          const result = await dispatch(checkIn()).unwrap();
+          // Show encouraging toast for auto check-in
+          const encouragements = [
+            { emoji: '🌟', message: 'Another day, another step forward!' },
+            { emoji: '💪', message: 'You showed up! That\'s what matters.' },
+            { emoji: '🚀', message: 'Ready to conquer the day!' },
+            { emoji: '✨', message: 'Consistency is key. You\'re doing great!' },
+            { emoji: '🎯', message: 'Focus mode: activated!' },
+          ];
+          const randomEncouragement = encouragements[Math.floor(Math.random() * encouragements.length)];
+          
+          if (result.streakBroken) {
+            toast.showInfo('Fresh Start! 🌱', 'Your streak was reset. Today is day 1 of your new journey!');
+          } else if (result.milestone) {
+            // Milestone toast is handled by the pendingMilestone useEffect
+          } else {
+            toast.showSuccess(
+              `${randomEncouragement.emoji} Day ${result.streak.currentStreak}!`,
+              randomEncouragement.message
+            );
+          }
+        } catch {
+          // Silently fail for auto check-in - don't bother user with errors
+          console.error('Auto check-in failed');
+        }
+      };
+      performAutoCheckIn();
+    }
+  }, [streak, isCheckingIn, dispatch, toast]);
 
   /**
    * Fetch stats and heatmaps for all boards
@@ -2637,8 +2668,6 @@ export function BoardListScreen(): React.JSX.Element {
                 boards={boards}
                 onViewMore={() => navigation.navigate('Analytics')}
                 streak={streak}
-                onCheckIn={handleCheckIn}
-                isCheckingIn={isCheckingIn}
               />
 
               {/* Pin Board Section */}

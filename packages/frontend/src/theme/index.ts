@@ -145,8 +145,8 @@ const darkBaseColors: ThemeColors = {
   cardBorder: '#3d474f',
   cardShadow: 'rgba(0, 0, 0, 0.3)',
   
-  headerBackground: '#1d2125',
-  headerText: '#b6c2cf',
+  headerBackground: '#0d1117',
+  headerText: '#e6edf3',
   
   sectionBackground: '#282e33',
   sectionHeader: '#9fadbc',

@@ -1755,8 +1755,20 @@ export function BoardListScreen(): React.JSX.Element {
           zIndex={10}
         >
           <Box>
-            <Text fontSize="2xl" fontWeight="bold" color={colors.headerText}>
-              Pragma
+            <Text 
+              fontSize="2xl" 
+              fontWeight="extrabold" 
+              bgGradient="to-r" 
+              gradientFrom="cyan.400" 
+              gradientTo="purple.500"
+              bgClip="text"
+              letterSpacing="tight"
+              css={{
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              ✨ Pragma
             </Text>
             <Text fontSize="sm" color={colors.headerText} opacity={0.8}>
               Welcome, {user?.displayName || 'User'}

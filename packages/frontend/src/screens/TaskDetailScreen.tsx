@@ -767,18 +767,32 @@ export function TaskDetailScreen({
               {dependentTasks.length > 0 ? (
                 dependentTasks.map((depTask) => {
                   const depSection = sections.find(s => s.id === depTask.sectionId);
+                  // Determine status color based on section name
+                  const getStatusColor = (sectionName: string | undefined) => {
+                    if (!sectionName) return colors.textMuted;
+                    const name = sectionName.toLowerCase();
+                    if (name.includes('done') || name.includes('complete')) return '#22c55e';
+                    if (name.includes('progress') || name.includes('doing')) return '#f97316';
+                    if (name.includes('review') || name.includes('test')) return '#8b5cf6';
+                    return colors.primary;
+                  };
+                  const statusColor = getStatusColor(depSection?.name);
                   return (
                     <View key={depTask.id} style={[styles.dependencyItem, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' }]}>
                       <TouchableOpacity
                         style={styles.dependencyItemInfo}
                         onPress={() => handleDependentTaskPress(depTask.id)}
                       >
-                        <Text style={[styles.dependencyItemTitle, { color: colors.primary }]} numberOfLines={1}>
-                          {depTask.title}
-                        </Text>
-                        <Text style={[styles.dependencyItemSection, { color: colors.textMuted }]}>
-                          {depSection?.name || 'Unknown'}
-                        </Text>
+                        <View style={styles.dependencyItemHeader}>
+                          <Text style={[styles.dependencyItemTitle, { color: colors.primary }]} numberOfLines={1}>
+                            {depTask.title}
+                          </Text>
+                          <View style={[styles.dependencyStatusBadge, { backgroundColor: statusColor + '20', borderColor: statusColor }]}>
+                            <Text style={[styles.dependencyStatusText, { color: statusColor }]}>
+                              {depSection?.name || 'Unknown'}
+                            </Text>
+                          </View>
+                        </View>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.removeDependencyButton}
@@ -1250,6 +1264,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#3b82f6',
     marginTop: 2,
+  },
+  dependencyItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  dependencyStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  dependencyStatusText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   removeDependencyButton: {
     padding: 8,

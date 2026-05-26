@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useTheme } from '@/theme/ThemeContext';
 import { decorativeThemes, DecorativeThemeType } from '@/theme';
+import { PaletteIcon } from '@/theme/icons';
 
 interface ThemeSelectorProps {
   boardId?: string; // If provided, allows setting board-specific theme
@@ -78,7 +79,7 @@ export function BoardThemeSelector({ boardId }: { boardId: string }): React.JSX.
         accessibilityLabel="Change board theme"
         accessibilityRole="button"
       >
-        <Text style={styles.buttonText}>🎨</Text>
+        <PaletteIcon size={18} color="#ffffff" />
       </TouchableOpacity>
 
       <Modal

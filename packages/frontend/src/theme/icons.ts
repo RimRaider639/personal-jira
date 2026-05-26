@@ -57,6 +57,9 @@ import {
   FiMoon,
 } from 'react-icons/fi';
 
+// Palette Icon (Heroicons)
+import { HiOutlineColorSwatch } from 'react-icons/hi';
+
 // Additional Icons (Heroicons)
 import {
   HiOutlineViewBoards,
@@ -150,6 +153,8 @@ export const ClockIcon = HiOutlineClock;
 export const RefreshIcon = HiOutlineRefresh;
 export const EyeIcon = HiOutlineEye;
 export const EyeOffIcon = HiOutlineEyeOff;
+export const PaletteIcon = HiOutlineColorSwatch;
+export const ColorSwatchIcon = HiOutlineColorSwatch;
 
 // ==================== CENTRALIZED ICONS OBJECT ====================
 
@@ -227,6 +232,8 @@ export const Icons = {
   Refresh: HiOutlineRefresh,
   Eye: HiOutlineEye,
   EyeOff: HiOutlineEyeOff,
+  Palette: HiOutlineColorSwatch,
+  ColorSwatch: HiOutlineColorSwatch,
 } as const;
 
 // Type for icon names

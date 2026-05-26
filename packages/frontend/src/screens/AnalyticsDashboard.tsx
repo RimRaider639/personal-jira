@@ -49,7 +49,9 @@ import {
   CalendarIcon,
   CheckIcon,
   ListIcon,
+  HomeIcon,
 } from '@/theme/icons';
+import { AppIconButton, AppTooltip } from '@/components/chakra';
 import { logout } from '@/store/slices';
 import type { RootStackParamList } from '@/navigation/RootNavigator';
 import type { Task, ActivityHeatmapEntry } from '@kanban/shared';
@@ -594,16 +596,18 @@ export function AnalyticsDashboard(): React.JSX.Element {
             zIndex={10}
           >
             <HStack gap={4}>
-              <Text
-                fontSize="sm"
-                color={colors.headerText}
-                opacity={0.8}
-                cursor="pointer"
-                onClick={handleBackToBoards}
-                _hover={{ opacity: 1 }}
-              >
-                ← Back to Boards
-              </Text>
+              <AppTooltip label="Go to home" placement="bottom">
+                <AppIconButton
+                  intent="ghost"
+                  aria-label="Go to home"
+                  onClick={handleBackToBoards}
+                  bg="whiteAlpha.200"
+                  color="white"
+                  _hover={{ bg: 'whiteAlpha.300' }}
+                >
+                  <HomeIcon />
+                </AppIconButton>
+              </AppTooltip>
               <Box>
                 <Text fontSize="2xl" fontWeight="bold" color={colors.headerText}>
                   Analytics Dashboard

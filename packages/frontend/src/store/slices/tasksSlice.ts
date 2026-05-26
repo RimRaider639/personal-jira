@@ -381,9 +381,17 @@ export const cloneTask = createAsyncThunk<
 
 /**
  * Helper to add task to indexes
+ * Preserves isPinned and pinnedPosition if the task already exists with those values
  */
 const addTaskToIndexes = (state: TasksState, task: Task) => {
-  state.byId[task.id] = task;
+  // Preserve isPinned and pinnedPosition if the task already exists
+  const existingTask = state.byId[task.id];
+  if (existingTask && existingTask.isPinned && !task.isPinned) {
+    // Keep the pinned status from the existing task
+    state.byId[task.id] = { ...task, isPinned: existingTask.isPinned, pinnedPosition: existingTask.pinnedPosition };
+  } else {
+    state.byId[task.id] = task;
+  }
 
   // Add to bySectionId
   if (!state.bySectionId[task.sectionId]) {
@@ -556,13 +564,6 @@ const tasksSlice = createSlice({
         // Update or add tasks from the response
         state.byBoardId[boardId] = [];
         tasks.forEach((task) => {
-          // Preserve isPinned and pinnedPosition if the task already exists
-          // This prevents race conditions where fetchTasks overwrites pinned status
-          const existingTask = state.byId[task.id];
-          if (existingTask && existingTask.isPinned && !task.isPinned) {
-            // Keep the pinned status from the existing task
-            task = { ...task, isPinned: existingTask.isPinned, pinnedPosition: existingTask.pinnedPosition };
-          }
           addTaskToIndexes(state, task);
         });
       })

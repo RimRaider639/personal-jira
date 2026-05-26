@@ -18,10 +18,12 @@ interface TaskPreviewModalProps {
   visible: boolean;
   task: Task | null;
   epics: Epic[];
+  allTasks: Task[];
   sectionName: string;
   onClose: () => void;
   onViewDetails: () => void;
   onEpicPress?: (epicId: string) => void;
+  onTaskPress?: (taskId: string) => void;
 }
 
 const PRIORITIES: Record<string, { label: string; color: string }> = {
@@ -34,16 +36,18 @@ const PRIORITIES: Record<string, { label: string; color: string }> = {
 /**
  * TaskPreviewModal - Quick preview modal for task details
  * Shows important info with option to view full details
- * Now includes attachments and comments display
+ * Displays attachments, comments, and dependent tasks
  */
 export function TaskPreviewModal({
   visible,
   task,
   epics,
+  allTasks,
   sectionName,
   onClose,
   onViewDetails,
   onEpicPress,
+  onTaskPress,
 }: TaskPreviewModalProps): React.JSX.Element {
   const { colors } = useTheme();
 
@@ -51,6 +55,11 @@ export function TaskPreviewModal({
     () => (task ? epics.filter((epic) => task.epicIds.includes(epic.id)) : []),
     [epics, task]
   );
+
+  const dependentTasks = useMemo(() => {
+    if (!task?.dependentTaskIds || task.dependentTaskIds.length === 0) return [];
+    return allTasks.filter((t) => task.dependentTaskIds.includes(t.id));
+  }, [task, allTasks]);
 
   const priorityInfo = task?.priority ? PRIORITIES[task.priority] : null;
 
@@ -169,6 +178,34 @@ export function TaskPreviewModal({
               </View>
             )}
 
+            {/* Dependent Tasks */}
+            {dependentTasks.length > 0 && (
+              <View style={styles.row}>
+                <Text style={[styles.label, { color: colors.textMuted }]}>
+                  Dependent Tasks ({dependentTasks.length})
+                </Text>
+                <View style={styles.dependentTasksList}>
+                  {dependentTasks.slice(0, 3).map((depTask) => (
+                    <TouchableOpacity
+                      key={depTask.id}
+                      style={[styles.dependentTaskItem, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' }]}
+                      onPress={() => onTaskPress?.(depTask.id)}
+                      disabled={!onTaskPress}
+                    >
+                      <Text style={[styles.dependentTaskTitle, { color: colors.primary }]} numberOfLines={1}>
+                        {depTask.title}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  {dependentTasks.length > 3 && (
+                    <Text style={[styles.moreText, { color: colors.textMuted }]}>
+                      +{dependentTasks.length - 3} more
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+
             {/* Attachments */}
             {task.attachments.length > 0 && (
               <View style={styles.row}>
@@ -247,19 +284,6 @@ export function TaskPreviewModal({
                 </View>
               </View>
             )}
-
-            {/* Stats */}
-            <View style={styles.statsRow}>
-              <View style={styles.stat}>
-                <Text style={[styles.statValue, { color: colors.text }]}>{task.comments.length}</Text>
-                <Text style={[styles.statLabel, { color: colors.textMuted }]}>Comments</Text>
-              </View>
-              <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-              <View style={styles.stat}>
-                <Text style={[styles.statValue, { color: colors.text }]}>{task.attachments.length}</Text>
-                <Text style={[styles.statLabel, { color: colors.textMuted }]}>Attachments</Text>
-              </View>
-            </View>
           </ScrollView>
 
           {/* Actions */}
@@ -394,6 +418,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
+  dependentTasksList: {
+    gap: 6,
+  },
+  dependentTaskItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  dependentTaskTitle: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
   attachmentsList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -458,29 +495,6 @@ const styles = StyleSheet.create({
   commentContent: {
     fontSize: 13,
     lineHeight: 18,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 16,
-    marginTop: 8,
-  },
-  stat: {
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  statValue: {
-    fontSize: 20,
-    fontWeight: '600',
-  },
-  statLabel: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  statDivider: {
-    width: 1,
-    height: 30,
   },
   actions: {
     flexDirection: 'row',

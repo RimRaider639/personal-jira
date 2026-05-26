@@ -86,6 +86,7 @@ export {
   addDependency,
   removeDependency,
   changeTaskSection,
+  cloneTask,
 } from './tasksSlice';
 export type { TasksState } from './tasksSlice';
 

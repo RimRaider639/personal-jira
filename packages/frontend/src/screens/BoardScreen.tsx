@@ -896,6 +896,10 @@ export function BoardScreen({
   const [previewTask, setPreviewTask] = useState<Task | null>(null);
   const [previewSectionName, setPreviewSectionName] = useState('');
 
+  // Get all tasks as a flat array for dependent tasks lookup
+  const allBoardTasks = useMemo(() => {
+    return Object.values(tasksBySectionId).flat();
+  }, [tasksBySectionId]);
   // Sprint management state
   const [showArchivedModal, setShowArchivedModal] = useState(false);
   const [isStartingSprint, setIsStartingSprint] = useState(false);
@@ -1321,10 +1325,12 @@ export function BoardScreen({
           visible={previewTask !== null}
           task={previewTask}
           epics={epics}
+          allTasks={allBoardTasks}
           sectionName={previewSectionName}
           onClose={() => setPreviewTask(null)}
           onViewDetails={handleViewFullDetails}
           onEpicPress={onEpicPress}
+          onTaskPress={onTaskPress}
         />
 
         {/* Filter Panel */}

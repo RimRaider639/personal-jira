@@ -1556,6 +1556,16 @@ export function BoardListScreen(): React.JSX.Element {
             </Text>
           </Box>
           <HStack gap={3}>
+            <Text
+              color={colors.headerText}
+              fontSize="sm"
+              cursor="pointer"
+              opacity={0.8}
+              _hover={{ opacity: 1 }}
+              onClick={() => navigation.navigate('Analytics')}
+            >
+              📊 Analytics
+            </Text>
             <DarkModeToggle />
             <ProfileAvatar displayName={user?.displayName || 'User'} onLogout={handleLogout} />
           </HStack>

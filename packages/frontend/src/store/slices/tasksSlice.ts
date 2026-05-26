@@ -363,6 +363,23 @@ export const changeTaskSection = createAsyncThunk<
 });
 
 /**
+ * Async thunk for cloning a task
+ */
+export const cloneTask = createAsyncThunk<
+  Task,
+  string,
+  { rejectValue: string }
+>('tasks/clone', async (taskId, { rejectWithValue }) => {
+  try {
+    const response = await apiClient.post<{ data: Task }>(`/tasks/${taskId}/clone`);
+    return response.data.data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to clone task';
+    return rejectWithValue(message);
+  }
+});
+
+/**
  * Helper to add task to indexes
  */
 const addTaskToIndexes = (state: TasksState, task: Task) => {
@@ -829,6 +846,21 @@ const tasksSlice = createSlice({
       })
       .addCase(reorderPinnedTasks.rejected, (state, action) => {
         state.error = action.payload ?? 'Failed to reorder pinned tasks';
+      });
+
+    // Clone task
+    builder
+      .addCase(cloneTask.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(cloneTask.fulfilled, (state, action) => {
+        state.isLoading = false;
+        addTaskToIndexes(state, action.payload);
+      })
+      .addCase(cloneTask.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload ?? 'Failed to clone task';
       });
   },
 });

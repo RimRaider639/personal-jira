@@ -13,6 +13,7 @@ import { BoardListScreen } from '@/screens/BoardListScreen';
 import { BoardScreen } from '@/screens/BoardScreen';
 import { TaskDetailScreen } from '@/screens/TaskDetailScreen';
 import { EpicDetailScreen } from '@/screens/EpicDetailScreen';
+import { AnalyticsDashboard } from '@/screens/AnalyticsDashboard';
 
 /**
  * Navigation param list types
@@ -24,6 +25,7 @@ export type RootStackParamList = {
   Board: { boardId: string };
   TaskDetail: { taskId: string; boardId: string };
   EpicDetail: { epicId: string };
+  Analytics: undefined;
 };
 
 /**
@@ -45,6 +47,7 @@ const linking: LinkingOptions<RootStackParamList> = {
       Board: 'boards/:boardId',
       TaskDetail: 'boards/:boardId/tasks/:taskId',
       EpicDetail: 'epics/:epicId',
+      Analytics: 'analytics',
     },
   },
 };
@@ -117,6 +120,10 @@ function TaskDetailScreenWrapper({
     navigation.navigate('TaskDetail', { taskId: depTaskId, boardId: depBoardId });
   }, [navigation]);
 
+  const handleClone = useCallback((newTaskId: string, newBoardId: string) => {
+    navigation.navigate('TaskDetail', { taskId: newTaskId, boardId: newBoardId });
+  }, [navigation]);
+
   return (
     <TaskDetailScreen 
       taskId={taskId}
@@ -125,6 +132,7 @@ function TaskDetailScreenWrapper({
       onDelete={handleDelete}
       onEpicPress={handleEpicPress}
       onTaskPress={handleTaskPress}
+      onClone={handleClone}
     />
   );
 }
@@ -201,6 +209,7 @@ function MainNavigator(): React.JSX.Element {
       <Stack.Screen name="Board" component={BoardScreenWrapper} />
       <Stack.Screen name="TaskDetail" component={TaskDetailScreenWrapper} />
       <Stack.Screen name="EpicDetail" component={EpicDetailScreenWrapper} />
+      <Stack.Screen name="Analytics" component={AnalyticsDashboard} />
     </Stack.Navigator>
   );
 }

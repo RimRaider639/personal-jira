@@ -13,7 +13,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { HiOutlineBookmark } from 'react-icons/hi';
+import { HiOutlineBookmark, HiOutlineDuplicate } from 'react-icons/hi';
 
 import { useAppDispatch, useAppSelector } from '@/store';
 import {
@@ -33,6 +33,7 @@ import {
   addDependency,
   removeDependency,
   toggleTaskPin,
+  cloneTask,
 } from '@/store/slices';
 import { selectTaskById, selectEpicsByBoardId, selectSectionsByBoardId, selectTasksByBoardId } from '@/store/selectors';
 import { DatePicker } from '@/components';
@@ -46,6 +47,7 @@ interface TaskDetailScreenProps {
   onDelete?: () => void;
   onEpicPress?: (epicId: string) => void;
   onTaskPress?: (taskId: string, boardId: string) => void;
+  onClone?: (newTaskId: string, boardId: string) => void;
 }
 
 const PRIORITIES: { value: Priority; label: string; color: string }[] = [
@@ -71,6 +73,7 @@ export function TaskDetailScreen({
   onDelete,
   onEpicPress,
   onTaskPress,
+  onClone,
 }: TaskDetailScreenProps): React.JSX.Element {
   const dispatch = useAppDispatch();
   const { colors } = useTheme();
@@ -412,6 +415,23 @@ export function TaskDetailScreen({
     }
   }, [dispatch, taskId, task]);
 
+  // Handle cloning task
+  const handleClone = useCallback(async () => {
+    if (!task) return;
+    try {
+      const clonedTask = await dispatch(cloneTask(taskId)).unwrap();
+      Alert.alert('Success', 'Task cloned successfully', [
+        {
+          text: 'View Clone',
+          onPress: () => onClone?.(clonedTask.id, clonedTask.boardId),
+        },
+        { text: 'Stay Here', style: 'cancel' },
+      ]);
+    } catch {
+      Alert.alert('Error', 'Failed to clone task');
+    }
+  }, [dispatch, taskId, task, onClone]);
+
   if (!task) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -445,6 +465,16 @@ export function TaskDetailScreen({
                 color={task.isPinned ? colors.primary : colors.textMuted}
                 style={task.isPinned ? { fill: colors.primary } : undefined}
               />
+            </View>
+          </TouchableOpacity>
+          {/* Clone Button */}
+          <TouchableOpacity
+            onPress={handleClone}
+            style={[styles.headerButton, styles.pinButton]}
+            accessibilityLabel="Clone task"
+          >
+            <View style={styles.pinIconContainer}>
+              <HiOutlineDuplicate size={18} color={colors.textMuted} />
             </View>
           </TouchableOpacity>
           {isEditing ? (

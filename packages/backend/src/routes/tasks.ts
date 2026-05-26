@@ -1057,6 +1057,99 @@ router.put(
 );
 
 /**
+ * POST /api/tasks/:id/clone
+ * Clone a task with all its details (except attachments and comments)
+ * Creates a new task with the same properties in the same section
+ */
+router.post(
+  '/tasks/:id/clone',
+  authenticate,
+  async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    try {
+      const userId = req.user?.userId;
+      if (!userId) {
+        throw createError('User not authenticated', 401);
+      }
+
+      const taskId = req.params.id as string;
+
+      if (!taskId) {
+        throw createError('Task ID is required', 400);
+      }
+
+      // Verify task ownership through board
+      const { task } = await verifyTaskOwnership(taskId, userId, session);
+
+      const taskDoc = task as unknown as {
+        _id: mongoose.Types.ObjectId;
+        boardId: mongoose.Types.ObjectId;
+        sectionId: mongoose.Types.ObjectId;
+        title: string;
+        description: string | null;
+        priority: Priority | null;
+        storyPoints: number | null;
+        endDate: Date | null;
+        epicIds: mongoose.Types.ObjectId[];
+        dependentTaskIds: mongoose.Types.ObjectId[];
+      };
+
+      // Get next position in the section
+      const position = await Task.getNextPosition(taskDoc.sectionId.toString());
+
+      // Create the cloned task
+      const clonedTask = new Task({
+        boardId: taskDoc.boardId,
+        sectionId: taskDoc.sectionId,
+        title: `${taskDoc.title} (Copy)`,
+        description: taskDoc.description,
+        priority: taskDoc.priority,
+        storyPoints: taskDoc.storyPoints,
+        endDate: taskDoc.endDate,
+        epicIds: [...taskDoc.epicIds],
+        dependentTaskIds: [...taskDoc.dependentTaskIds],
+        position,
+        comments: [],
+        attachments: [],
+        isPinned: false,
+        isArchived: false,
+      });
+
+      await clonedTask.save({ session });
+
+      // Log activity
+      await Activity.create([{
+        boardId: taskDoc.boardId,
+        userId: new mongoose.Types.ObjectId(userId),
+        type: 'task_created',
+        entityId: clonedTask._id,
+        entityType: 'task',
+        metadata: {
+          title: clonedTask.title,
+          sectionId: taskDoc.sectionId.toString(),
+          clonedFrom: taskId,
+        },
+      }], { session });
+
+      await session.commitTransaction();
+
+      res.status(201).json({
+        success: true,
+        data: clonedTask,
+        message: 'Task cloned successfully',
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      next(error);
+    } finally {
+      session.endSession();
+    }
+  }
+);
+
+/**
  * POST /api/tasks/:id/epics
  * Assign an epic to a task
  * Request body:

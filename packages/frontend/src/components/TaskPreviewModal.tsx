@@ -167,7 +167,11 @@ export function TaskPreviewModal({
                     <TouchableOpacity
                       key={epic.id}
                       style={[styles.epicBadge, { backgroundColor: epic.color + '20' }]}
-                      onPress={() => onEpicPress?.(epic.id)}
+                      onPress={() => {
+                        // Close modal first, then navigate to epic
+                        onClose();
+                        setTimeout(() => onEpicPress?.(epic.id), 100);
+                      }}
                       disabled={!onEpicPress}
                     >
                       <View style={[styles.epicDot, { backgroundColor: epic.color }]} />

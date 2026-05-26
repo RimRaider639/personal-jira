@@ -14,6 +14,7 @@ import {
 
 const BOARD_THEME_STORAGE_KEY = '@kanban_board_themes';
 const DARK_MODE_STORAGE_KEY = '@kanban_dark_mode';
+const COLOR_MODE_STORAGE_KEY = '@kanban_color_mode'; // Sync with useColorMode hook
 
 interface ThemeContextType {
   theme: Theme;
@@ -32,6 +33,52 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+/**
+ * Apply color mode to document for CSS theming
+ */
+function applyColorModeToDocument(isDark: boolean): void {
+  if (typeof document === 'undefined') return;
+  
+  try {
+    const mode = isDark ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', mode);
+    document.documentElement.style.colorScheme = mode;
+    
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.classList.remove('light');
+    } else {
+      document.documentElement.classList.add('light');
+      document.documentElement.classList.remove('dark');
+    }
+  } catch (error) {
+    console.warn('Failed to apply color mode to document:', error);
+  }
+}
+
+/**
+ * Persist color mode to both AsyncStorage and localStorage for cross-system sync
+ */
+async function persistColorMode(isDark: boolean): Promise<void> {
+  const mode = isDark ? 'dark' : 'light';
+  
+  // Save to AsyncStorage (React Native)
+  try {
+    await AsyncStorage.setItem(DARK_MODE_STORAGE_KEY, isDark.toString());
+  } catch (error) {
+    console.error('Failed to save dark mode to AsyncStorage:', error);
+  }
+  
+  // Save to localStorage (Web) for useColorMode hook sync
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem(COLOR_MODE_STORAGE_KEY, mode);
+    } catch (error) {
+      console.warn('Failed to save color mode to localStorage:', error);
+    }
+  }
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [themeName, setThemeName] = useState<ThemeType>('light');
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -47,9 +94,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }): Reac
           AsyncStorage.getItem(BOARD_THEME_STORAGE_KEY),
         ]);
         
+        let darkModeValue = false;
+        
+        // Check AsyncStorage first
         if (savedDarkMode !== null) {
-          setIsDarkMode(savedDarkMode === 'true');
+          darkModeValue = savedDarkMode === 'true';
+        } else if (typeof localStorage !== 'undefined') {
+          // Fall back to localStorage for web
+          const webColorMode = localStorage.getItem(COLOR_MODE_STORAGE_KEY);
+          if (webColorMode === 'dark') {
+            darkModeValue = true;
+          }
         }
+        
+        setIsDarkMode(darkModeValue);
+        applyColorModeToDocument(darkModeValue);
+        
         if (savedBoardThemes) {
           setBoardThemes(JSON.parse(savedBoardThemes));
         }
@@ -62,9 +122,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }): Reac
     loadTheme();
   }, []);
 
-  // Update themeName based on dark mode
+  // Update themeName based on dark mode and apply to document
   useEffect(() => {
     setThemeName(isDarkMode ? 'dark' : 'light');
+    applyColorModeToDocument(isDarkMode);
   }, [isDarkMode]);
 
   const setTheme = useCallback((newTheme: ThemeType) => {
@@ -79,16 +140,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }): Reac
 
   const setDarkMode = useCallback(async (isDark: boolean) => {
     setIsDarkMode(isDark);
-    try {
-      await AsyncStorage.setItem(DARK_MODE_STORAGE_KEY, isDark.toString());
-    } catch (error) {
-      console.error('Failed to save dark mode:', error);
-    }
+    await persistColorMode(isDark);
   }, []);
 
   const toggleDarkMode = useCallback(() => {
-    setDarkMode(!isDarkMode);
-  }, [isDarkMode, setDarkMode]);
+    const newValue = !isDarkMode;
+    setIsDarkMode(newValue);
+    persistColorMode(newValue);
+  }, [isDarkMode]);
 
   const getBoardTheme = useCallback((boardId: string): DecorativeThemeType | null => {
     return boardThemes[boardId] || null;

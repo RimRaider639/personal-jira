@@ -62,7 +62,7 @@ import {
   selectPinnedTasks,
   selectAllNotes,
 } from '@/store/selectors';
-import { ThemedBackground, DarkModeToggle, EpicModal, ProfileAvatar } from '@/components';
+import { ThemedBackground, DarkModeToggle, EpicModal, ProfileAvatar, TaskPreviewModal } from '@/components';
 import { useTheme } from '@/theme/ThemeContext';
 import {
   AppCard,
@@ -1571,6 +1571,10 @@ export function BoardListScreen(): React.JSX.Element {
     variant: 'warning',
   });
 
+  // Pinned task preview modal state
+  const [previewTask, setPreviewTask] = useState<Task | null>(null);
+  const [previewSectionName, setPreviewSectionName] = useState('');
+
   // Get linked tasks for selected epic
   const linkedTasks = useMemo(() => {
     if (!selectedEpic) return [];
@@ -1995,12 +1999,55 @@ export function BoardListScreen(): React.JSX.Element {
 
   const handlePinnedTaskPress = useCallback(
     (taskId: string, boardId: string) => {
-      navigation.navigate('TaskDetail', { taskId, boardId });
+      // Find the task and show preview modal
+      const task = pinnedTasks.find((t) => t.id === taskId);
+      if (task) {
+        const section = allSections.find((s) => s.id === task.sectionId);
+        setPreviewTask(task);
+        setPreviewSectionName(section?.name || 'Unknown');
+      }
+    },
+    [pinnedTasks, allSections]
+  );
+
+  // Handle view full details from pinned task preview
+  const handleViewPinnedTaskDetails = useCallback(() => {
+    if (previewTask) {
+      navigation.navigate('TaskDetail', { taskId: previewTask.id, boardId: previewTask.boardId });
+    }
+    setPreviewTask(null);
+  }, [previewTask, navigation]);
+
+  // Handle epic press from pinned task preview
+  const handlePreviewEpicPress = useCallback(
+    (epicId: string) => {
+      setPreviewTask(null);
+      setTimeout(() => {
+        navigation.navigate('EpicDetail', { epicId });
+      }, 100);
     },
     [navigation]
   );
 
+  // Handle task press from pinned task preview (for dependent tasks)
+  const handlePreviewTaskPress = useCallback(
+    (taskId: string) => {
+      // Find the task to get its boardId
+      const task = allTasks.find((t) => t.id === taskId);
+      if (task) {
+        setPreviewTask(null);
+        setTimeout(() => {
+          navigation.navigate('TaskDetail', { taskId, boardId: task.boardId });
+        }, 100);
+      }
+    },
+    [allTasks, navigation]
+  );
+
   // ==================== RENDER ====================
+
+  // Determine if we're in dark mode for logo color adjustment
+  const { isDarkMode } = useTheme();
 
   return (
     <ThemedBackground>
@@ -2022,8 +2069,8 @@ export function BoardListScreen(): React.JSX.Element {
               fontSize="2xl" 
               fontWeight="extrabold" 
               bgGradient="to-r" 
-              gradientFrom="cyan.400" 
-              gradientTo="purple.500"
+              gradientFrom={isDarkMode ? "cyan.400" : "yellow.300"}
+              gradientTo={isDarkMode ? "purple.500" : "orange.400"}
               bgClip="text"
               letterSpacing="tight"
               css={{
@@ -2407,6 +2454,19 @@ export function BoardListScreen(): React.JSX.Element {
           message={confirmDialog.message}
           variant={confirmDialog.variant}
           confirmText={confirmDialog.variant === 'danger' ? 'Delete' : 'Confirm'}
+        />
+
+        {/* Pinned Task Preview Modal */}
+        <TaskPreviewModal
+          visible={!!previewTask}
+          task={previewTask}
+          epics={epics}
+          allTasks={allTasks}
+          sectionName={previewSectionName}
+          onClose={() => setPreviewTask(null)}
+          onViewDetails={handleViewPinnedTaskDetails}
+          onEpicPress={handlePreviewEpicPress}
+          onTaskPress={handlePreviewTaskPress}
         />
         </Box>
       </ScrollView>

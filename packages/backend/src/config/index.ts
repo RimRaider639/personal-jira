@@ -27,6 +27,12 @@ export const config = {
 
   // CORS
   corsOrigin: process.env['CORS_ORIGIN'] || 'http://localhost:8081',
+
+  // Firebase
+  firebase: {
+    projectId: process.env['FIREBASE_PROJECT_ID'] || '',
+    serviceAccountKey: process.env['FIREBASE_SERVICE_ACCOUNT_KEY'] || '',
+  },
 };
 
 export default config;

@@ -35,37 +35,6 @@ function getMilestoneForStreak(days: number): StreakMilestone | null {
 }
 
 /**
- * Get the start of day in user's timezone
- * @param date - The date to get start of day for
- * @param timezoneOffset - Timezone offset in minutes (from getTimezoneOffset(), negative for east of UTC)
- */
-function getStartOfDayInTimezone(date: Date, timezoneOffset: number): Date {
-  // Create a new date object
-  const d = new Date(date);
-  
-  // Get the UTC time
-  const utcTime = d.getTime();
-  
-  // Apply timezone offset to get local time
-  // Note: timezoneOffset is negative for east of UTC (e.g., IST is -330)
-  const localTime = utcTime - (timezoneOffset * 60 * 1000);
-  
-  // Create a date from local time
-  const localDate = new Date(localTime);
-  
-  // Get the start of day in local time (midnight)
-  const startOfLocalDay = new Date(Date.UTC(
-    localDate.getUTCFullYear(),
-    localDate.getUTCMonth(),
-    localDate.getUTCDate(),
-    0, 0, 0, 0
-  ));
-  
-  // Convert back to UTC by adding the offset
-  return new Date(startOfLocalDay.getTime() + (timezoneOffset * 60 * 1000));
-}
-
-/**
  * Get the date string (YYYY-MM-DD) in user's timezone
  */
 function getDateStringInTimezone(date: Date, timezoneOffset: number): string {

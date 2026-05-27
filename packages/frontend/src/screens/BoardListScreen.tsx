@@ -58,6 +58,8 @@ import {
   fetchStreak,
   checkIn,
   clearPendingMilestone,
+  linkGoogleAccount,
+  clearLinkAccountStatus,
 } from '@/store/slices';
 import {
   selectAllBoards,
@@ -1944,6 +1946,12 @@ export function BoardListScreen(): React.JSX.Element {
   const streak = useAppSelector((state) => state.streak.streak);
   const pendingMilestone = useAppSelector((state) => state.streak.pendingMilestone);
   const isCheckingIn = useAppSelector((state) => state.streak.isLoading);
+  
+  // Auth state for account linking
+  const authProvider = useAppSelector((state) => state.auth.authProvider);
+  const isLinkingAccount = useAppSelector((state) => state.auth.isLinkingAccount);
+  const linkAccountSuccess = useAppSelector((state) => state.auth.linkAccountSuccess);
+  const linkAccountError = useAppSelector((state) => state.auth.linkAccountError);
 
   // Modal states
   const createBoardModal = useDisclosure();
@@ -2381,6 +2389,18 @@ export function BoardListScreen(): React.JSX.Element {
     });
   }, [dispatch]);
 
+  /**
+   * Handle linking Google account to existing email/password account
+   * 
+   * Validates: Requirements 3.2, 3.6, 7.5
+   */
+  const handleLinkGoogle = useCallback(() => {
+    // Clear any previous status messages
+    dispatch(clearLinkAccountStatus());
+    // Initiate the Google account linking flow
+    dispatch(linkGoogleAccount());
+  }, [dispatch]);
+
   const handleClearError = useCallback(() => {
     dispatch(clearBoardsError());
   }, [dispatch]);
@@ -2627,7 +2647,16 @@ export function BoardListScreen(): React.JSX.Element {
               onSelectEpic={handleEpicPressById}
             />
             <DarkModeToggle />
-            <ProfileAvatar displayName={user?.displayName || 'User'} onLogout={handleLogout} />
+            <ProfileAvatar 
+              displayName={user?.displayName || 'User'} 
+              email={user?.email}
+              authProvider={authProvider}
+              onLogout={handleLogout}
+              onLinkGoogle={handleLinkGoogle}
+              isLinkingAccount={isLinkingAccount}
+              linkAccountSuccess={linkAccountSuccess}
+              linkAccountError={linkAccountError}
+            />
           </HStack>
         </Flex>
 

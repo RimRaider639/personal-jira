@@ -16,9 +16,15 @@ export {
   setToken,
   setUser,
   resetAuth,
+  setFirebaseInitialized,
+  setFirebaseError,
+  clearLinkAccountStatus,
   login,
   register,
   logout,
+  loginWithGoogle,
+  checkFirebaseSession,
+  linkGoogleAccount,
 } from './authSlice';
 export type { AuthState } from './authSlice';
 

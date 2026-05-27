@@ -390,6 +390,21 @@ export const selectAuthLoading = (state: RootState) => state.auth.isLoading;
  */
 export const selectAuthError = (state: RootState) => state.auth.error;
 
+/**
+ * Select Firebase error
+ */
+export const selectFirebaseError = (state: RootState) => state.auth.firebaseError;
+
+/**
+ * Select auth provider
+ */
+export const selectAuthProvider = (state: RootState) => state.auth.authProvider;
+
+/**
+ * Select if Firebase is initialized
+ */
+export const selectFirebaseInitialized = (state: RootState) => state.auth.firebaseInitialized;
+
 // ==================== Notes Selectors ====================
 
 /**

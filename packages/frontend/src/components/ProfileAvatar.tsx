@@ -6,23 +6,40 @@ import {
   TouchableOpacity,
   Modal,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
-import { FiKey, FiLogOut } from 'react-icons/fi';
+import { FiKey, FiLogOut, FiLink } from 'react-icons/fi';
+import { FcGoogle } from 'react-icons/fc';
 import { useTheme } from '@/theme/ThemeContext';
+import type { AuthProvider } from '@kanban/shared';
 
 interface ProfileAvatarProps {
   displayName: string;
+  email?: string;
+  authProvider?: AuthProvider | null;
   onLogout: () => void;
   onChangePassword?: () => void;
+  onLinkGoogle?: () => void;
+  isLinkingAccount?: boolean;
+  linkAccountSuccess?: string | null;
+  linkAccountError?: string | null;
 }
 
 /**
  * ProfileAvatar - Circular avatar with user initials and dropdown menu
+ * 
+ * Validates: Requirements 3.2, 3.6, 7.5
  */
 export function ProfileAvatar({
   displayName,
+  email,
+  authProvider,
   onLogout,
   onChangePassword,
+  onLinkGoogle,
+  isLinkingAccount,
+  linkAccountSuccess,
+  linkAccountError,
 }: ProfileAvatarProps): React.JSX.Element {
   const { colors } = useTheme();
   const [menuVisible, setMenuVisible] = useState(false);
@@ -112,13 +129,68 @@ export function ProfileAvatar({
               <View style={[styles.menuAvatar, { backgroundColor: avatarColor }]}>
                 <Text style={styles.menuInitials}>{initials || '?'}</Text>
               </View>
-              <Text style={[styles.menuDisplayName, { color: colors.text }]} numberOfLines={1}>
-                {displayName}
-              </Text>
+              <View style={styles.menuHeaderText}>
+                <Text style={[styles.menuDisplayName, { color: colors.text }]} numberOfLines={1}>
+                  {displayName}
+                </Text>
+                {email && (
+                  <Text style={[styles.menuEmail, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {email}
+                  </Text>
+                )}
+                {authProvider && (
+                  <View style={styles.authProviderBadge}>
+                    {authProvider === 'google' && <FcGoogle size={12} />}
+                    {authProvider === 'linked' && <FiLink size={12} color={colors.primary} />}
+                    <Text style={[styles.authProviderText, { color: colors.textSecondary }]}>
+                      {authProvider === 'email' ? 'Email' : authProvider === 'google' ? 'Google' : 'Linked'}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
+
+            {/* Success/Error feedback for account linking */}
+            {linkAccountSuccess && (
+              <View style={[styles.feedbackContainer, styles.successFeedback]}>
+                <Text style={[styles.feedbackText, { color: '#16a34a' }]}>
+                  {linkAccountSuccess}
+                </Text>
+              </View>
+            )}
+            {linkAccountError && (
+              <View style={[styles.feedbackContainer, styles.errorFeedback]}>
+                <Text style={[styles.feedbackText, { color: colors.error }]}>
+                  {linkAccountError}
+                </Text>
+              </View>
+            )}
 
             {/* Menu items */}
             <View style={styles.menuItems}>
+              {/* Link Google Account - only show for email-only users */}
+              {authProvider === 'email' && onLinkGoogle && (
+                <TouchableOpacity
+                  style={[styles.menuItem, isLinkingAccount && styles.menuItemDisabled]}
+                  onPress={() => {
+                    if (!isLinkingAccount) {
+                      onLinkGoogle();
+                    }
+                  }}
+                  disabled={isLinkingAccount}
+                >
+                  <View style={styles.menuItemIcon}>
+                    {isLinkingAccount ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <FcGoogle size={16} />
+                    )}
+                  </View>
+                  <Text style={[styles.menuItemText, { color: colors.text }]}>
+                    {isLinkingAccount ? 'Linking...' : 'Link Google Account'}
+                  </Text>
+                </TouchableOpacity>
+              )}
               {onChangePassword && (
                 <TouchableOpacity
                   style={styles.menuItem}
@@ -203,6 +275,36 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flex: 1,
   },
+  menuHeaderText: {
+    flex: 1,
+  },
+  menuEmail: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  authProviderBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 4,
+  },
+  authProviderText: {
+    fontSize: 11,
+    textTransform: 'capitalize',
+  },
+  feedbackContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  successFeedback: {
+    backgroundColor: '#dcfce7',
+  },
+  errorFeedback: {
+    backgroundColor: '#fee2e2',
+  },
+  feedbackText: {
+    fontSize: 13,
+  },
   menuItems: {
     paddingVertical: 8,
   },
@@ -211,6 +313,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
+  },
+  menuItemDisabled: {
+    opacity: 0.6,
   },
   menuItemIcon: {
     width: 24,

@@ -11,6 +11,7 @@ import { RootNavigator } from '@/navigation/RootNavigator';
 import { ThemeProvider, useTheme } from '@/theme/ThemeContext';
 import { system } from '@/theme/chakraTheme';
 import { setupApiInterceptors } from '@/services/api';
+import { AuthInitializer } from '@/components/AuthInitializer';
 
 // Enable experimental web implementation for gesture handler
 // This is required for drag and drop to work on web
@@ -64,7 +65,9 @@ export default function App(): React.JSX.Element {
               <ChakraColorModeSync>
                 <SafeAreaProvider>
                   <StatusBar style="auto" />
-                  <RootNavigator />
+                  <AuthInitializer>
+                    <RootNavigator />
+                  </AuthInitializer>
                 </SafeAreaProvider>
               </ChakraColorModeSync>
             </ThemeProvider>

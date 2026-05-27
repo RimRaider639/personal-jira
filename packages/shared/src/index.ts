@@ -8,11 +8,23 @@ export {
   MAX_STORY_POINTS,
 } from './validation';
 
+// Auth Provider Types
+export type AuthProvider = 'email' | 'google' | 'linked';
+
+// Firebase Auth Error Types
+export type FirebaseAuthErrorType =
+  | 'popup-blocked'
+  | 'account-disabled'
+  | 'network-error'
+  | 'cancelled'
+  | 'unknown';
+
 // Core Entity Types
 export interface User {
   id: string;
   email: string;
   displayName: string;
+  authProvider: AuthProvider;
   createdAt: string;
   updatedAt: string;
 }
@@ -231,6 +243,20 @@ export interface RegisterRequest {
 export interface AuthResponse {
   user: User;
   token: string;
+}
+
+// Firebase Auth Request Types
+export interface FirebaseAuthRequest {
+  idToken: string;
+}
+
+export interface LinkGoogleRequest {
+  idToken: string;
+}
+
+export interface LinkGoogleResponse {
+  message: string;
+  user: User;
 }
 
 // Activity Types

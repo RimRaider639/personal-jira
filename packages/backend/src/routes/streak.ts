@@ -7,6 +7,12 @@ import type { UserStreak, StreakMilestone, CheckInResponse } from '@kanban/share
 const router = Router();
 
 /**
+ * Default timezone offset in minutes (IST = UTC+5:30 = -330 minutes)
+ * Note: getTimezoneOffset() returns the opposite sign, so IST would be -330
+ */
+const DEFAULT_TIMEZONE_OFFSET = -330; // IST (UTC+5:30)
+
+/**
  * Streak milestones - achievements for reaching certain streak lengths
  */
 const STREAK_MILESTONES: StreakMilestone[] = [
@@ -29,23 +35,88 @@ function getMilestoneForStreak(days: number): StreakMilestone | null {
 }
 
 /**
- * Check if two dates are the same day (in UTC)
+ * Get the start of day in user's timezone
+ * @param date - The date to get start of day for
+ * @param timezoneOffset - Timezone offset in minutes (from getTimezoneOffset(), negative for east of UTC)
  */
-function isSameDay(date1: Date, date2: Date): boolean {
-  return (
-    date1.getUTCFullYear() === date2.getUTCFullYear() &&
-    date1.getUTCMonth() === date2.getUTCMonth() &&
-    date1.getUTCDate() === date2.getUTCDate()
-  );
+function getStartOfDayInTimezone(date: Date, timezoneOffset: number): Date {
+  // Create a new date object
+  const d = new Date(date);
+  
+  // Get the UTC time
+  const utcTime = d.getTime();
+  
+  // Apply timezone offset to get local time
+  // Note: timezoneOffset is negative for east of UTC (e.g., IST is -330)
+  const localTime = utcTime - (timezoneOffset * 60 * 1000);
+  
+  // Create a date from local time
+  const localDate = new Date(localTime);
+  
+  // Get the start of day in local time (midnight)
+  const startOfLocalDay = new Date(Date.UTC(
+    localDate.getUTCFullYear(),
+    localDate.getUTCMonth(),
+    localDate.getUTCDate(),
+    0, 0, 0, 0
+  ));
+  
+  // Convert back to UTC by adding the offset
+  return new Date(startOfLocalDay.getTime() + (timezoneOffset * 60 * 1000));
 }
 
 /**
- * Check if date1 is exactly one day before date2 (consecutive days)
+ * Get the date string (YYYY-MM-DD) in user's timezone
  */
-function isConsecutiveDay(previousDate: Date, currentDate: Date): boolean {
-  const prev = new Date(previousDate);
+function getDateStringInTimezone(date: Date, timezoneOffset: number): string {
+  const utcTime = date.getTime();
+  const localTime = utcTime - (timezoneOffset * 60 * 1000);
+  const localDate = new Date(localTime);
+  
+  const year = localDate.getUTCFullYear();
+  const month = String(localDate.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(localDate.getUTCDate()).padStart(2, '0');
+  
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Check if two dates are the same day in user's timezone
+ */
+function isSameDayInTimezone(date1: Date, date2: Date, timezoneOffset: number): boolean {
+  return getDateStringInTimezone(date1, timezoneOffset) === getDateStringInTimezone(date2, timezoneOffset);
+}
+
+/**
+ * Check if date1 is exactly one day before date2 (consecutive days) in user's timezone
+ */
+function isConsecutiveDayInTimezone(previousDate: Date, currentDate: Date, timezoneOffset: number): boolean {
+  const prevDateStr = getDateStringInTimezone(previousDate, timezoneOffset);
+  const currDateStr = getDateStringInTimezone(currentDate, timezoneOffset);
+  
+  // Parse the date strings and check if they're consecutive
+  const prev = new Date(prevDateStr + 'T00:00:00Z');
+  const curr = new Date(currDateStr + 'T00:00:00Z');
+  
+  // Add one day to previous date
   prev.setUTCDate(prev.getUTCDate() + 1);
-  return isSameDay(prev, currentDate);
+  
+  return prev.getTime() === curr.getTime();
+}
+
+/**
+ * Parse timezone offset from request
+ * Accepts: header 'x-timezone-offset' with value in minutes (e.g., -330 for IST)
+ */
+function getTimezoneOffset(req: AuthenticatedRequest): number {
+  const headerValue = req.headers['x-timezone-offset'];
+  if (headerValue) {
+    const offset = parseInt(String(headerValue), 10);
+    if (!isNaN(offset) && offset >= -720 && offset <= 840) {
+      return offset;
+    }
+  }
+  return DEFAULT_TIMEZONE_OFFSET; // Default to IST
 }
 
 /**
@@ -67,20 +138,21 @@ router.get(
         throw createError('User not found', 404);
       }
 
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
+      const timezoneOffset = getTimezoneOffset(req);
+      const now = new Date();
 
-      // Check if user has checked in today
+      // Check if user has checked in today (in user's timezone)
       const todayCheckedIn = user.lastCheckInDate 
-        ? isSameDay(user.lastCheckInDate, today)
+        ? isSameDayInTimezone(user.lastCheckInDate, now, timezoneOffset)
         : false;
 
-      // Check if streak is still valid (checked in yesterday or today)
+      // Check if streak is still valid (checked in yesterday or today in user's timezone)
       let currentStreak = user.currentStreak;
       if (user.lastCheckInDate && !todayCheckedIn) {
-        const yesterday = new Date(today);
-        yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-        if (!isSameDay(user.lastCheckInDate, yesterday)) {
+        // Check if last check-in was yesterday
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        if (!isSameDayInTimezone(user.lastCheckInDate, yesterday, timezoneOffset)) {
           // Streak is broken - reset it
           currentStreak = 0;
         }
@@ -123,11 +195,11 @@ router.post(
         throw createError('User not found', 404);
       }
 
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
+      const timezoneOffset = getTimezoneOffset(req);
+      const now = new Date();
 
-      // Check if already checked in today
-      if (user.lastCheckInDate && isSameDay(user.lastCheckInDate, today)) {
+      // Check if already checked in today (in user's timezone)
+      if (user.lastCheckInDate && isSameDayInTimezone(user.lastCheckInDate, now, timezoneOffset)) {
         const streak: UserStreak = {
           currentStreak: user.currentStreak,
           longestStreak: user.longestStreak,
@@ -159,7 +231,7 @@ router.post(
         // First ever check-in
         newStreak = 1;
         isNewStreak = true;
-      } else if (isConsecutiveDay(user.lastCheckInDate, today)) {
+      } else if (isConsecutiveDayInTimezone(user.lastCheckInDate, now, timezoneOffset)) {
         // Consecutive day - increment streak
         newStreak = user.currentStreak + 1;
       } else {
@@ -172,10 +244,10 @@ router.post(
       // Update longest streak if needed
       const newLongestStreak = Math.max(user.longestStreak, newStreak);
 
-      // Update user
+      // Update user - store the actual check-in time (not normalized)
       user.currentStreak = newStreak;
       user.longestStreak = newLongestStreak;
-      user.lastCheckInDate = today;
+      user.lastCheckInDate = now;
       user.totalCheckIns = (user.totalCheckIns || 0) + 1;
       await user.save();
 
@@ -185,7 +257,7 @@ router.post(
       const streak: UserStreak = {
         currentStreak: newStreak,
         longestStreak: newLongestStreak,
-        lastCheckInDate: today.toISOString(),
+        lastCheckInDate: now.toISOString(),
         totalCheckIns: user.totalCheckIns,
         todayCheckedIn: true,
       };

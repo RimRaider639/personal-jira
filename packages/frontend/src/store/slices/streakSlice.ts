@@ -25,6 +25,16 @@ const initialState: StreakState = {
 };
 
 /**
+ * Get timezone offset header for streak API calls
+ * Returns the user's local timezone offset in minutes
+ * Note: getTimezoneOffset() returns minutes, negative for east of UTC
+ */
+const getTimezoneHeader = (): Record<string, string> => {
+  const offset = new Date().getTimezoneOffset();
+  return { 'x-timezone-offset': String(offset) };
+};
+
+/**
  * Async thunk for fetching user's streak
  */
 export const fetchStreak = createAsyncThunk<
@@ -33,7 +43,9 @@ export const fetchStreak = createAsyncThunk<
   { rejectValue: string }
 >('streak/fetch', async (_, { rejectWithValue }) => {
   try {
-    const response = await apiClient.get<{ data: UserStreak }>('/streak');
+    const response = await apiClient.get<{ data: UserStreak }>('/streak', {
+      headers: getTimezoneHeader(),
+    });
     return response.data.data;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to fetch streak';
@@ -50,7 +62,9 @@ export const checkIn = createAsyncThunk<
   { rejectValue: string }
 >('streak/checkIn', async (_, { rejectWithValue }) => {
   try {
-    const response = await apiClient.post<{ data: CheckInResponse }>('/streak/checkin');
+    const response = await apiClient.post<{ data: CheckInResponse }>('/streak/checkin', undefined, {
+      headers: getTimezoneHeader(),
+    });
     return response.data.data;
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to check in';
